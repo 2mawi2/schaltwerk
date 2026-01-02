@@ -1198,6 +1198,8 @@ fn main() {
             schaltwerk_core_get_orchestrator_agent_type,
             schaltwerk_core_get_font_sizes,
             schaltwerk_core_set_font_sizes,
+            schaltwerk_core_get_theme_mode,
+            schaltwerk_core_set_theme_mode,
             schaltwerk_core_create_spec_session,
             schaltwerk_core_update_session_state,
             schaltwerk_core_update_spec_content,
@@ -1322,7 +1324,9 @@ fn main() {
             get_amp_mcp_servers,
             set_amp_mcp_servers,
             get_agent_command_prefix,
-            set_agent_command_prefix
+            set_agent_command_prefix,
+            // Window commands
+            set_native_window_background_color
         ])
         .setup(move |app| {
             if ATTENTION_REGISTRY.get().is_none() {

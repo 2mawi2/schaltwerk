@@ -2,7 +2,6 @@ import { memo } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 import { getSelectableLineIdentity } from './lineSelection'
 
 interface DiffLineRowProps {
@@ -42,22 +41,28 @@ function DiffLineRowComponent({
   const showFocusIndicator = isHovered || isKeyboardFocused
   if (line.isCollapsible) {
     return (
-      <tr className="hover:bg-slate-900/50 group">
+      <tr style={{ backgroundColor: 'var(--color-bg-hover)' }} className="group">
         <td className="w-10 text-center select-none">
           <button
             onClick={onToggleCollapse}
-            className="p-1 text-slate-600 hover:text-slate-400"
+            className="p-1"
+            style={{ color: 'var(--color-text-tertiary)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
             aria-label={isCollapsed ? "Expand" : "Collapse"}
           >
             {isCollapsed ? <VscChevronRight /> : <VscChevronDown />}
           </button>
         </td>
-        <td className="w-12 px-2 py-0.5 text-slate-600 text-center select-none">...</td>
-        <td className="w-12 px-2 py-0.5 text-slate-600 text-center select-none">...</td>
+        <td className="w-12 px-2 py-0.5 text-center select-none" style={{ color: 'var(--color-text-tertiary)' }}>...</td>
+        <td className="w-12 px-2 py-0.5 text-center select-none" style={{ color: 'var(--color-text-tertiary)' }}>...</td>
         <td colSpan={2} className="px-2 py-1">
           <button
             onClick={onToggleCollapse}
-            className="text-xs text-slate-500 hover:text-slate-300"
+            className="text-xs"
+            style={{ color: 'var(--color-text-secondary)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
           >
             {line.collapsedCount} unchanged lines
           </button>
@@ -116,22 +121,44 @@ function DiffLineRowComponent({
     onLineMouseDown({ lineNum, side, filePath, event })
   }
 
+  const getRowStyles = () => {
+    if (isSelected) {
+      return { backgroundColor: 'var(--color-accent-cyan-bg)' }
+    }
+    if (isKeyboardFocused) {
+      return { backgroundColor: 'var(--color-bg-hover)' }
+    }
+    if (line.type === 'added') {
+      return { backgroundColor: 'var(--color-accent-green-bg)' }
+    }
+    if (line.type === 'removed') {
+      return { backgroundColor: 'var(--color-accent-red-bg)' }
+    }
+    return {}
+  }
+
   return (
     <tr
       className={clsx(
         "group relative",
-        line.type === 'added' && "bg-green-900/30 hover:bg-green-900/40",
-        line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40",
-        line.type === 'unchanged' && "hover:bg-slate-800/50",
-        isSelected && "!bg-cyan-400/30 hover:!bg-cyan-400/40",
-        showFocusIndicator && "ring-1 ring-cyan-300/50",
-        isKeyboardFocused && "bg-slate-800/70",
+        showFocusIndicator && "ring-1 ring-accent-blue/50",
         lineNum && onLineMouseDown ? 'cursor-pointer' : 'cursor-default'
       )}
+      style={getRowStyles()}
+      onMouseEnter={(e) => {
+        handleMouseEnter()
+        if (!isSelected && !isKeyboardFocused) {
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+        }
+      }}
+      onMouseLeave={(e) => {
+        handleMouseLeave()
+        if (!isSelected && !isKeyboardFocused) {
+          e.currentTarget.style.backgroundColor = getRowStyles().backgroundColor || ''
+        }
+      }}
       data-line-num={lineNum}
       data-side={side}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       onMouseDown={handleRowMouseDown}
       onMouseUp={(event) => onLineMouseUp?.({ event, filePath })}
     >
@@ -143,12 +170,12 @@ function DiffLineRowComponent({
             onMouseEnter={() => onLineMouseEnter?.({ lineNum, side, filePath })}
             onMouseUp={(e) => onLineMouseUp?.({ event: e, filePath })}
             className={clsx(
-              "p-1 rounded text-white",
+              "p-1 rounded",
               showFocusIndicator || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             )}
             style={{
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.primary,
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-inverse)',
             }}
             aria-label={`Select line ${lineNum}`}
             title="Click to select line, drag to select range, or press Enter to comment"
@@ -160,24 +187,27 @@ function DiffLineRowComponent({
       
       {/* Line numbers - show old number for removed lines, new for added/unchanged */}
       <td
-        className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono"
+        className="w-12 px-2 py-0.5 text-right select-none text-xs font-mono"
+        style={{ color: 'var(--color-text-tertiary)' }}
         onContextMenu={handleOldLineContextMenu}
       >
         {line.type === 'removed' ? line.oldLineNumber : ''}
       </td>
       <td
-        className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono"
+        className="w-12 px-2 py-0.5 text-right select-none text-xs font-mono"
+        style={{ color: 'var(--color-text-tertiary)' }}
         onContextMenu={handleNewLineContextMenu}
       >
         {line.type !== 'removed' ? (line.newLineNumber || line.oldLineNumber) : ''}
       </td>
       
       {/* Change indicator */}
-      <td className={clsx(
-        "w-6 text-center select-none font-mono font-bold",
-        line.type === 'added' && "text-green-400",
-        line.type === 'removed' && "text-red-400"
-      )}>
+      <td
+        className="w-6 text-center select-none font-mono font-bold"
+        style={{
+          color: line.type === 'added' ? 'var(--color-accent-green)' : line.type === 'removed' ? 'var(--color-accent-red)' : 'var(--color-text-primary)'
+        }}
+      >
         {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ''}
       </td>
       
@@ -187,10 +217,10 @@ function DiffLineRowComponent({
         onContextMenu={handleCodeContextMenu}
       >
         {line.type === 'added' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-green-400" />
+          <div className="absolute left-0 top-0 w-1 h-full" style={{ backgroundColor: 'var(--color-accent-green)' }} />
         )}
         {line.type === 'removed' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-red-400" />
+          <div className="absolute left-0 top-0 w-1 h-full" style={{ backgroundColor: 'var(--color-accent-red)' }} />
         )}
         {highlightedContent ? (
           <code
@@ -198,7 +228,7 @@ function DiffLineRowComponent({
             dangerouslySetInnerHTML={{ __html: highlightedContent }}
           />
         ) : (
-          <code className="text-slate-200 block max-w-full whitespace-pre-wrap break-words diff-line-code">
+          <code className="block max-w-full whitespace-pre-wrap break-words diff-line-code" style={{ color: 'var(--color-text-primary)' }}>
             {contentForCopy}
           </code>
         )}

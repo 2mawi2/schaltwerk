@@ -6,6 +6,7 @@ import tsparser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
 import noEmptyCatchHandlers from './eslint-rules/no-empty-catch-handlers.js';
 import noTailwindFontSizes from './eslint-rules/no-tailwind-font-sizes.js';
+import noHardcodedColors from './eslint-rules/no-hardcoded-colors.js';
 import modalFocusProtection from './eslint-rules/modal-focus-protection.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,7 @@ const localPlugin = {
   rules: {
     'no-empty-catch-handlers': noEmptyCatchHandlers,
     'no-tailwind-font-sizes': noTailwindFontSizes,
+    'no-hardcoded-colors': noHardcodedColors,
     'modal-focus-protection': modalFocusProtection,
   },
 };
@@ -102,6 +104,7 @@ export default [
       'no-undef': 'off', // Turn off since we define globals above
       'no-empty': ['error', { allowEmptyCatch: false }], // Disallow empty catch blocks
       'local/no-empty-catch-handlers': 'error', // Disallow empty .catch() handlers
+      'local/no-hardcoded-colors': 'warn', // Warn on hardcoded colors in styles (for theme support)
     },
   },
   {

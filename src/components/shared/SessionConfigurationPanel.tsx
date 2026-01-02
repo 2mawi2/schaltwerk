@@ -309,16 +309,16 @@ export function SessionConfigurationPanel({
             <div className="flex items-center gap-2 text-sm">
                 <div className="flex items-center gap-1.5">
                     {!hideLabels && (
-                        <span style={{ color: theme.colors.text.secondary }}>Branch:</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>Branch:</span>
                     )}
                     {loadingBranches ? (
                         <div 
                             className="px-2 py-1 rounded text-xs"
                             style={{ 
-                                backgroundColor: theme.colors.background.elevated
+                                backgroundColor: 'var(--color-bg-elevated)'
                             }}
                         >
-                            <span className="text-slate-500 text-xs">Loading...</span>
+                            <span className="text-muted text-xs">Loading...</span>
                         </div>
                     ) : (
                         <div className="min-w-[120px]">
@@ -337,7 +337,7 @@ export function SessionConfigurationPanel({
 
                 <div className="flex items-center gap-1.5">
                     {!hideLabels && (
-                        <span style={{ color: theme.colors.text.secondary }}>Agent:</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>Agent:</span>
                     )}
                     <div className="min-w-[90px]">
                         <ModelSelector
@@ -365,16 +365,17 @@ export function SessionConfigurationPanel({
             <div className="flex flex-col gap-3">
                 <div data-onboarding="base-branch-selector">
                     <div className="flex items-center justify-between mb-1">
-                        <label className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                        <label className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                             {useExistingBranch ? 'Existing branch' : 'Base branch'}
                         </label>
-                        <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${branchError ? 'text-red-400' : ''}`} style={branchError ? undefined : { color: theme.colors.text.secondary }}>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer" style={{ color: branchError ? 'var(--color-accent-red)' : 'var(--color-text-secondary)' }}>
                             <input
                                 type="checkbox"
                                 checked={useExistingBranch}
                                 onChange={(e) => handleUseExistingBranchChange(e.target.checked)}
                                 disabled={disabled}
-                                className={`rounded ${branchError ? 'accent-red-500' : ''}`}
+                                className="rounded"
+                                style={branchError ? { accentColor: 'var(--color-accent-red)' } : undefined}
                             />
                             <span>Use existing branch</span>
                         </label>
@@ -383,11 +384,11 @@ export function SessionConfigurationPanel({
                         <div
                             className="w-full rounded px-3 py-2 border flex items-center justify-center"
                             style={{
-                                backgroundColor: theme.colors.background.elevated,
-                                borderColor: theme.colors.border.default
+                                backgroundColor: 'var(--color-bg-elevated)',
+                                borderColor: 'var(--color-border-default)'
                             }}
                         >
-                            <span className="text-slate-500 text-xs">Loading...</span>
+                            <span className="text-muted text-xs">Loading...</span>
                         </div>
                     ) : (
                         <BranchAutocomplete
@@ -402,13 +403,13 @@ export function SessionConfigurationPanel({
                     )}
                     {branchError ? (
                         <div className="flex items-start gap-2 mt-1">
-                            <svg className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--color-accent-red)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <p className="text-xs text-red-400">{branchError}</p>
+                            <p className="text-xs" style={{ color: 'var(--color-accent-red)' }}>{branchError}</p>
                         </div>
                     ) : (
-                        <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {useExistingBranch
                                 ? 'Branch to check out directly (must not be in use by another worktree)'
                                 : 'Existing branch to create the new worktree from'}
@@ -418,7 +419,7 @@ export function SessionConfigurationPanel({
 
                 {!useExistingBranch && (
                     <div>
-                        <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
+                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
                             Branch name (optional)
                         </label>
                         <input
@@ -426,14 +427,14 @@ export function SessionConfigurationPanel({
                             onChange={(e) => handleCustomBranchChange(e.target.value)}
                             className="w-full rounded px-3 py-2 border"
                             style={{
-                                backgroundColor: theme.colors.background.elevated,
-                                color: theme.colors.text.primary,
-                                borderColor: theme.colors.border.default
+                                backgroundColor: 'var(--color-bg-elevated)',
+                                color: 'var(--color-text-primary)',
+                                borderColor: 'var(--color-border-default)'
                             }}
                             placeholder={branchPlaceholder}
                             disabled={disabled}
                         />
-                        <p className="text-xs mt-1" style={{ color: theme.colors.text.muted }}>
+                        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             New branch name for this session. Leave empty to auto-generate: {branchPlaceholder}
                         </p>
                     </div>
@@ -442,7 +443,7 @@ export function SessionConfigurationPanel({
 
             {!hideAgentType && (
                 <div>
-                    <label className="block text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
+                    <label className="block text-sm mb-2" style={{ color: 'var(--color-text-secondary)' }}>
                         Agent
                     </label>
                     <div className="space-y-3">
@@ -469,7 +470,7 @@ export function SessionConfigurationPanel({
                             />
                         )}
                     </div>
-                    <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
+                    <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
                         AI agent to use for this session
                     </p>
                 </div>
@@ -534,7 +535,7 @@ function CodexModelSelector({
                         <span className="flex flex-col text-left">
                             <span>{meta?.label ?? option}</span>
                             {meta?.description && (
-                                <span className="text-xs" style={{ color: theme.colors.text.muted }}>
+                                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                                     {meta.description}
                                 </span>
                             )}
@@ -558,7 +559,7 @@ function CodexModelSelector({
                 label: (
                     <span className="flex flex-col text-left">
                         <span>{option.label}</span>
-                        <span className="text-xs" style={{ color: theme.colors.text.muted }}>
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                             {option.description}
                         </span>
                     </span>
@@ -590,7 +591,7 @@ function CodexModelSelector({
     return (
         <div className="space-y-3">
             <div className="space-y-1">
-                <span className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                <span className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Model
                 </span>
                 <Dropdown
@@ -610,9 +611,9 @@ function CodexModelSelector({
                             buttonDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-80'
                         }`}
                         style={{
-                            backgroundColor: theme.colors.background.elevated,
-                            borderColor: dropdownOpen ? theme.colors.border.default : theme.colors.border.subtle,
-                            color: theme.colors.text.primary
+                            backgroundColor: 'var(--color-bg-elevated)',
+                            borderColor: dropdownOpen ? 'var(--color-border-default)' : 'var(--color-border-subtle)',
+                            color: 'var(--color-text-primary)'
                         }}
                         disabled={buttonDisabled}
                     >
@@ -626,7 +627,7 @@ function CodexModelSelector({
             </div>
             {showReasoningSelector && (
                 <div className="space-y-1">
-                    <span className="block text-sm" style={{ color: theme.colors.text.secondary }}>
+                    <span className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                         Reasoning effort
                     </span>
                     <Dropdown
@@ -646,9 +647,9 @@ function CodexModelSelector({
                                     reasoningButtonDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-80'
                                 }`}
                                 style={{
-                                    backgroundColor: theme.colors.background.elevated,
-                                    borderColor: dropdownOpen ? theme.colors.border.default : theme.colors.border.subtle,
-                                    color: theme.colors.text.primary
+                                    backgroundColor: 'var(--color-bg-elevated)',
+                                    borderColor: dropdownOpen ? 'var(--color-border-default)' : 'var(--color-border-subtle)',
+                                    color: 'var(--color-text-primary)'
                                 }}
                                 disabled={reasoningButtonDisabled}
                             >
@@ -660,7 +661,7 @@ function CodexModelSelector({
                                     {showShortcutHint && (
                                         <span
                                             aria-hidden="true"
-                                            style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                            style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}
                                         >
                                             ⌘← · ⌘→
                                         </span>

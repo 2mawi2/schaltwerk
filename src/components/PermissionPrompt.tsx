@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useFolderPermission } from '../hooks/usePermissions'
-import { theme } from '../common/theme'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 
@@ -195,28 +194,34 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
     return (
       <div
         className="fixed inset-0 flex items-center justify-center z-50"
-        style={{ backgroundColor: theme.colors.overlay.backdrop }}
+        style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
       >
         <div
           className="p-6 rounded-lg shadow-xl max-w-md mx-4"
-          style={{ backgroundColor: theme.colors.surface.modal }}
+          style={{ backgroundColor: 'var(--color-surface-modal)' }}
         >
-          <h2 className="text-xl font-semibold mb-4 text-white">Folder Access Required</h2>
-          
-          <p className="text-gray-300 mb-4">
+          <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>Folder Access Required</h2>
+
+          <p className="mb-4" style={{ color: 'var(--color-text-secondary)' }}>
             Schaltwerk needs access to the following folder to manage development sessions and run AI agents:
           </p>
-          
+
           {displayPath && (
-            <div className="mb-4 p-2 bg-gray-800 rounded font-mono text-sm text-gray-200">
+            <div className="mb-4 p-2 rounded font-mono text-sm" style={{
+              backgroundColor: 'var(--color-bg-elevated)',
+              color: 'var(--color-text-primary)'
+            }}>
               {displayPath}
             </div>
           )}
           
           {attemptCount > 0 && (
-            <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded">
-              <p className="text-yellow-200 text-sm">
-                {attemptCount === 1 
+            <div className="mb-4 p-3 rounded border" style={{
+              backgroundColor: 'var(--color-accent-amber-bg)',
+              borderColor: 'var(--color-accent-amber-border)'
+            }}>
+              <p className="text-sm" style={{ color: 'var(--color-accent-amber)' }}>
+                {attemptCount === 1
                   ? "Please click 'OK' in the system permission dialog that appeared."
                   : "If you granted permission, you may need to restart the agent for it to take effect."}
               </p>
@@ -227,16 +232,24 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
               <button
                 onClick={() => { void handleRequestPermission() }}
               disabled={isRetrying}
-              className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 px-4 py-2 bg-accent-green hover:bg-accent-green-dark rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ color: 'var(--color-text-primary)' }}
             >
               {isRetrying ? 'Checking...' : attemptCount === 0 ? 'Grant Permission' : 'Try Again'}
             </button>
-            
+
               {attemptCount > 0 && (
                 <button
                   onClick={() => { void handleRetryCheck() }}
                 disabled={isRetrying}
-                className="px-4 py-2 border border-gray-600 text-gray-300 rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 border rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{
+                  borderColor: 'var(--color-border-subtle)',
+                  color: 'var(--color-text-secondary)',
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
               >
                 Recheck
               </button>
@@ -246,26 +259,26 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           <div
             className="mt-6 p-4 rounded-lg space-y-2"
             style={{
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: `1px solid ${'var(--color-border-subtle)'}`,
             }}
           >
             <h3
               className="text-sm font-semibold"
-              style={{ color: theme.colors.text.primary }}
+              style={{ color: 'var(--color-text-primary)' }}
             >
               Having trouble granting access?
             </h3>
             <p
               className="text-sm leading-relaxed"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
             >
               Enable Documents access for {diagnostics?.appDisplayName ?? 'Schaltwerk'} in System Settings &gt; Privacy &amp; Security &gt; Files and Folders, then return here and click Try Again.
             </p>
             {installLabel && (
               <p
                 className="text-sm"
-                style={{ color: theme.colors.text.secondary }}
+                style={{ color: 'var(--color-text-secondary)' }}
               >
                 Detected install: {installLabel}
               </p>
@@ -273,7 +286,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {installGuidance && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.text.muted }}
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 {installGuidance}
               </p>
@@ -281,7 +294,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {diagnostics && (
               <p
                 className="text-xs break-all"
-                style={{ color: theme.colors.text.muted }}
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 Current executable: {diagnostics.executablePath}
               </p>
@@ -289,7 +302,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {diagnosticsError && (
               <p
                 className="text-xs"
-                style={{ color: theme.colors.status.warning }}
+                style={{ color: 'var(--color-status-warning)' }}
               >
                 {diagnosticsError}
               </p>
@@ -301,9 +314,9 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{
-                  backgroundColor: theme.colors.accent.blue.bg,
-                  border: `1px solid ${theme.colors.accent.blue.border}`,
-                  color: theme.colors.accent.blue.DEFAULT,
+                  backgroundColor: 'var(--color-accent-blue-bg)',
+                  border: `1px solid ${'var(--color-accent-blue-border)'}`,
+                  color: 'var(--color-accent-blue)',
                   opacity: supportBusy && supportBusy !== 'open-settings' ? 0.6 : 1,
                 }}
               >
@@ -314,9 +327,9 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{
-                  backgroundColor: theme.colors.accent.violet.bg,
-                  border: `1px solid ${theme.colors.accent.violet.border}`,
-                  color: theme.colors.accent.violet.DEFAULT,
+                  backgroundColor: 'var(--color-accent-violet-bg)',
+                  border: `1px solid ${'var(--color-accent-violet-border)'}`,
+                  color: 'var(--color-accent-violet)',
                   opacity: supportBusy && supportBusy !== 'reset-permission' ? 0.6 : 1,
                 }}
               >
@@ -327,7 +340,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {supportMessage && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.status.success }}
+                style={{ color: 'var(--color-status-success)' }}
               >
                 {supportMessage}
               </p>
@@ -335,7 +348,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {supportError && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.status.error }}
+                style={{ color: 'var(--color-status-error)' }}
               >
                 {supportError}
               </p>
@@ -344,7 +357,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           
           {attemptCount > 1 && (
             <>
-              <p className="text-gray-400 text-xs mt-4">
+              <p className="text-xs mt-4" style={{ color: 'var(--color-text-tertiary)' }}>
                 If issues persist, try restarting Schaltwerk after granting permission.
               </p>
               {onRetryAgent && hasPermission && (
@@ -353,7 +366,8 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                     onRetryAgent()
                     onPermissionGranted?.()
                   }}
-                  className="mt-2 w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                  className="mt-2 w-full px-4 py-2 bg-accent-green hover:bg-accent-green-dark rounded transition-colors"
+                  style={{ color: 'var(--color-text-primary)' }}
                 >
                   Retry Starting Agent
                 </button>

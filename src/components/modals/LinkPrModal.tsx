@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useGithubPrSearch } from '../../hooks/useGithubPrSearch'
-import { theme } from '../../common/theme'
 import type { GithubPrSummary } from '../../types/githubIssues'
 import { formatRelativeDate } from '../../utils/time'
 import { buildPrUrl } from '../../utils/githubUrls'
@@ -61,16 +60,16 @@ export function LinkPrModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
       <div
-        className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-lg mx-4 flex flex-col"
+        className="bg-tertiary border border-subtle rounded-lg w-full max-w-lg mx-4 flex flex-col"
         style={{ maxHeight: '70vh' }}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-slate-100 mb-3">Link to GitHub PR</h2>
+        <div className="p-4 border-b border-subtle">
+          <h2 className="text-lg font-semibold text-primary mb-3">Link to GitHub PR</h2>
 
           {!integrationReady ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-tertiary">
               GitHub integration not available. Please ensure gh CLI is installed and authenticated.
             </p>
           ) : (
@@ -80,28 +79,28 @@ export function LinkPrModal({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search pull requests..."
               autoFocus
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full px-3 py-2 bg-elevated border border-subtle rounded-md text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-border-focus focus:border-transparent text-sm"
             />
           )}
         </div>
 
         <div className="flex-1 overflow-auto min-h-0">
           {!integrationReady ? (
-            <div className="p-4 text-center text-slate-500 text-sm">
+            <div className="p-4 text-center text-muted text-sm">
               Connect to GitHub to see available PRs
             </div>
           ) : loading ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-tertiary">
               <span
                 className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ borderColor: theme.colors.accent.blue.DEFAULT }}
+                style={{ borderColor: 'var(--color-accent-blue)' }}
               />
               Loading pull requests…
             </div>
           ) : results.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-tertiary">
               <span>No pull requests found</span>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted">
                 {query ? 'Try a different search term' : 'No open PRs in this repository'}
               </span>
             </div>
@@ -112,10 +111,10 @@ export function LinkPrModal({
                 const state = pr.state.toLowerCase()
                 const statusTheme =
                   state === 'open'
-                    ? theme.colors.accent.green
+                    ? { bg: 'var(--color-accent-green-bg)', DEFAULT: 'var(--color-accent-green)' }
                     : state === 'merged'
-                      ? theme.colors.accent.violet
-                      : theme.colors.accent.red
+                      ? { bg: 'var(--color-accent-violet-bg)', DEFAULT: 'var(--color-accent-violet)' }
+                      : { bg: 'var(--color-accent-red-bg)', DEFAULT: 'var(--color-accent-red)' }
 
                 return (
                   <li key={pr.number}>
@@ -126,7 +125,7 @@ export function LinkPrModal({
                       onMouseLeave={() => setHoveredPr(null)}
                       className="w-full text-left px-3 py-2 rounded-md transition-colors"
                       style={{
-                        backgroundColor: isHovered ? theme.colors.background.hover : 'transparent',
+                        backgroundColor: isHovered ? 'var(--color-bg-hover)' : 'transparent',
                       }}
                     >
                       <div className="flex items-start gap-2">
@@ -140,10 +139,10 @@ export function LinkPrModal({
                           {state.charAt(0).toUpperCase() + state.slice(1)}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-slate-200 truncate">
+                          <div className="text-sm font-medium text-secondary truncate">
                             {pr.title}
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
+                          <div className="text-xs text-muted mt-0.5">
                             #{pr.number} · Updated {formatRelativeDate(pr.updatedAt)}
                             {pr.author && ` · ${pr.author}`}
                           </div>
@@ -157,10 +156,10 @@ export function LinkPrModal({
           )}
         </div>
 
-        <div className="p-3 border-t border-slate-700 flex justify-end">
+        <div className="p-3 border-t border-subtle flex justify-end">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            className="px-4 py-2 text-sm font-medium text-secondary bg-elevated border border-subtle rounded-md hover:bg-hover focus:outline-none focus:ring-2 focus:ring-border-focus"
           >
             Cancel
           </button>

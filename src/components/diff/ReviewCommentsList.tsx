@@ -12,23 +12,29 @@ export function ReviewCommentsList({ comments, onDeleteComment }: ReviewComments
       {comments.map((comment) => (
         <div
           key={comment.id}
-          className="group bg-slate-800/50 rounded px-2 py-1.5 hover:bg-slate-800"
+          className="group rounded px-2 py-1.5"
+          style={{ backgroundColor: 'var(--color-bg-elevated)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)' }}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-slate-300 font-mono truncate">
+              <div className="text-xs font-mono truncate" style={{ color: 'var(--color-text-primary)' }}>
                 {comment.fileName}
               </div>
-              <div className="text-[10px] text-slate-500">
+              <div className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>
                 {comment.sideText ? `${comment.lineText} • ${comment.sideText}` : comment.lineText}
               </div>
-              <div className="text-xs text-slate-400 mt-0.5">
+              <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
                 "{comment.commentPreview}"
               </div>
             </div>
             <button
               onClick={() => onDeleteComment(comment.id)}
-              className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400"
+              className="opacity-0 group-hover:opacity-100 p-1"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-red)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
               title="Delete comment"
               aria-label={`Delete comment on ${comment.fileName}`}
             >

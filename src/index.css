@@ -14,6 +14,13 @@ body,
   font-family: var(--font-family-sans);
 }
 
+/* Light mode color scheme for native controls */
+[data-theme="light"],
+[data-theme="light"] body,
+[data-theme="light"] #root {
+  color-scheme: light;
+}
+
 body,
 button,
 input,

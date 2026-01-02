@@ -54,14 +54,14 @@ export function UncommittedIndicator({
                 onClick={(event) => event.stopPropagation()}
                 className={clsx(
                     'inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-xs transition-colors',
-                    'bg-rose-900/30 text-rose-200 border-rose-700/60 hover:bg-rose-800/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60',
+                    'bg-accent-red-dim text-accent-red-text border-accent-red-border hover:bg-accent-red focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-red',
                     className
                 )}
                 aria-label={`Worktree for ${sessionName} has uncommitted changes`}
                 title={tooltipText}
             >
                 <span className="relative flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-red" />
                 </span>
                 <span style={{ lineHeight: theme.lineHeight.badge }}>{label}</span>
             </button>
@@ -73,9 +73,9 @@ export function UncommittedIndicator({
                         top: `${tooltipPosition.top}px`,
                         left: `${tooltipPosition.left}px`,
                         transform: 'translateX(-50%)',
-                        backgroundColor: theme.colors.background.elevated,
-                        color: theme.colors.text.primary,
-                        border: `1px solid ${theme.colors.border.subtle}`,
+                        backgroundColor: 'var(--color-bg-elevated)',
+                        color: 'var(--color-text-primary)',
+                        border: `1px solid ${'var(--color-border-subtle)'}`,
                     }}
                 >
                     {tooltipText.split('\n').map((line, index) => (

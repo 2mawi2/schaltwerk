@@ -20,6 +20,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './hooks/useSelection'
 import { usePreviewPanelEvents } from './hooks/usePreviewPanelEvents'
 import { useSetupScriptApproval } from './hooks/useSetupScriptApproval'
+import { useThemeChangeListener } from './hooks/useThemeChangeListener'
 import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import {
   increaseFontSizesActionAtom,
@@ -28,6 +29,7 @@ import {
   initializeFontSizesActionAtom,
 } from './store/atoms/fontSize'
 import { initializeInlineDiffPreferenceActionAtom } from './store/atoms/diffPreferences'
+import { initializeThemeModeActionAtom } from './store/atoms/themeMode'
 import {
   initializeSelectionEventsActionAtom,
   setProjectPathActionAtom,
@@ -124,6 +126,7 @@ function AppContent() {
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
   const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
   const initializeInlineDiffPreference = useSetAtom(initializeInlineDiffPreferenceActionAtom)
+  const initializeThemeMode = useSetAtom(initializeThemeModeActionAtom)
   const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
   const initializeSessionsEvents = useSetAtom(initializeSessionsEventsActionAtom)
@@ -143,6 +146,7 @@ function AppContent() {
   const [showCliMissingModal, setShowCliMissingModal] = useState(false)
   const [cliModalEverShown, setCliModalEverShown] = useState(false)
   usePreviewPanelEvents()
+  useThemeChangeListener()
   const {
     loading: agentDetectLoading,
     allMissing: agentAllMissing,
@@ -153,7 +157,8 @@ function AppContent() {
   useEffect(() => {
     void initializeFontSizes()
     void initializeInlineDiffPreference()
-  }, [initializeFontSizes, initializeInlineDiffPreference])
+    void initializeThemeMode()
+  }, [initializeFontSizes, initializeInlineDiffPreference, initializeThemeMode])
 
   useEffect(() => {
     void isNotificationPermissionGranted()
@@ -1556,6 +1561,7 @@ function AppContent() {
               epicId: data.epicId ?? null,
               agentType: agentTypeForVersion,
               skipPermissions: data.skipPermissions,
+              prNumber: data.prNumber || null,
             })
 
             const actualSessionName = createdSession?.name ?? versionName
@@ -1892,8 +1898,8 @@ function AppContent() {
                 <div
                   className="h-full border-r overflow-y-auto shrink-0"
                   style={{
-                    backgroundColor: theme.colors.background.secondary,
-                    borderRightColor: theme.colors.border.default,
+                    backgroundColor: 'var(--color-bg-secondary)',
+                    borderRightColor: 'var(--color-border-default)',
                     minWidth: isLeftPanelCollapsed ? `${COLLAPSED_LEFT_PANEL_PX}px` : undefined,
                     maxWidth: isLeftPanelCollapsed ? `${COLLAPSED_LEFT_PANEL_PX}px` : undefined,
                   }}
@@ -1916,20 +1922,20 @@ function AppContent() {
                     {!isLeftPanelCollapsed && (
                     <div
                       className="p-2 border-t"
-                      style={{ borderTopColor: theme.colors.border.default }}
+                      style={{ borderTopColor: 'var(--color-border-default)' }}
                     >
                       <div
                         className="flex items-center justify-between px-1 pb-2 text-[11px]"
-                        style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                        style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}
                         aria-hidden="true"
                       >
                         <span className="flex items-center gap-2">
                           <span>Navigate sessions</span>
-                          <span style={{ color: theme.colors.text.secondary }}>⌘↑ · ⌘↓</span>
+                          <span style={{ color: 'var(--color-text-secondary)' }}>⌘↑ · ⌘↓</span>
                         </span>
                         <span className="flex items-center gap-2">
                           <span>Cycle filters</span>
-                          <span style={{ color: theme.colors.text.secondary }}>⌘← · ⌘→</span>
+                          <span style={{ color: 'var(--color-text-secondary)' }}>⌘← · ⌘→</span>
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -1940,16 +1946,16 @@ function AppContent() {
                           }}
                           className="w-full text-sm px-3 py-2 rounded group transition-colors flex items-center justify-between border"
                           style={{
-                            backgroundColor: `${theme.colors.background.elevated}99`,
-                            color: theme.colors.text.primary,
-                            borderColor: theme.colors.border.subtle
+                            backgroundColor: `${'var(--color-bg-elevated)'}99`,
+                            color: 'var(--color-text-primary)',
+                            borderColor: 'var(--color-border-subtle)'
                           }}
                           data-onboarding="start-agent-button"
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`
+                            e.currentTarget.style.backgroundColor = `${'var(--color-bg-hover)'}99`
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`
+                            e.currentTarget.style.backgroundColor = `${'var(--color-bg-elevated)'}99`
                           }}
                           title={`Start agent (${startShortcut})`}
                         >
@@ -1957,8 +1963,8 @@ function AppContent() {
                           <span
                             className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
                             style={{
-                              backgroundColor: theme.colors.background.secondary,
-                              color: theme.colors.text.secondary
+                              backgroundColor: 'var(--color-bg-secondary)',
+                              color: 'var(--color-text-secondary)'
                             }}
                           >
                             {startShortcut}
@@ -1972,16 +1978,16 @@ function AppContent() {
                           }}
                           className="w-full text-sm px-3 py-2 rounded group border transition-colors flex items-center justify-between"
                           style={{
-                            backgroundColor: theme.colors.accent.amber.bg,
-                            borderColor: theme.colors.accent.amber.border,
-                            color: theme.colors.text.primary
+                            backgroundColor: 'var(--color-accent-amber-bg)',
+                            borderColor: 'var(--color-accent-amber-border)',
+                            color: 'var(--color-text-primary)'
                           }}
                           data-onboarding="create-spec-button"
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
+                            e.currentTarget.style.backgroundColor = `${'var(--color-accent-amber)'}33`
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
+                            e.currentTarget.style.backgroundColor = 'var(--color-accent-amber-bg)'
                           }}
                           title={`Create spec (${specShortcut})`}
                         >
@@ -1989,8 +1995,8 @@ function AppContent() {
                           <span
                             className="text-xs px-2 py-0.5 rounded transition-opacity group-hover:opacity-100"
                             style={{
-                              backgroundColor: withOpacity(theme.colors.accent.amber.DEFAULT, 0.15),
-                              color: theme.colors.accent.amber.light
+                              backgroundColor: withOpacity('var(--color-accent-amber)', 0.15),
+                              color: 'var(--color-accent-amber-light)'
                             }}
                           >
                           {specShortcut}
@@ -2007,7 +2013,7 @@ function AppContent() {
                   <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
                   {isRightCollapsed ? (
                     // When collapsed, render only the terminal grid at full width
-                    <main className="h-full w-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                    <main className="h-full w-full" style={{ backgroundColor: 'var(--color-bg-primary)' }} data-testid="terminal-grid">
                       <ErrorBoundary name="TerminalGrid">
                         <TerminalGrid />
                       </ErrorBoundary>
@@ -2023,7 +2029,7 @@ function AppContent() {
                       onDrag={handleRightSplitDrag}
                       onDragEnd={handleRightSplitDragEnd}
                     >
-                      <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                      <main className="h-full" style={{ backgroundColor: 'var(--color-bg-primary)' }} data-testid="terminal-grid">
                         <ErrorBoundary name="TerminalGrid">
                           <TerminalGrid />
                         </ErrorBoundary>

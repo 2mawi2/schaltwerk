@@ -89,24 +89,24 @@ export function getSessionCardSurfaceClasses({
 }: SessionCardSurfaceOptions) {
   const baseTone = (() => {
     if (willBeDeleted) {
-      return "border-red-600/50 bg-red-950/20 opacity-30 transition-all duration-200";
+      return "border-danger bg-danger-bg opacity-30 transition-all duration-200";
     }
     if (isPromotionPreview) {
-      return "session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20";
+      return "session-ring session-ring-green border-transparent shadow-lg shadow-success/20";
     }
     if (isSelected) return "session-ring session-ring-blue border-transparent";
     if (isReviewedState) return "session-ring session-ring-green border-transparent opacity-90";
-    if (sessionState === "running") return "border-slate-700 bg-slate-800/50 hover:bg-slate-800/60";
-    if (sessionState === "spec") return "border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85";
-    return "border-slate-800 bg-slate-900/40 hover:bg-slate-800/30";
+    if (sessionState === "running") return "border-subtle bg-elevated/50 hover:bg-elevated/60";
+    if (sessionState === "spec") return "border-muted bg-secondary/30 hover:bg-elevated/30 opacity-85";
+    return "border-muted bg-secondary/40 hover:bg-elevated/30";
   })();
 
   return clsx(
     baseTone,
     hasFollowUpMessage && !isSelected &&
-      "ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20",
+      "ring-2 ring-info/50 shadow-lg shadow-info/20 bg-info-bg",
     isRunning && !isSelected &&
-      "ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20"
+      "ring-2 ring-warning/50 shadow-lg shadow-warning/20 bg-warning-bg"
   );
 }
 
@@ -137,7 +137,7 @@ const sessionText = {
   title: {
     ...typography.heading,
     fontWeight: 600,
-    color: theme.colors.text.primary,
+    color: 'var(--color-text-primary)',
   },
   badge: {
     ...typography.caption,
@@ -146,23 +146,23 @@ const sessionText = {
   },
   meta: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   metaEmphasis: {
     ...typography.caption,
-    color: theme.colors.text.secondary,
+    color: 'var(--color-text-secondary)',
   },
   agent: {
     ...typography.body,
-    color: theme.colors.text.secondary,
+    color: 'var(--color-text-secondary)',
   },
   agentMuted: {
     ...typography.caption,
-    color: theme.colors.text.secondary,
+    color: 'var(--color-text-secondary)',
   },
   statsLabel: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   statsNumber: {
     ...typography.caption,
@@ -312,14 +312,14 @@ export const SessionCard = memo<SessionCardProps>(
             className="absolute inset-0 z-10 flex items-center justify-center rounded-md pointer-events-none"
             data-testid="session-busy-indicator"
             style={{
-              backgroundColor: theme.colors.background.primary,
+              backgroundColor: 'var(--color-bg-primary)',
               opacity: 0.72,
             }}
           >
             <span
               className="h-4 w-4 border-2 border-solid rounded-full animate-spin"
               style={{
-                borderColor: theme.colors.accent.blue.border,
+                borderColor: 'var(--color-accent-blue-border)',
                 borderTopColor: "transparent",
               }}
             />
@@ -355,7 +355,7 @@ export const SessionCard = memo<SessionCardProps>(
                       lineHeight: theme.lineHeight.compact,
                       fontFamily: theme.fontFamily.sans,
                       fontWeight: 600,
-                      color: theme.colors.accent.yellow.light,
+                      color: 'var(--color-accent-yellow-light)',
                     }}
                   >
                     ⏸︎ Idle
@@ -366,9 +366,9 @@ export const SessionCard = memo<SessionCardProps>(
                     className="px-1.5 py-0.5 rounded border"
                     style={{
                       ...sessionText.badge,
-                      backgroundColor: theme.colors.accent.magenta.bg,
-                      color: theme.colors.accent.magenta.DEFAULT,
-                      borderColor: theme.colors.accent.magenta.border,
+                      backgroundColor: 'var(--color-accent-magenta-bg)',
+                      color: 'var(--color-accent-magenta)',
+                      borderColor: 'var(--color-accent-magenta-border)',
                     }}
                   >
                     Running
@@ -381,7 +381,7 @@ export const SessionCard = memo<SessionCardProps>(
                 className="flex-shrink-0"
                 style={{
                   ...sessionText.badge,
-                  color: theme.colors.accent.green.light,
+                  color: 'var(--color-accent-green-light)',
                 }}
               >
                 ✓ Reviewed
@@ -392,7 +392,7 @@ export const SessionCard = memo<SessionCardProps>(
                 className="flex-shrink-0"
                 style={{
                   ...sessionText.badge,
-                  color: theme.colors.accent.red.light,
+                  color: 'var(--color-accent-red-light)',
                 }}
               >
                 ⚠ blocked
@@ -416,7 +416,7 @@ export const SessionCard = memo<SessionCardProps>(
                   <span
                     className="absolute inline-flex h-full w-full rounded-full opacity-75"
                     style={{
-                      backgroundColor: theme.colors.accent.blue.light,
+                      backgroundColor: 'var(--color-accent-blue-light)',
                     }}
                   ></span>
                   <span
@@ -424,7 +424,7 @@ export const SessionCard = memo<SessionCardProps>(
                     style={{
                       ...sessionText.badge,
                       fontSize: theme.fontSize.caption,
-                      backgroundColor: theme.colors.accent.blue.DEFAULT,
+                      backgroundColor: 'var(--color-accent-blue)',
                     }}
                   >
                     !
@@ -436,7 +436,7 @@ export const SessionCard = memo<SessionCardProps>(
           <div className="flex items-center gap-2 flex-shrink-0">
             {index < 8 && (
               <span
-                className="px-1.5 py-0.5 rounded bg-slate-700/50"
+                className="px-1.5 py-0.5 rounded bg-elevated/50"
                 style={sessionText.meta}
               >
                 {(() => {
@@ -461,7 +461,7 @@ export const SessionCard = memo<SessionCardProps>(
             className="truncate"
             style={{
               ...sessionText.agent,
-              color: theme.colors.text.primary,
+              color: 'var(--color-text-primary)',
             }}
             title={taskDescription}
           >
@@ -477,9 +477,9 @@ export const SessionCard = memo<SessionCardProps>(
               className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-[1px] rounded border"
               style={{
                 ...sessionText.badge,
-                backgroundColor: theme.colors.accent.amber.bg,
-                color: theme.colors.accent.amber.light,
-                borderColor: theme.colors.accent.amber.border,
+                backgroundColor: 'var(--color-accent-amber-bg)',
+                color: 'var(--color-accent-amber-light)',
+                borderColor: 'var(--color-accent-amber-border)',
               }}
             >
               Spec
@@ -506,8 +506,8 @@ export const SessionCard = memo<SessionCardProps>(
                   {agentLabel}
                 </span>
               )}
-              <span className="text-green-400">+{additions}</span>
-              <span className="text-red-400">-{deletions}</span>
+              <span className="text-success">+{additions}</span>
+              <span className="text-danger">-{deletions}</span>
               <span className="truncate max-w-[120px]" title={s.branch}>
                 {s.branch}
               </span>
@@ -516,13 +516,13 @@ export const SessionCard = memo<SessionCardProps>(
         </div>
         {progressPercent > 0 && (
           <>
-            <div className="mt-3 h-2 bg-slate-800 rounded">
+            <div className="mt-3 h-2 bg-elevated rounded">
               <div
                 className={clsx(
                   "h-2 rounded",
-                  color === "green" && "bg-green-500",
-                  color === "violet" && "bg-violet-500",
-                  color === "gray" && "bg-slate-500",
+                  color === "green" && "bg-success",
+                  color === "violet" && "bg-info",
+                  color === "gray" && "bg-muted",
                 )}
                 style={{ width: `${progressPercent}%` }}
               />

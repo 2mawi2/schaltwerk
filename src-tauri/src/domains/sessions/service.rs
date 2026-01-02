@@ -140,6 +140,9 @@ pub struct SessionCreationParams<'a> {
     pub epic_id: Option<&'a str>,
     pub agent_type: Option<&'a str>,
     pub skip_permissions: Option<bool>,
+    /// When set, fetch the PR's changes and create the session from those changes.
+    /// This is used for fork PRs where the branch doesn't exist locally.
+    pub pr_number: Option<i64>,
 }
 
 pub struct AgentLaunchParams<'a> {
@@ -1498,6 +1501,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("claude"),
             skip_permissions: Some(true),
+            pr_number: None,
         };
 
         let session = manager
@@ -1573,6 +1577,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("opencode"),
             skip_permissions: Some(false),
+            pr_number: None,
         };
 
         let session = manager
@@ -1634,6 +1639,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager
@@ -1699,6 +1705,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager
@@ -1753,6 +1760,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("gemini"),
             skip_permissions: Some(true),
+            pr_number: None,
         };
 
         let session = manager
@@ -2202,6 +2210,7 @@ impl SessionManager {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
         self.create_session_with_agent(params)
     }
@@ -2233,7 +2242,7 @@ impl SessionManager {
             let _ = self.db_manager.get_epic_by_id(epic_id)?;
         }
 
-        if params.use_existing_branch {
+        if params.use_existing_branch && params.pr_number.is_none() {
             let custom_branch = params.custom_branch.ok_or_else(|| {
                 anyhow!("use_existing_branch requires custom_branch to be specified")
             })?;
@@ -2336,6 +2345,7 @@ impl SessionManager {
             use_existing_branch: params.use_existing_branch,
             sync_with_origin: params.sync_with_origin,
             should_copy_claude_locals,
+            pr_number: params.pr_number,
         };
 
         let bootstrap_result = match bootstrapper.bootstrap_worktree(bootstrap_config) {

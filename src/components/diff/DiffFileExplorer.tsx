@@ -5,7 +5,6 @@ import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
 import { useReviewComments } from '../../hooks/useReviewComments'
-import { theme } from '../../common/theme'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import type { ChangedFile as EventsChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
@@ -73,8 +72,8 @@ export function DiffFileExplorer({
       <div
         key={node.path}
         className={clsx(
-          'cursor-pointer hover:bg-slate-800/50 flex items-center gap-2',
-          isLeftSelected && "bg-slate-800"
+          'cursor-pointer hover:bg-elevated/50 flex items-center gap-2',
+          isLeftSelected && "bg-elevated"
         )}
         style={{ paddingLeft: `${depth * 12 + 12}px`, paddingTop: '4px', paddingBottom: '4px' }}
         onClick={() => onFileSelect(node.file.path, fileIndex)}
@@ -82,7 +81,7 @@ export function DiffFileExplorer({
         {getFileIcon(node.file.change_type, node.file.path)}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 justify-between">
-            <div className="text-sm truncate" style={{ color: theme.colors.text.primary }}>
+            <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
               {node.name}
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -97,7 +96,7 @@ export function DiffFileExplorer({
               {commentCount > 0 && (
                 <div
                   className="flex items-center gap-1 text-xs font-medium"
-                  style={{ color: theme.colors.accent.blue.light }}
+                  style={{ color: 'var(--color-accent-blue-light)' }}
                 >
                   <VscComment size={12} />
                   <span>{commentCount}</span>
@@ -112,12 +111,12 @@ export function DiffFileExplorer({
 
   return (
     <div
-      className="border-r border-slate-800 bg-slate-900/30 flex flex-col h-full"
+      className="border-r border-default bg-elevated/30 flex flex-col h-full"
       style={{ width: '100%' }}
     >
-      <div className="p-3 border-b border-slate-800">
+      <div className="p-3 border-b border-default">
         <div className="text-sm font-medium mb-1">Changed Files</div>
-        <div className="text-xs text-slate-500">{files.length} files</div>
+        <div className="text-xs text-muted">{files.length} files</div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2">
@@ -125,9 +124,9 @@ export function DiffFileExplorer({
       </div>
       
       {currentReview && currentReview.comments.length > 0 && (
-        <div className="p-3 border-t border-slate-800 flex flex-col gap-3">
-          <div className="text-xs text-slate-500">
-            <div className="font-medium text-slate-400 mb-2">Review Comments:</div>
+        <div className="p-3 border-t border-default flex flex-col gap-3">
+          <div className="text-xs text-muted">
+            <div className="font-medium text-tertiary mb-2">Review Comments:</div>
             <ReviewCommentsList
               comments={displayComments}
               onDeleteComment={removeComment}
@@ -138,27 +137,27 @@ export function DiffFileExplorer({
               onClick={onFinishReview}
               className="w-full px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
               style={{
-                backgroundColor: theme.colors.accent.blue.DEFAULT,
-                color: theme.colors.text.inverse,
+                backgroundColor: 'var(--color-accent-blue)',
+                color: 'var(--color-text-inverse)',
               }}
               onMouseEnter={(event) => {
-                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                event.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
               }}
               onMouseLeave={(event) => {
-                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                event.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
               }}
             >
               <VscCheck />
               <span>
                 Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-300">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-elevated/50 text-secondary">
                 ⌘↩
               </span>
             </button>
             <button
               onClick={() => setShowCancelConfirm(true)}
-              className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-300"
+              className="w-full px-3 py-1.5 bg-elevated hover:bg-elevated/80 rounded-lg text-xs font-medium text-tertiary hover:text-secondary"
             >
               Cancel Review
             </button>
@@ -170,7 +169,7 @@ export function DiffFileExplorer({
         open={showCancelConfirm}
         title="Cancel Review"
         body={
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-secondary">
             {currentReview ? getConfirmationMessage(currentReview.comments.length) : 'Cancel review?'}
           </p>
         }

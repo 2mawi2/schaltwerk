@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { theme } from '../../common/theme'
 
 interface ResizableModalProps {
   isOpen: boolean
@@ -148,7 +147,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: theme.colors.overlay.backdrop }}
+      style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
       onClick={onClose}
     >
       <div
@@ -157,8 +156,8 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
         style={{
           width: `${size.width}px`,
           height: `${size.height}px`,
-          backgroundColor: theme.colors.background.tertiary,
-          borderColor: theme.colors.border.subtle,
+          backgroundColor: 'var(--color-bg-tertiary)',
+          borderColor: 'var(--color-border-subtle)',
           border: '1px solid',
           userSelect: isResizing ? 'none' : 'auto'
         }}
@@ -168,8 +167,8 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
         <div
           className="px-4 py-3 border-b font-medium flex items-center justify-between"
           style={{
-            borderBottomColor: theme.colors.border.default,
-            color: theme.colors.text.primary
+            borderBottomColor: 'var(--color-border-default)',
+            color: 'var(--color-text-primary)'
           }}
         >
           <span>{title}</span>
@@ -177,11 +176,11 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
             onClick={onClose}
             className="p-1 rounded transition-colors hover:bg-opacity-10"
             style={{
-              color: theme.colors.text.secondary,
+              color: 'var(--color-text-secondary)',
               backgroundColor: 'transparent'
             }}
             onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = theme.colors.background.hover)
+              (e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)')
             }
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
           >
@@ -201,7 +200,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
         {footer && (
           <div
             className="px-4 py-3 border-t flex justify-end gap-2"
-            style={{ borderTopColor: theme.colors.border.default }}
+            style={{ borderTopColor: 'var(--color-border-default)' }}
           >
             {footer}
           </div>
@@ -218,7 +217,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
 
         <div
           className="absolute bottom-1 right-1 pointer-events-none opacity-30"
-          style={{ color: theme.colors.text.tertiary }}
+          style={{ color: 'var(--color-text-tertiary)' }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M15 9v2h-2V9h2zm0 4v2h-2v-2h2zm-4 0v2H9v-2h2zm0-4v2H9V9h2zM7 13v2H5v-2h2z" />

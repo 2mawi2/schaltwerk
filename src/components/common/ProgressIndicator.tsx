@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import { theme } from '../../common/theme'
 
 interface ProgressIndicatorProps {
     className?: string
@@ -52,15 +51,15 @@ export const ProgressIndicator = memo<ProgressIndicatorProps>(({
             <div className={`flex items-center gap-0.5 ${sizeClasses[size]}`}>
                 <div
                     className={`${dotSizes[size]} rounded-full progress-dot-1`}
-                    style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}
+                    style={{ backgroundColor: 'var(--color-accent-blue)' }}
                 />
                 <div
                     className={`${dotSizes[size]} rounded-full progress-dot-2`}
-                    style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}
+                    style={{ backgroundColor: 'var(--color-accent-blue)' }}
                 />
                 <div
                     className={`${dotSizes[size]} rounded-full progress-dot-3`}
-                    style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}
+                    style={{ backgroundColor: 'var(--color-accent-blue)' }}
                 />
             </div>
         </div>

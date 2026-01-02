@@ -51,7 +51,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                 <span
                     className="truncate max-w-[120px]"
                     style={{
-                        color: theme.colors.text.primary,
+                        color: 'var(--color-text-primary)',
                         fontFamily: theme.fontFamily.sans,
                         fontWeight: 500,
                     }}
@@ -66,14 +66,14 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
         <div
             data-testid="agent-tab-bar"
             style={{
-                backgroundColor: isFocused ? theme.colors.accent.blue.bg : undefined,
-                color: isFocused ? theme.colors.accent.blue.light : undefined,
-                borderBottomColor: isFocused ? theme.colors.accent.blue.border : undefined,
+                backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : undefined,
+                color: isFocused ? 'var(--color-accent-blue-light)' : undefined,
+                borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : undefined,
             }}
             className={`h-9 px-2 text-xs border-b flex items-center gap-1 overflow-hidden z-10 relative ${
                 isFocused
                     ? 'hover:bg-opacity-60'
-                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                    : 'text-tertiary border-default hover:bg-hover'
             }`}
         >
             {/* Tabs - Expand to fill space, scroll internally */}
@@ -94,12 +94,12 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                 onClose={canClose ? () => onTabClose(index) : undefined}
                                 onMiddleClick={canClose ? () => onTabClose(index) : undefined}
                                 showCloseButton={canClose}
-                                className="h-full flex-shrink-0 border-r border-slate-800/50"
+                                className="h-full flex-shrink-0 border-r border-subtle"
                                 style={{
                                     minWidth: '100px',
                                     maxWidth: '200px',
                                     backgroundColor: isActive
-                                        ? theme.colors.background.primary
+                                        ? 'var(--color-bg-primary)'
                                         : 'transparent',
                                 }}
                             />
@@ -147,7 +147,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                             e.stopPropagation()
                             onReset()
                         }}
-                        className="p-1 rounded hover:bg-slate-700 mr-1"
+                        className="p-1 rounded hover:bg-hover mr-1"
                         title="Reset session"
                     >
                         <VscDiscard className="text-base" />
@@ -159,11 +159,11 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                     <span
                         style={{
                             backgroundColor: isFocused
-                                ? theme.colors.accent.blue.bg
-                                : theme.colors.background.hover,
+                                ? 'var(--color-accent-blue-bg)'
+                                : 'var(--color-bg-hover)',
                             color: isFocused
-                                ? theme.colors.accent.blue.light
-                                : theme.colors.text.tertiary,
+                                ? 'var(--color-accent-blue-light)'
+                                : 'var(--color-text-tertiary)',
                         }}
                         className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
                         title={`Focus Claude (${shortcutLabel})`}

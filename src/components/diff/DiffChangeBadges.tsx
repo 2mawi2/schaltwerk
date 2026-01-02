@@ -14,9 +14,6 @@ interface DiffChangeBadgesProps {
 }
 
 const baseNumberClass = 'font-semibold tracking-tight tabular-nums'
-const additionClass = 'text-green-400'
-const deletionClass = 'text-red-400'
-const binaryClass = 'text-purple-300 font-medium'
 
 const textSizeFor = (layout: BadgeLayout, size: BadgeSize) => {
   if (layout === 'column') {
@@ -49,7 +46,7 @@ export function DiffChangeBadges({
   if (isBinary) {
     return (
       <div className={containerClasses}>
-        <span className={clsx(baseNumberClass, binaryClass)}>Binary</span>
+        <span className={baseNumberClass} style={{ color: 'var(--color-accent-purple)' }}>Binary</span>
       </div>
     )
   }
@@ -61,10 +58,10 @@ export function DiffChangeBadges({
   return (
     <div className={containerClasses}>
       <span className={itemClass}>
-        <span className={clsx(baseNumberClass, additionClass)}>+{additions}</span>
+        <span className={baseNumberClass} style={{ color: 'var(--color-accent-green)' }}>+{additions}</span>
       </span>
       <span className={itemClass}>
-        <span className={clsx(baseNumberClass, deletionClass)}>-{deletions}</span>
+        <span className={baseNumberClass} style={{ color: 'var(--color-accent-red)' }}>-{deletions}</span>
       </span>
     </div>
   )

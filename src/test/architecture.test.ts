@@ -442,6 +442,42 @@ describe('Error Handling Architecture', () => {
   }, ARCH_RULE_TIMEOUT);
 });
 
+describe('HTML Template Architecture', () => {
+  it('should not use !important in index.html inline styles (breaks theming)', async () => {
+    const fs = await import('node:fs');
+    const indexPath = path.resolve(projectRoot, 'index.html');
+
+    if (!fs.existsSync(indexPath)) {
+      return;
+    }
+
+    const content = fs.readFileSync(indexPath, 'utf-8');
+    const lines = content.split('\n');
+    const matches: { line: number; snippet: string }[] = [];
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('//')) {
+        return;
+      }
+      if (/!important\s*;/.test(line)) {
+        matches.push({
+          line: index + 1,
+          snippet: trimmed.substring(0, 80),
+        });
+      }
+    });
+
+    if (matches.length > 0) {
+      const details = matches.map(m => `index.html:${m.line} - ${m.snippet}`).join('\n');
+      throw new Error(
+        `Found ${matches.length} !important declarations in index.html:\n${details}\n\n` +
+        'Remove !important so theme CSS can override initial styles'
+      );
+    }
+  }, ARCH_RULE_TIMEOUT);
+});
+
 describe('State Management Architecture', () => {
   it('should not use React Context for state management (migrate to Jotai)', async () => {
     const failureDetails = new Map<string, FailureDetail[]>();

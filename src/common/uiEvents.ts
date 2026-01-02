@@ -31,6 +31,7 @@ export enum UiEvent {
   TerminalRendererUpdated = 'schaltwerk:terminal-renderer-updated',
   InsertTerminalText = 'insertTerminalText',
   FontSizeChanged = 'font-size-changed',
+  ThemeModeChanged = 'ui:theme-mode-changed',
   GlobalNewSessionShortcut = 'global-new-session-shortcut',
   GlobalMarkReadyShortcut = 'global-mark-ready-shortcut',
   NoProjectError = 'schaltwerk:no-project-error',
@@ -128,6 +129,10 @@ export interface FontSizeChangedDetail {
   uiFontSize: number
 }
 
+export interface ThemeModeChangedDetail {
+  themeMode: 'dark' | 'light'
+}
+
 export interface TerminalErrorDetail {
   error: string
   terminalId: string
@@ -220,6 +225,7 @@ export type UiEventPayloads = {
   [UiEvent.TerminalFontUpdated]: TerminalFontUpdatedDetail
   [UiEvent.TerminalRendererUpdated]: TerminalRendererUpdatedDetail
   [UiEvent.FontSizeChanged]: FontSizeChangedDetail
+  [UiEvent.ThemeModeChanged]: ThemeModeChangedDetail
   [UiEvent.GlobalNewSessionShortcut]: undefined
   [UiEvent.GlobalMarkReadyShortcut]: undefined
   [UiEvent.NoProjectError]: TerminalErrorDetail

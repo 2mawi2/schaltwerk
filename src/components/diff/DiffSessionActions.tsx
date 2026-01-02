@@ -90,7 +90,7 @@ export function DiffSessionActions({
           <>
             <button
               onClick={() => { void handleFetchAndPasteComments() }}
-              className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-2 py-1 bg-accent-blue/80 hover:bg-accent-blue rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               title={`Send PR #${prNumber} review comments to terminal`}
               disabled={fetchingComments}
             >
@@ -100,7 +100,7 @@ export function DiffSessionActions({
             {prUrl && (
               <button
                 onClick={() => { void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }) }}
-                className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2"
+                className="px-2 py-1 bg-accent-blue/80 hover:bg-accent-blue rounded-md text-sm font-medium flex items-center gap-2"
                 title={`Open PR #${prNumber} in browser`}
               >
                 <VscLinkExternal className="text-lg" />
@@ -110,7 +110,7 @@ export function DiffSessionActions({
         )}
         <button
           onClick={() => setConfirmResetOpen(true)}
-          className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
+          className="px-2 py-1 bg-accent-red/80 hover:bg-accent-red rounded-md text-sm font-medium flex items-center gap-2"
           title="Discard all changes and reset this session"
           disabled={isResetting}
         >
@@ -120,7 +120,7 @@ export function DiffSessionActions({
         {canMarkReviewed && (
           <button
             onClick={() => { void handleMarkReviewedClick() }}
-            className="px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-2 py-1 bg-accent-green/80 hover:bg-accent-green rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             title="Mark this session as reviewed"
             disabled={isMarkingReviewed}
           >

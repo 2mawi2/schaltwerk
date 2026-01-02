@@ -4,9 +4,8 @@ import { SessionCard } from './SessionCard'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec, mapSessionUiState } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 import { ProgressIndicator } from '../common/ProgressIndicator'
+import { withOpacity } from '../../common/colorUtils'
 import type { MergeStatus } from '../../store/atoms/sessions'
 
 interface SessionVersionGroupProps {
@@ -139,12 +138,25 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
     return acc
   }, { active: 0, idle: 0 })
 
+  const accentColors = {
+    blue: {
+      bg: 'var(--color-accent-blue-bg)',
+      light: 'var(--color-accent-blue-light)',
+      border: 'var(--color-accent-blue-border)'
+    },
+    amber: {
+      bg: 'var(--color-accent-amber-bg)',
+      light: 'var(--color-accent-amber-light)',
+      border: 'var(--color-accent-amber-border)'
+    }
+  }
+
   const statusPills = [
     {
       key: 'active',
       label: 'Active',
       count: versionStatusSummary.active,
-      color: theme.colors.accent.blue,
+      color: accentColors.blue,
       icon: (
         <span className="flex items-center" aria-hidden="true">
           <ProgressIndicator size="sm" />
@@ -155,12 +167,12 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
       key: 'idle',
       label: 'Idle',
       count: versionStatusSummary.idle,
-      color: theme.colors.accent.amber,
+      color: accentColors.amber,
       icon: (
         <span
           aria-hidden="true"
           className="text-xs font-semibold"
-          style={{ color: theme.colors.accent.amber.light }}
+          style={{ color: 'var(--color-accent-amber-light)' }}
         >
           ⏸
         </span>
@@ -172,37 +184,29 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   return (
     <div className="mb-3 relative">
       {/* Version group container with subtle background */}
-      <div className={clsx(
-        'rounded-lg border transition-all duration-200'
-      )}
-      style={hasSelectedVersion ? {
-        borderColor: theme.colors.accent.blue.border,
-        backgroundColor: theme.colors.accent.blue.bg
-      } : {
-        borderColor: withOpacity(theme.colors.border.subtle, 0.5),
-        backgroundColor: withOpacity(theme.colors.background.tertiary, 0.2)
-      }}>
+      <div
+        className="rounded-lg border transition-all duration-200"
+        style={{
+          borderColor: hasSelectedVersion ? 'var(--color-accent-blue-border)' : withOpacity('var(--color-border-subtle)', 0.5),
+          backgroundColor: hasSelectedVersion ? 'var(--color-accent-blue-bg)' : withOpacity('var(--color-bg-tertiary)', 0.2)
+        }}
+      >
         {/* Group header */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={clsx(
-            'w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200'
-          )}
-          style={hasSelectedVersion ? {
-            borderBottomColor: theme.colors.accent.blue.border,
-            backgroundColor: theme.colors.accent.blue.bg
-          } : {
-            borderBottomColor: withOpacity(theme.colors.border.subtle, 0.3),
-            backgroundColor: withOpacity(theme.colors.background.elevated, 0.3)
+          className="w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200"
+          style={{
+            borderBottomColor: hasSelectedVersion ? 'var(--color-accent-blue-border)' : withOpacity('var(--color-border-subtle)', 0.3),
+            backgroundColor: hasSelectedVersion ? 'var(--color-accent-blue-bg)' : withOpacity('var(--color-bg-elevated)', 0.3)
           }}
           onMouseEnter={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.hover, 0.4);
+              e.currentTarget.style.backgroundColor = withOpacity('var(--color-bg-hover)', 0.4)
             }
           }}
           onMouseLeave={(e) => {
             if (!hasSelectedVersion) {
-              e.currentTarget.style.backgroundColor = withOpacity(theme.colors.background.elevated, 0.3);
+              e.currentTarget.style.backgroundColor = withOpacity('var(--color-bg-elevated)', 0.3)
             }
           }}
           title={`${group.baseName} (${group.versions.length} versions) - Click to expand/collapse`}
@@ -217,17 +221,13 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
             >
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
-            <span className="font-medium text-slate-100">{group.baseName}</span>
+            <span className="font-medium text-primary">{group.baseName}</span>
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium ml-2"
-              style={hasSelectedVersion ? {
-                backgroundColor: theme.colors.accent.blue.bg,
-                color: theme.colors.accent.blue.light,
-                borderColor: theme.colors.accent.blue.border
-              } : {
-                backgroundColor: withOpacity(theme.colors.background.hover, 0.5),
-                color: theme.colors.text.secondary,
-                borderColor: withOpacity(theme.colors.border.subtle, 0.5)
+              style={{
+                backgroundColor: hasSelectedVersion ? 'var(--color-accent-blue-bg)' : withOpacity('var(--color-bg-hover)', 0.5),
+                color: hasSelectedVersion ? 'var(--color-accent-blue-light)' : 'var(--color-text-secondary)',
+                borderColor: hasSelectedVersion ? 'var(--color-accent-blue-border)' : withOpacity('var(--color-border-subtle)', 0.5)
               }}
             >
               {group.versions.length}x
@@ -243,8 +243,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
 
               return (
                 <>
-                  <span className="text-slate-400 text-xs">|</span>
-                  <span className="text-xs text-slate-400">← {baseBranch}</span>
+                  <span className="text-tertiary text-xs">|</span>
+                  <span className="text-xs text-tertiary">← {baseBranch}</span>
                 </>
               )
             })()}
@@ -279,7 +279,10 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
           <div className="p-2 pt-0">
             <div className="relative pl-6">
               {/* Vertical connector line */}
-              <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-600/50" />
+              <div
+                className="absolute left-2 top-2 bottom-2 w-px"
+                style={{ backgroundColor: withOpacity('var(--color-border-subtle)', 0.5) }}
+              />
               
               <div className="space-y-1">
                  {group.versions.map((version, versionIndex) => {
@@ -293,14 +296,19 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                   return (
                     <div key={version.session.info.session_id} className="relative">
                       {/* Horizontal connector from vertical line to session - aligned to button center */}
-                      <div className="absolute -left-4 top-7 w-4 h-px bg-slate-600/50" />
+                      <div
+                        className="absolute -left-4 top-7 w-4 h-px"
+                        style={{ backgroundColor: withOpacity('var(--color-border-subtle)', 0.5) }}
+                      />
                       {/* Dot on the vertical line */}
-                      <div className={clsx(
-                        "absolute top-7 w-2 h-2 rounded-full border",
-                        isSelected
-                          ? "bg-cyan-400 border-cyan-300"
-                          : "bg-slate-700 border-slate-600"
-                      )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
+                      <div
+                        className="absolute top-7 w-2 h-2 rounded-full border -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: '-14px',
+                          backgroundColor: isSelected ? 'var(--color-status-info)' : 'var(--color-bg-elevated)',
+                          borderColor: isSelected ? 'var(--color-status-info)' : 'var(--color-border-subtle)'
+                        }}
+                      />
                       
                   <SessionCard
               session={{

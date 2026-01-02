@@ -41,8 +41,8 @@ function renderReferences(references: ReturnType<typeof groupReferences>) {
     <div className="flex gap-1 items-center ml-1 flex-shrink-0">
       {references.map((ref, index) => {
         const hasColor = ref.color !== undefined
-        const backgroundColor = hasColor ? ref.color : theme.colors.overlay.light
-        const textColor = hasColor ? theme.colors.text.primary : theme.colors.text.secondary
+        const backgroundColor = hasColor ? ref.color : 'var(--color-overlay-light)'
+        const textColor = hasColor ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'
         const showCount = ref.count !== undefined && ref.count > 1
         const showIcon = ref.showIconOnly || (ref.count !== undefined && ref.count >= 1) || ref.icon === 'tag'
 
@@ -57,7 +57,7 @@ function renderReferences(references: ReturnType<typeof groupReferences>) {
               fontSize: theme.fontSize.body,
               lineHeight: '1.3em',
               fontWeight: 600,
-              textShadow: `0 1px 3px ${withOpacity(theme.colors.text.inverse, 0.5)}, 0 0 1px ${withOpacity(theme.colors.text.inverse, 0.3)}`,
+              textShadow: `0 1px 3px ${withOpacity('var(--color-text-inverse)', 0.5)}, 0 0 1px ${withOpacity('var(--color-text-inverse)', 0.3)}`,
               paddingLeft: showIcon || !ref.showDescription ? '0.3em' : '0.45em',
               paddingRight: ref.showDescription || showIcon ? '0.3em' : '0.45em'
             }}
@@ -137,8 +137,8 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
   const detailContainerRef = useRef<HTMLDivElement | null>(null)
   const [detailHeight, setDetailHeight] = useState(0)
 
-  const selectedRowBackground = withOpacity(theme.colors.accent.blue.DEFAULT, 0.25)
-  const currentRowBackground = withOpacity(theme.colors.palette.blue[700], 0.4)
+  const selectedRowBackground = withOpacity('var(--color-accent-blue)', 0.25)
+  const currentRowBackground = withOpacity('var(--color-accent-cyan)', 0.3)
 
   const rowBgColor = isSelected
     ? selectedRowBackground
@@ -148,7 +148,7 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
 
   const headerStyles: CSSProperties & Record<'--hover-bg', string> = {
     backgroundColor: rowBgColor,
-    '--hover-bg': isSelected || isCurrent ? rowBgColor : theme.colors.background.secondary,
+    '--hover-bg': isSelected || isCurrent ? rowBgColor : 'var(--color-bg-hover)',
     cursor: 'pointer'
   }
 
@@ -229,7 +229,7 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
   const detailContent = (() => {
     if (detailIsLoading) {
       return (
-        <div className="flex items-center text-xs text-slate-300" style={{ minHeight: detailMessageHeight }}>
+        <div className="flex items-center text-xs" style={{ minHeight: detailMessageHeight, color: 'var(--color-text-secondary)' }}>
           Loading changes…
         </div>
       )
@@ -238,8 +238,8 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
     if (detailError) {
       return (
         <div className="flex flex-col gap-1 text-xs" style={{ minHeight: detailMessageHeight }}>
-          <span className="text-red-400">Failed to load changes</span>
-          <span className="text-slate-400 truncate" title={detailError}>
+          <span style={{ color: 'var(--color-accent-red)' }}>Failed to load changes</span>
+          <span className="truncate" style={{ color: 'var(--color-text-tertiary)' }} title={detailError}>
             {detailError}
           </span>
         </div>
@@ -248,14 +248,14 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
 
     if (!detailHasFiles) {
       return (
-        <div className="flex items-center text-xs text-slate-300" style={{ minHeight: detailMessageHeight }}>
+        <div className="flex items-center text-xs" style={{ minHeight: detailMessageHeight, color: 'var(--color-text-secondary)' }}>
           No file changes in this commit
         </div>
       )
     }
 
     return (
-      <div className="flex flex-col gap-1 text-xs text-slate-200">
+      <div className="flex flex-col gap-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
         {detailFiles.map(file => {
           const segments = file.path.split('/')
           const fileName = segments.pop() ?? file.path
@@ -269,7 +269,7 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
               style={{
                 minHeight: detailItemHeight,
                 height: detailItemHeight,
-                '--hover-bg': theme.colors.background.secondary,
+                '--hover-bg': 'var(--color-bg-hover)',
               } as CSSProperties}
               role="button"
               tabIndex={0}
@@ -286,18 +286,19 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
                 }
               }}
             >
-              <span className="flex items-center justify-center w-4 h-4 text-slate-300 flex-shrink-0">
+              <span className="flex items-center justify-center w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-text-secondary)' }}>
                 {getFileIcon(normalizedType, file.path)}
               </span>
               <div className="flex items-baseline gap-2 min-w-0 flex-1">
                 <span
-                  className={`${isCurrent ? 'font-semibold' : 'font-medium'} text-slate-200 text-sm truncate`}
+                  className={`${isCurrent ? 'font-semibold' : 'font-medium'} text-sm truncate`}
+                  style={{ color: 'var(--color-text-secondary)' }}
                   title={fileName}
                 >
                   {fileName}
                 </span>
                 {parentPath && (
-                  <span className="text-slate-400 text-xs truncate" title={parentPath}>
+                  <span className="text-xs truncate" style={{ color: 'var(--color-text-tertiary)' }} title={parentPath}>
                     {parentPath}
                   </span>
                 )}
@@ -325,15 +326,15 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
         </div>
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span
-            className={`${isCurrent ? 'font-semibold' : 'font-medium'} text-slate-200 whitespace-nowrap overflow-hidden text-ellipsis min-w-0`}
-            style={{ flexShrink: 1 }}
+            className={`${isCurrent ? 'font-semibold' : 'font-medium'} whitespace-nowrap overflow-hidden text-ellipsis min-w-0`}
+            style={{ flexShrink: 1, color: 'var(--color-text-secondary)' }}
             title={historyItem.subject}
           >
             {historyItem.subject}
           </span>
           <span
-            className="text-slate-400 text-xs whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
-            style={{ flexShrink: 3 }}
+            className="text-xs whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
+            style={{ flexShrink: 3, color: 'var(--color-text-tertiary)' }}
           >
             {historyItem.author}
           </span>

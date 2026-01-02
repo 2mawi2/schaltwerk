@@ -143,6 +143,19 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_theme_mode(&self) -> crate::domains::settings::types::ThemeMode {
+        self.service.get_theme_mode()
+    }
+
+    pub fn set_theme_mode(
+        &mut self,
+        theme_mode: crate::domains::settings::types::ThemeMode,
+    ) -> Result<(), String> {
+        self.service
+            .set_theme_mode(theme_mode)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         self.service.get_agent_cli_args(agent_type)
     }

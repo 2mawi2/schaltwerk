@@ -272,13 +272,13 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
 
   const buttonClass = (disabled?: boolean) =>
     [
-      'h-8 w-8 rounded flex items-center justify-center border border-slate-700 bg-slate-900 hover:bg-slate-800 transition-colors',
-      disabled ? 'opacity-40 cursor-not-allowed hover:bg-slate-900' : 'text-slate-200'
+      'h-8 w-8 rounded flex items-center justify-center border border-subtle bg-secondary hover:bg-hover transition-colors',
+      disabled ? 'opacity-40 cursor-not-allowed hover:bg-secondary' : 'text-secondary'
     ].join(' ')
 
   return (
     <div className="h-full w-full flex flex-col">
-      <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-default px-4 py-3">
         <div className="flex items-center gap-1">
           <button type="button" aria-label="Back" className={buttonClass(!canGoBack)} onClick={() => handleNavigate(-1)} disabled={!canGoBack}>
             <VscChevronLeft className="text-lg" />
@@ -299,7 +299,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
             aria-label="Select element"
             className={[
               buttonClass(!hasUrl),
-              isPickerActive ? 'ring-2 ring-cyan-500 bg-slate-800' : ''
+              isPickerActive ? 'ring-2 ring-accent-blue bg-hover' : ''
             ].join(' ')}
             onClick={() => { void handleToggleElementPicker() }}
             disabled={!hasUrl}
@@ -320,21 +320,21 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           </label>
           <input
             id="preview-url-input"
-            className="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            className="flex-1 rounded border border-subtle bg-secondary px-3 py-1.5 text-sm text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
             value={inputValue}
             onChange={handleChange}
             placeholder="Enter URL (e.g. http://localhost:3000)"
             autoComplete="off"
           />
-          <button type="submit" className="h-8 w-8 rounded bg-cyan-600 flex items-center justify-center text-slate-900 hover:bg-cyan-500 disabled:opacity-40" disabled={!inputValue.trim()} aria-label="Navigate">
+          <button type="submit" className="h-8 w-8 rounded bg-accent-blue flex items-center justify-center text-inverse hover:bg-accent-blue-dark disabled:opacity-40" disabled={!inputValue.trim()} aria-label="Navigate">
             <VscArrowRight className="text-lg" />
           </button>
         </form>
-        <div className="flex items-center gap-0.5 border-l border-slate-700 pl-2">
+        <div className="flex items-center gap-0.5 border-l border-default pl-2">
           <button
             type="button"
             aria-label="Zoom out"
-            className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
+            className="h-6 w-6 rounded text-secondary hover:text-primary hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
             onClick={() => handleZoomDelta(-PREVIEW_ZOOM_STEP)}
             disabled={!canZoomOut}
           >
@@ -343,7 +343,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           <button
             type="button"
             aria-label="Reset zoom"
-            className="px-1 text-xs text-slate-400 hover:text-cyan-300 rounded min-w-[2.5rem] text-center"
+            className="px-1 text-xs text-secondary hover:text-accent-blue rounded min-w-[2.5rem] text-center"
             onClick={handleZoomReset}
           >
             {Math.round(zoom * 100)}%
@@ -351,7 +351,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           <button
             type="button"
             aria-label="Zoom in"
-            className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
+            className="h-6 w-6 rounded text-secondary hover:text-primary hover:bg-hover disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
             onClick={() => handleZoomDelta(PREVIEW_ZOOM_STEP)}
             disabled={!canZoomIn}
           >
@@ -360,25 +360,25 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
         </div>
       </div>
       {error && (
-        <div className="px-4 py-2 text-xs text-red-400 border-b border-slate-800" role="status" aria-live="polite">
+        <div className="px-4 py-2 text-xs border-b border-default" role="status" aria-live="polite" style={{ color: 'var(--color-accent-red)' }}>
           {error}
         </div>
       )}
-      <div className="flex-1 bg-slate-950 text-slate-400 overflow-hidden">
+      <div className="flex-1 bg-primary text-muted overflow-hidden">
         {modalOpen ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while dialog is open…</div>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted">Preview paused while dialog is open…</div>
         ) : isResizing ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while resizing…</div>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted">Preview paused while resizing…</div>
         ) : hasUrl ? (
           <div className="h-full w-full overflow-hidden" data-preview-zoom={zoom.toFixed(2)}>
             <div ref={setHostElement} className="h-full w-full overflow-hidden" />
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-            <VscGlobe className="text-4xl text-slate-600" />
+            <VscGlobe className="text-4xl" style={{ color: 'var(--color-border-strong)' }} />
             <div>
-              <p className="text-base font-semibold text-slate-200">Browser</p>
-              <p className="text-sm text-slate-500">Enter a URL above to load your preview.</p>
+              <p className="text-base font-semibold text-secondary">Browser</p>
+              <p className="text-sm text-muted">Enter a URL above to load your preview.</p>
             </div>
           </div>
         )}

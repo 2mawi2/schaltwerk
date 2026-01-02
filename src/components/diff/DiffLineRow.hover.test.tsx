@@ -72,7 +72,7 @@ describe('DiffLineRow hover functionality', () => {
 
     const row = screen.getByRole('row')
 
-    expect(row).toHaveClass('ring-1', 'ring-cyan-300/50')
+    expect(row).toHaveClass('ring-1', 'ring-accent-blue/50')
   })
 
   it('should not show hover ring when isHovered prop is false', () => {
@@ -80,7 +80,7 @@ describe('DiffLineRow hover functionality', () => {
 
     const row = screen.getByRole('row')
 
-    expect(row).not.toHaveClass('ring-1', 'ring-cyan-300/50')
+    expect(row).not.toHaveClass('ring-1', 'ring-accent-blue/50')
   })
 
   it('should handle collapsible lines without showing hover hint', () => {

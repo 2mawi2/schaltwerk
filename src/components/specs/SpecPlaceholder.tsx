@@ -14,7 +14,7 @@ export function SpecPlaceholder() {
   }, [sessionName])
 
   if (!sessionName) {
-    return <div className="h-full flex items-center justify-center text-slate-400">No spec selected</div>
+    return <div className="h-full flex items-center justify-center text-muted">No spec selected</div>
   }
 
   return <SpecEditor sessionName={sessionName} onStart={handleRun} />

@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { ONBOARDING_STEPS } from './steps'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { withOpacity } from '../../common/colorUtils'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
@@ -72,8 +71,8 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     width: rect.width + (padding * 2),
                     height: rect.height + (padding * 2),
                     zIndex: 31,
-                    borderColor: theme.colors.accent.blue.DEFAULT,
-                    boxShadow: `0 10px 15px -3px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.1)}, 0 4px 6px -2px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.05)}`,
+                    borderColor: 'var(--color-accent-blue)',
+                    boxShadow: `0 10px 15px -3px ${withOpacity('var(--color-accent-blue)', 0.1)}, 0 4px 6px -2px ${withOpacity('var(--color-accent-blue)', 0.05)}`,
                 }}
             />
             <div
@@ -84,7 +83,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     width: rect.width + (padding * 3),
                     height: rect.height + (padding * 3),
                     zIndex: 30,
-                    backgroundColor: theme.colors.accent.blue.bg,
+                    backgroundColor: 'var(--color-accent-blue-bg)',
                 }}
             />
         </>
@@ -214,25 +213,33 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                 
                 {highlightElement && <HighlightCutout highlightRect={highlightRect} />}
                 
-                <div className="w-[960px] max-w-[96vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden relative z-40">
-                    <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <div className="w-[960px] max-w-[96vw] rounded-xl shadow-xl overflow-hidden relative z-40 border"
+                     style={{
+                       backgroundColor: 'var(--color-bg-secondary)',
+                       borderColor: 'var(--color-border-default)'
+                     }}>
+                    <div className="px-6 py-4 flex items-center justify-between border-b"
+                         style={{ borderColor: 'var(--color-border-default)' }}>
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                 style={{ backgroundColor: theme.colors.accent.blue.dark }}>
+                                 style={{ backgroundColor: 'var(--color-accent-blue-dark)' }}>
                                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
                             </div>
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-200">{step.title}</h2>
-                                <div className="text-sm text-slate-400">
+                                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{step.title}</h2>
+                                <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                                     Step {currentStep + 1} of {ONBOARDING_STEPS.length}
                                 </div>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="text-slate-400 hover:text-slate-200 transition-colors p-1"
+                            className="transition-colors p-1"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -240,36 +247,51 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                         </button>
                     </div>
 
-                    <div className="h-1 bg-slate-800">
+                    <div className="h-1" style={{ backgroundColor: 'var(--color-border-default)' }}>
                         <div
                             className="h-full transition-all duration-300"
                             style={{
                                 width: `${((currentStep + 1) / ONBOARDING_STEPS.length) * 100}%`,
-                                backgroundColor: theme.colors.accent.blue.DEFAULT
+                                backgroundColor: 'var(--color-accent-blue)'
                             }}
                         />
                     </div>
 
-                    <div className="px-6 py-6 text-slate-300">
+                    <div className="px-6 py-6" style={{ color: 'var(--color-text-secondary)' }}>
                         {typeof step.content === 'function'
                             ? step.content({ projectPath })
                             : step.content
                         }
                     </div>
 
-                    <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">
+                    <div className="px-6 py-4 flex items-center justify-between border-t"
+                         style={{ borderColor: 'var(--color-border-default)' }}>
                         <button
                             onClick={handleSkip}
-                            className="text-slate-400 hover:text-slate-300 text-sm transition-colors"
+                            className="text-sm transition-colors"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
                         >
                             Skip tutorial
                         </button>
-                        
+
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handlePrevious}
                                 disabled={currentStep === 0}
-                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-sm transition-colors text-slate-300"
+                                className="px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed border rounded text-sm transition-colors"
+                                style={{
+                                  backgroundColor: 'var(--color-bg-elevated)',
+                                  borderColor: 'var(--color-border-default)',
+                                  color: 'var(--color-text-secondary)'
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (currentStep !== 0) {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+                                  }
+                                }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)' }}
                             >
                                 Previous
                             </button>
@@ -277,7 +299,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                                 onClick={handleNext}
                                 className="px-4 py-1.5 text-white rounded text-sm transition-colors flex items-center gap-2"
                                 style={{
-                                    backgroundColor: theme.colors.accent.blue.dark,
+                                    backgroundColor: 'var(--color-accent-blue-dark)',
                                 }}
                             >
                                 {isLastStep ? 'Get Started' : 'Next'}
@@ -291,8 +313,8 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                     </div>
 
                     <div className="px-6 pb-3">
-                        <div className="text-xs text-slate-500 text-center">
-                            Use <kbd className="px-1 py-0.5 bg-slate-700 rounded">←</kbd> <kbd className="px-1 py-0.5 bg-slate-700 rounded">→</kbd> or <kbd className="px-1 py-0.5 bg-slate-700 rounded">Enter</kbd> to navigate • <kbd className="px-1 py-0.5 bg-slate-700 rounded">Esc</kbd> to close
+                        <div className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
+                            Use <kbd className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>←</kbd> <kbd className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>→</kbd> or <kbd className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>Enter</kbd> to navigate • <kbd className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>Esc</kbd> to close
                         </div>
                     </div>
                 </div>

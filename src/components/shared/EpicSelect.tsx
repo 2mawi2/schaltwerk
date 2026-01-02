@@ -46,7 +46,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                 key: epic.id,
                 label: (
                     <span className="flex items-center gap-2 w-full group/epic-item">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: scheme?.DEFAULT ?? theme.colors.text.muted }} />
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
                         <span className="truncate flex-1">{epic.name}</span>
                         {showDeleteButton && (
                             <span
@@ -55,7 +55,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                                 onClick={(e) => handleDeleteClick(e, epic)}
                                 onPointerDown={(e) => e.stopPropagation()}
                                 className="opacity-0 group-hover/epic-item:opacity-100 p-0.5 rounded hover:opacity-80 transition-opacity flex-shrink-0"
-                                style={{ color: theme.colors.text.primary }}
+                                style={{ color: 'var(--color-text-primary)' }}
                                 title={`Delete epic "${epic.name}"`}
                             >
                                 <VscClose className="w-3.5 h-3.5" />
@@ -68,9 +68,9 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
 
         return [
             { key: 'none', label: 'None' },
-            { key: 'separator', label: <div style={{ height: 1, backgroundColor: theme.colors.border.subtle }} />, disabled: true },
+            { key: 'separator', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             ...epicItems,
-            { key: 'separator-2', label: <div style={{ height: 1, backgroundColor: theme.colors.border.subtle }} />, disabled: true },
+            { key: 'separator-2', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             { key: 'create', label: '+ Create new epic' },
         ]
     }, [epics, selectedId, value, showDeleteButton, handleDeleteClick])
@@ -133,33 +133,33 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                         }}
                         disabled={disabled}
                         className={variant === 'icon'
-                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-slate-700/60 hover:bg-slate-600/60 cursor-pointer'} ${className}`
+                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-elevated/60 hover:bg-elevated cursor-pointer'} ${className}`
                             : `${variant === 'field' ? 'w-full px-3 py-2 justify-between' : variant === 'compact' ? 'p-1' : 'px-2 py-1'} rounded border inline-flex items-center gap-2 ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'} ${className}`
                         }
                         style={variant === 'icon' ? undefined : {
                             backgroundColor: variant === 'field'
-                                ? theme.colors.background.secondary
-                                : theme.colors.background.elevated,
-                            borderColor: theme.colors.border.subtle,
-                            color: variant === 'field' ? theme.colors.text.primary : theme.colors.text.secondary,
+                                ? 'var(--color-bg-secondary)'
+                                : 'var(--color-bg-elevated)',
+                            borderColor: 'var(--color-border-subtle)',
+                            color: variant === 'field' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                             fontSize: variant === 'field' ? theme.fontSize.body : theme.fontSize.caption,
                         }}
                         title={value?.name ?? 'Set epic'}
                     >
                         {variant === 'icon' ? (
                             <span className="w-4 h-4 flex items-center justify-center">
-                                <VscTag style={{ color: selectedScheme?.DEFAULT ?? theme.colors.text.muted }} />
+                                <VscTag style={{ color: selectedScheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
                             </span>
                         ) : (
                             <>
                                 <span
                                     className="w-2 h-2 rounded-full"
-                                    style={{ backgroundColor: selectedScheme?.DEFAULT ?? theme.colors.text.muted }}
+                                    style={{ backgroundColor: selectedScheme?.DEFAULT ?? 'var(--color-text-muted)' }}
                                 />
                                 {variant !== 'compact' && (
                                     <>
                                         <span className={`truncate ${variant === 'field' ? 'flex-1 text-left' : 'max-w-[140px]'}`}>{value?.name ?? 'None'}</span>
-                                        <span style={{ color: theme.colors.text.muted }}>▾</span>
+                                        <span style={{ color: 'var(--color-text-muted)' }}>▾</span>
                                     </>
                                 )}
                             </>
@@ -181,7 +181,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                 open={Boolean(deleteTarget)}
                 title={`Delete epic "${deleteTarget?.name ?? ''}"?`}
                 body={
-                    <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.body }}>
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.body }}>
                         All sessions and specs in this epic will be moved to <strong>Ungrouped</strong>.
                     </div>
                 }

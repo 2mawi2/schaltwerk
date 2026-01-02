@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { theme } from '../../common/theme';
 
 interface IconButtonProps {
   icon: React.ReactNode;
@@ -68,7 +67,6 @@ export function IconButton({
     }
   };
 
-  // Match existing button styles from the app
   const getButtonClasses = () => {
     if (disabled) {
       return 'opacity-50 cursor-not-allowed';
@@ -125,9 +123,9 @@ export function IconButton({
               top: `${tooltipPosition.top}px`,
               left: `${tooltipPosition.left}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: theme.colors.background.elevated,
-              color: theme.colors.text.primary,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              color: 'var(--color-text-primary)',
+              border: `1px solid ${'var(--color-border-subtle)'}`,
               animation: 'fadeIn 150ms ease-out',
             }}
           >

@@ -87,7 +87,7 @@ describe('InlineEditableText', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
 
     expect(onSave).not.toHaveBeenCalled()
-    expect(screen.getByRole('textbox')).toHaveClass('border-red-500')
+    expect(screen.getByRole('textbox')).toHaveClass('border-accent-red')
   })
 
   it('disables interaction when disabled prop is true', async () => {
@@ -110,7 +110,7 @@ describe('InlineEditableText', () => {
     await user.type(screen.getByRole('textbox'), 'new-name{enter}')
 
     await waitFor(() => {
-      expect(screen.getByRole('textbox')).toHaveClass('border-red-500')
+      expect(screen.getByRole('textbox')).toHaveClass('border-accent-red')
     })
   })
 
@@ -133,7 +133,7 @@ describe('InlineEditableText', () => {
     await user.type(screen.getByRole('textbox'), '!!{enter}')
 
     expect(onSave).not.toHaveBeenCalled()
-    expect(screen.getByRole('textbox')).toHaveClass('border-red-500')
+    expect(screen.getByRole('textbox')).toHaveClass('border-accent-red')
   })
 
   it('allows names with special characters mixed with alphanumeric', async () => {

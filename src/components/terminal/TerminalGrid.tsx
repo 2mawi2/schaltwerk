@@ -45,7 +45,6 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { mapSessionUiState } from '../../utils/sessionFilters'
-import { theme } from '../../common/theme'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
@@ -1335,7 +1334,7 @@ const TerminalGridComponent = () => {
     if (selectionIsSpec) {
         return (
             <div className="h-full relative px-0 py-2">
-                <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
+                <div className="bg-panel rounded border border-default overflow-hidden min-h-0 h-full">
                     <SpecPlaceholder />
                 </div>
             </div>
@@ -1385,8 +1384,8 @@ const TerminalGridComponent = () => {
             >
                 <div
                     style={{
-                        borderColor: localFocus === 'claude' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
-                        boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                        borderColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)',
+                        boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${'var(--color-accent-blue)'}33, 0 4px 6px -2px ${'var(--color-accent-blue)'}33` : undefined,
                     }}
                     className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
                     data-onboarding="agent-terminal"
@@ -1408,14 +1407,14 @@ const TerminalGridComponent = () => {
                     ) : (
                     <div
                         style={{
-                            backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : undefined,
-                            color: localFocus === 'claude' ? theme.colors.accent.blue.light : undefined,
-                            borderBottomColor: localFocus === 'claude' ? theme.colors.accent.blue.border : undefined,
+                            backgroundColor: localFocus === 'claude' ? 'var(--color-accent-blue-bg)' : undefined,
+                            color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : undefined,
+                            borderBottomColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : undefined,
                         }}
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
                                 localFocus === 'claude'
                                     ? 'hover:bg-opacity-60'
-                                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                                    : 'text-tertiary border-default hover:bg-hover'
                         }`}
                     >
                         {/* Left side: Action Buttons - only show for orchestrator */}
@@ -1449,7 +1448,7 @@ const TerminalGridComponent = () => {
                             {selection.kind === 'orchestrator' && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfigureAgentsOpen(true) }}
-                                    className="px-2 py-1 text-[10px] rounded border border-slate-700 hover:bg-slate-800"
+                                    className="px-2 py-1 text-[10px] rounded border border-subtle hover:bg-hover"
                                     title="Change orchestrator agent"
                                 >
                                     Configure agent…
@@ -1458,7 +1457,7 @@ const TerminalGridComponent = () => {
                             {selection.kind === 'session' && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
-                                    className="p-1 rounded hover:bg-slate-800"
+                                    className="p-1 rounded hover:bg-hover"
                                     title="Reset session"
                                     aria-label="Reset session"
                                 >
@@ -1468,8 +1467,8 @@ const TerminalGridComponent = () => {
                         </div>
                         <span
                             style={{
-                                backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : theme.colors.background.hover,
-                                color: localFocus === 'claude' ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
+                                backgroundColor: localFocus === 'claude' ? 'var(--color-accent-blue-bg)' : 'var(--color-bg-hover)',
+                                color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
                             }}
                             className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded`}
                             title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
@@ -1479,8 +1478,8 @@ const TerminalGridComponent = () => {
                     <div
                         style={{
                             background: localFocus === 'claude' && !isDraggingSplit
-                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
-                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                                ? `linear-gradient(to right, transparent, ${'var(--color-accent-blue-border)'}, transparent)`
+                                : `linear-gradient(to right, transparent, ${'var(--color-border-strong)'}4D, transparent)`
                         }}
                         className="h-[2px] flex-shrink-0"
                     ></div>
@@ -1530,8 +1529,8 @@ const TerminalGridComponent = () => {
                 </div>
                 <div
                     style={{
-                        borderColor: localFocus === 'terminal' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
-                        boxShadow: localFocus === 'terminal' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                        borderColor: localFocus === 'terminal' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)',
+                        boxShadow: localFocus === 'terminal' ? `0 10px 15px -3px ${'var(--color-accent-blue)'}33, 0 4px 6px -2px ${'var(--color-accent-blue)'}33` : undefined,
                     }}
                     className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'shadow-lg' : ''}`}
                 >
@@ -1613,8 +1612,8 @@ const TerminalGridComponent = () => {
                     <div
                         style={{
                             background: localFocus === 'terminal' && !isDraggingSplit
-                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
-                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                                ? `linear-gradient(to right, transparent, ${'var(--color-accent-blue-border)'}, transparent)`
+                                : `linear-gradient(to right, transparent, ${'var(--color-border-strong)'}4D, transparent)`
                         }}
                         className="h-[2px] flex-shrink-0"
                     />

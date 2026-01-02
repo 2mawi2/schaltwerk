@@ -61,29 +61,26 @@ export function handleMarkdownPaste(event: ClipboardEvent, toast: OptionalToastA
   return true
 }
 
-const editorColors = theme.colors.editor
-const syntaxColors = theme.colors.syntax
-
 const customTheme = EditorView.theme({
   '&': {
-    color: editorColors.text,
-    backgroundColor: editorColors.background,
+    color: 'var(--color-editor-text)',
+    backgroundColor: 'var(--color-editor-background)',
     fontSize: theme.fontSize.body,
   },
   '.cm-editor': {
-    backgroundColor: editorColors.background,
+    backgroundColor: 'var(--color-editor-background)',
     height: '100%',
     minHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
   },
   '.cm-editor.cm-focused': {
-    backgroundColor: editorColors.background,
+    backgroundColor: 'var(--color-editor-background)',
     outline: 'none',
   },
   '.cm-content': {
-    caretColor: editorColors.caret,
-    backgroundColor: editorColors.background,
+    caretColor: 'var(--color-editor-caret)',
+    backgroundColor: 'var(--color-editor-background)',
     padding: '12px',
     minHeight: '100%',
   },
@@ -98,88 +95,88 @@ const customTheme = EditorView.theme({
     padding: '0 2px',
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: editorColors.caret,
+    borderLeftColor: 'var(--color-editor-caret)',
   },
   '.cm-selectionBackground': {
-    backgroundColor: `${editorColors.selection} !important`,
+    backgroundColor: 'var(--color-editor-selection) !important',
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: `${editorColors.focusedSelection} !important`,
+    backgroundColor: 'var(--color-editor-selection-focused) !important',
   },
   '&.cm-focused .cm-content ::selection': {
-    backgroundColor: `${editorColors.selection} !important`,
+    backgroundColor: 'var(--color-editor-selection) !important',
   },
   '.cm-content ::selection': {
-    backgroundColor: `${editorColors.selection} !important`,
+    backgroundColor: 'var(--color-editor-selection) !important',
   },
   '.cm-activeLine': {
-    backgroundColor: editorColors.selectionAlt,
+    backgroundColor: 'var(--color-editor-selection-alt)',
   },
   '.cm-gutters': {
-    backgroundColor: editorColors.background,
-    color: editorColors.gutterText,
+    backgroundColor: 'var(--color-editor-background)',
+    color: 'var(--color-editor-gutter-text)',
     border: 'none',
     borderRight: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
-    backgroundColor: editorColors.selectionAlt,
-    color: editorColors.gutterActiveText,
+    backgroundColor: 'var(--color-editor-selection-alt)',
+    color: 'var(--color-editor-gutter-active-text)',
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent',
   },
   '.cm-panels': {
-    backgroundColor: editorColors.background,
+    backgroundColor: 'var(--color-editor-background)',
   },
   '.cm-panels-bottom': {
-    backgroundColor: editorColors.background,
+    backgroundColor: 'var(--color-editor-background)',
   },
-}, { dark: true })
+})
 
 const syntaxHighlighting = EditorView.theme({
   '.cm-header-1': {
     fontSize: theme.fontSize.headingXLarge,
     fontWeight: 'bold',
-    color: syntaxColors.keyword,
+    color: 'var(--color-syntax-keyword)',
   },
   '.cm-header-2': {
     fontSize: theme.fontSize.headingLarge,
     fontWeight: 'bold',
-    color: syntaxColors.keyword,
+    color: 'var(--color-syntax-keyword)',
   },
   '.cm-header-3': {
     fontSize: theme.fontSize.heading,
     fontWeight: 'bold',
-    color: syntaxColors.keyword,
+    color: 'var(--color-syntax-keyword)',
   },
   '.cm-header-4, .cm-header-5, .cm-header-6': {
     fontWeight: 'bold',
-    color: syntaxColors.keyword,
+    color: 'var(--color-syntax-keyword)',
   },
   '.cm-strong': {
     fontWeight: 'bold',
-    color: syntaxColors.selector,
+    color: 'var(--color-syntax-selector)',
   },
   '.cm-emphasis': {
     fontStyle: 'italic',
-    color: syntaxColors.emphasis,
+    color: 'var(--color-syntax-emphasis)',
   },
   '.cm-link': {
-    color: syntaxColors.type,
+    color: 'var(--color-syntax-type)',
     textDecoration: 'underline',
   },
   '.cm-url': {
-    color: syntaxColors.type,
+    color: 'var(--color-syntax-type)',
     textDecoration: 'underline',
   },
   '.cm-code': {
-    backgroundColor: editorColors.inlineCodeBg,
-    color: syntaxColors.string,
+    backgroundColor: 'var(--color-editor-inline-code-bg)',
+    color: 'var(--color-syntax-string)',
     padding: '2px 4px',
     borderRadius: '3px',
   },
   '.cm-codeblock': {
-    backgroundColor: editorColors.codeBlockBg,
+    backgroundColor: 'var(--color-editor-code-block-bg)',
     display: 'block',
     padding: '8px',
     borderRadius: '4px',
@@ -187,22 +184,22 @@ const syntaxHighlighting = EditorView.theme({
     marginBottom: '4px',
   },
   '.cm-quote': {
-    color: syntaxColors.comment,
-    borderLeft: `3px solid ${editorColors.blockquoteBorder}`,
+    color: 'var(--color-syntax-comment)',
+    borderLeft: '3px solid var(--color-editor-blockquote-border)',
     paddingLeft: '8px',
     fontStyle: 'italic',
   },
   '.cm-list': {
-    color: syntaxColors.default,
+    color: 'var(--color-syntax-default)',
   },
   '.cm-hr': {
-    color: editorColors.lineRule,
+    color: 'var(--color-editor-line-rule)',
   },
   '.cm-strikethrough': {
     textDecoration: 'line-through',
-    color: editorColors.strikethrough,
+    color: 'var(--color-editor-strikethrough)',
   },
-}, { dark: true })
+})
 
 const scrollableContainerStyles: CSSProperties = {
   height: '100%',
@@ -219,7 +216,7 @@ const scrollableInnerStyles: CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   position: 'relative',
-  backgroundColor: editorColors.background,
+  backgroundColor: 'var(--color-editor-background)',
 }
 
 export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorProps>(function MarkdownEditor({

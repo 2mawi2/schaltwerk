@@ -274,6 +274,14 @@ pub struct AgentBinaryConfigs {
     pub kilocode: Option<AgentBinaryConfig>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    #[default]
+    Dark,
+    Light,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
@@ -301,6 +309,8 @@ pub struct Settings {
     pub dev_error_toasts_enabled: bool,
     #[serde(default)]
     pub last_project_parent_directory: Option<String>,
+    #[serde(default)]
+    pub theme_mode: ThemeMode,
     #[serde(default)]
     pub agent_command_prefix: Option<String>,
 }

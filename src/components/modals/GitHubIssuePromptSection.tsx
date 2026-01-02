@@ -50,7 +50,7 @@ export function GitHubIssuePromptSection({
         style={{ marginTop }}
       >
         {labels.map(label => {
-          const baseHex = label.color ? `#${label.color}` : theme.colors.accent.blue.DEFAULT
+          const baseHex = label.color ? `#${label.color}` : 'var(--color-accent-blue)'
           return (
             <span
               key={label.name}
@@ -155,8 +155,8 @@ export function GitHubIssuePromptSection({
     const state = (selectedSummary?.state ?? 'open').toLowerCase()
     const statusTheme =
       state === 'open'
-        ? theme.colors.accent.green
-        : theme.colors.accent.red
+        ? 'var(--color-accent-green)'
+        : 'var(--color-accent-red)'
     const updatedDisplay = selectedSummary ? formatIssueUpdatedTimestamp(selectedSummary) : null
     const commentCount = details.comments.length
     const commentLabel =
@@ -171,12 +171,12 @@ export function GitHubIssuePromptSection({
     return (
       <div
         className="flex flex-col h-full border rounded"
-        style={{ borderColor: theme.colors.border.subtle, backgroundColor: theme.colors.background.elevated }}
+        style={{ borderColor: 'var(--color-border-subtle)', backgroundColor: 'var(--color-bg-elevated)' }}
       >
         <div
           className="flex items-start justify-between gap-4 border-b"
           style={{
-            borderColor: theme.colors.border.subtle,
+            borderColor: 'var(--color-border-subtle)',
             padding: '16px 18px',
           }}
         >
@@ -186,7 +186,7 @@ export function GitHubIssuePromptSection({
                 style={{
                   fontSize: theme.fontSize.headingLarge,
                   fontWeight: 600,
-                  color: theme.colors.text.primary,
+                  color: 'var(--color-text-primary)',
                 }}
               >
                 {details.title}
@@ -197,8 +197,8 @@ export function GitHubIssuePromptSection({
                   fontWeight: 600,
                   padding: '0.25rem 0.75rem',
                   borderRadius: theme.borderRadius.full,
-                  backgroundColor: statusTheme.bg,
-                  color: statusTheme.DEFAULT,
+                  backgroundColor: state === 'open' ? 'var(--color-accent-green-bg)' : 'var(--color-accent-red-bg)',
+                  color: statusTheme,
                   letterSpacing: '0.04em',
                   textTransform: 'uppercase',
                 }}
@@ -214,7 +214,7 @@ export function GitHubIssuePromptSection({
                 alignItems: 'center',
                 gap: '0.5rem',
                 fontSize: theme.fontSize.caption,
-                color: theme.colors.text.tertiary,
+                color: 'var(--color-text-tertiary)',
               }}
             >
               {metaParts.map((part, index) => (
@@ -233,9 +233,9 @@ export function GitHubIssuePromptSection({
               onClick={() => { void handleOpenLink(details.url) }}
               className="px-2 py-1 text-xs rounded border transition-colors"
               style={{
-                backgroundColor: theme.colors.accent.blue.bg,
-                border: `1px solid ${theme.colors.accent.blue.border}`,
-                color: theme.colors.accent.blue.DEFAULT,
+                backgroundColor: 'var(--color-accent-blue-bg)',
+                border: `1px solid ${'var(--color-accent-blue-border)'}`,
+                color: 'var(--color-accent-blue)',
                 padding: '0.5rem 0.75rem',
                 fontSize: theme.fontSize.button,
               }}
@@ -247,9 +247,9 @@ export function GitHubIssuePromptSection({
               onClick={onClearSelection}
               className="px-2 py-1 text-xs rounded border transition-colors"
               style={{
-                backgroundColor: theme.colors.background.primary,
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.secondary,
+                backgroundColor: 'var(--color-bg-primary)',
+                border: `1px solid ${'var(--color-border-subtle)'}`,
+                color: 'var(--color-text-secondary)',
               }}
             >
               Clear selection
@@ -265,8 +265,8 @@ export function GitHubIssuePromptSection({
           <div
             style={{
               borderRadius: theme.borderRadius.lg,
-              border: `1px solid ${theme.colors.border.subtle}`,
-              backgroundColor: theme.colors.background.primary,
+              border: `1px solid ${'var(--color-border-subtle)'}`,
+              backgroundColor: 'var(--color-bg-primary)',
               padding: '16px',
             }}
           >
@@ -281,7 +281,7 @@ export function GitHubIssuePromptSection({
     return (
       <div
         className="flex flex-col gap-3 p-4 border rounded"
-        style={{ borderColor: theme.colors.border.subtle, backgroundColor: theme.colors.background.elevated }}
+        style={{ borderColor: 'var(--color-border-subtle)', backgroundColor: 'var(--color-bg-elevated)' }}
       >
         <input
           type="search"
@@ -291,9 +291,9 @@ export function GitHubIssuePromptSection({
           disabled
           className="px-3 py-2 rounded text-sm"
           style={{
-            backgroundColor: theme.colors.background.primary,
-            color: theme.colors.text.secondary,
-            border: `1px solid ${theme.colors.border.subtle}`,
+            backgroundColor: 'var(--color-bg-primary)',
+            color: 'var(--color-text-secondary)',
+            border: `1px solid ${'var(--color-border-subtle)'}`,
             opacity: 0.6,
           }}
         />
@@ -304,10 +304,10 @@ export function GitHubIssuePromptSection({
   return (
     <div
       className="flex flex-col h-full border rounded"
-      style={{ borderColor: theme.colors.border.subtle, backgroundColor: theme.colors.background.elevated }}
+      style={{ borderColor: 'var(--color-border-subtle)', backgroundColor: 'var(--color-bg-elevated)' }}
     >
-      <div className="p-3 border-b space-y-2" style={{ borderColor: theme.colors.border.subtle }}>
-        <p className="text-xs" style={{ color: theme.colors.text.secondary }}>
+      <div className="p-3 border-b space-y-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
+        <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
           Search by title or label to import the latest GitHub issue context.
         </p>
         <input
@@ -318,13 +318,13 @@ export function GitHubIssuePromptSection({
           aria-label="Search GitHub issues"
           className="w-full px-3 py-2 text-sm rounded"
           style={{
-            backgroundColor: theme.colors.background.primary,
-            color: theme.colors.text.primary,
-            border: `1px solid ${theme.colors.border.default}`,
+            backgroundColor: 'var(--color-bg-primary)',
+            color: 'var(--color-text-primary)',
+            border: `1px solid ${'var(--color-border-default)'}`,
             boxShadow: '0 0 0 1px transparent',
           }}
           onFocus={event => {
-            event.currentTarget.style.boxShadow = `0 0 0 1px ${theme.colors.accent.blue.DEFAULT}`;
+            event.currentTarget.style.boxShadow = `0 0 0 1px ${'var(--color-accent-blue)'}`;
           }}
           onBlur={event => {
             event.currentTarget.style.boxShadow = '0 0 0 1px transparent';
@@ -335,22 +335,22 @@ export function GitHubIssuePromptSection({
         {loading ? (
           <div
             className="flex flex-col items-center justify-center gap-2 py-10 text-sm"
-            style={{ color: theme.colors.text.secondary }}
+            style={{ color: 'var(--color-text-secondary)' }}
           >
             <span
               className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
-              style={{ borderColor: theme.colors.accent.blue.DEFAULT }}
+              style={{ borderColor: 'var(--color-accent-blue)' }}
             />
             Loading issues…
           </div>
         ) : results.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center gap-2 py-10 text-sm text-center"
-            style={{ color: theme.colors.text.secondary }}
+            style={{ color: 'var(--color-text-secondary)' }}
           >
             <span role="img" aria-hidden="true">🔍</span>
             <span>No issues found for this project.</span>
-            <span className="text-xs" style={{ color: theme.colors.text.secondary }}>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
               Adjust your search or ensure issues exist on GitHub.
             </span>
           </div>
@@ -363,19 +363,19 @@ export function GitHubIssuePromptSection({
               const state = issue.state.toLowerCase()
               const statusTheme =
                 state === 'open'
-                  ? theme.colors.accent.green
-                  : theme.colors.accent.red
-              const baseBackground = theme.colors.background.primary
+                  ? 'var(--color-accent-green)'
+                  : 'var(--color-accent-red)'
+              const baseBackground = 'var(--color-bg-primary)'
               const backgroundColor = isSelected
-                ? theme.colors.accent.blue.bg
+                ? 'var(--color-accent-blue-bg)'
                 : isHovered
-                  ? theme.colors.background.hover
+                  ? 'var(--color-bg-hover)'
                   : baseBackground
               const borderColor = isSelected
-                ? theme.colors.accent.blue.DEFAULT
+                ? 'var(--color-accent-blue)'
                 : isHovered
-                  ? theme.colors.border.strong
-                  : theme.colors.border.subtle
+                  ? 'var(--color-border-strong)'
+                  : 'var(--color-border-subtle)'
 
               const metadata: string[] = [
                 `Updated ${formatIssueUpdatedTimestamp(issue)}`,
@@ -401,7 +401,7 @@ export function GitHubIssuePromptSection({
                     className="w-full text-left"
                     style={{
                       backgroundColor,
-                      color: theme.colors.text.primary,
+                      color: 'var(--color-text-primary)',
                       border: `1px solid ${borderColor}`,
                       borderRadius: theme.borderRadius.lg,
                       padding: '14px 16px',
@@ -432,7 +432,7 @@ export function GitHubIssuePromptSection({
                             style={{
                               fontSize: theme.fontSize.bodyLarge,
                               fontWeight: 600,
-                              color: theme.colors.text.primary,
+                              color: 'var(--color-text-primary)',
                             }}
                           >
                             {issue.title}
@@ -443,8 +443,8 @@ export function GitHubIssuePromptSection({
                               fontWeight: 600,
                               padding: '0.125rem 0.5rem',
                               borderRadius: theme.borderRadius.full,
-                              backgroundColor: statusTheme.bg,
-                              color: statusTheme.DEFAULT,
+                              backgroundColor: state === 'open' ? 'var(--color-accent-green-bg)' : 'var(--color-accent-red-bg)',
+                              color: statusTheme,
                               letterSpacing: '0.02em',
                               textTransform: 'uppercase',
                             }}
@@ -460,7 +460,7 @@ export function GitHubIssuePromptSection({
                             alignItems: 'center',
                             gap: '0.4rem',
                             fontSize: theme.fontSize.caption,
-                            color: theme.colors.text.tertiary,
+                            color: 'var(--color-text-tertiary)',
                           }}
                         >
                           {metadata.map((part, index) => (
@@ -476,7 +476,7 @@ export function GitHubIssuePromptSection({
                       {isLoading && (
                         <span
                           className="text-xs"
-                          style={{ color: theme.colors.text.secondary }}
+                          style={{ color: 'var(--color-text-secondary)' }}
                         >
                           Loading…
                         </span>

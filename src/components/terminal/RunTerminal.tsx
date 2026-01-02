@@ -5,7 +5,6 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { theme } from '../../common/theme'
 import { emitUiEvent, UiEvent, listenUiEvent } from '../../common/uiEvents'
 import { bestBootstrapSize } from '../../common/terminalSizeCache'
 import {
@@ -356,10 +355,10 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
   if (isLoading) {
     return (
-      <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: theme.colors.background.primary }}>
+      <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: 'var(--color-bg-primary)' }}>
         <div className="text-center">
-          <AnimatedText text="loading" />
-          <div className="text-xs text-slate-600 mt-2">Loading run script...</div>
+          <AnimatedText text="loading" size="md" />
+          <div className="text-xs text-tertiary mt-2">Loading run script...</div>
         </div>
       </div>
     )
@@ -369,21 +368,21 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     return (
       <div
         className={`${className} flex items-center justify-center`}
-        style={{ backgroundColor: theme.colors.background.primary }}
+        style={{ backgroundColor: 'var(--color-bg-primary)' }}
       >
         <div
           className="text-center p-8 max-w-md border-2 border-dashed rounded-lg"
-          style={{ borderColor: theme.colors.border.subtle }}
+          style={{ borderColor: 'var(--color-border-subtle)' }}
         >
           <div
             className="text-lg font-medium mb-2"
-            style={{ color: theme.colors.text.primary }}
+            style={{ color: 'var(--color-text-primary)' }}
           >
             No Run Configuration
           </div>
           <div
             className="text-sm mb-6"
-            style={{ color: theme.colors.text.secondary }}
+            style={{ color: 'var(--color-text-secondary)' }}
           >
             Run tests or a development server to test changes in this workspace
           </div>
@@ -393,8 +392,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             }}
             className="px-4 py-2 rounded font-medium transition-transform transform hover:-translate-y-0.5 hover:scale-105 cursor-pointer"
             style={{
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.primary
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-primary)'
             }}
           >
             Add run script
@@ -405,20 +404,20 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   }
 
   return (
-    <div className={`${className} flex flex-col overflow-hidden`} style={{ backgroundColor: theme.colors.background.primary }}>
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex-shrink-0">
+    <div className={`${className} flex flex-col overflow-hidden`} style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+      <div className="bg-elevated border-b border-subtle px-4 py-2 flex-shrink-0">
         <div className="flex items-center gap-3 text-xs">
-          <span className={`${isRunning ? 'text-green-500' : 'text-slate-600'}`}>
+          <span style={{ color: isRunning ? 'var(--color-accent-green)' : 'var(--color-text-tertiary)' }}>
             {isRunning ? '▶' : '■'}
           </span>
-          <span className="text-slate-500">{isRunning ? 'Running:' : 'Ready to run:'}</span>
-          <code className={`bg-slate-800 px-2 py-0.5 rounded font-mono ${isRunning ? 'text-green-400' : 'text-slate-400'}`}>
+          <span className="text-secondary">{isRunning ? 'Running:' : 'Ready to run:'}</span>
+          <code className="bg-secondary px-2 py-0.5 rounded font-mono" style={{ color: isRunning ? 'var(--color-accent-green)' : 'var(--color-text-tertiary)' }}>
             {runScript.command}
           </code>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: theme.colors.background.secondary }}>
+      <div className="flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         {terminalCreated ? (
           <Terminal
             terminalId={runTerminalId}
@@ -433,17 +432,17 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             autoPreviewConfig={autoPreviewConfig}
           />
         ) : (
-          <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>
+          <div className="h-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <div className="text-center">
-              <div className="text-slate-600 text-4xl mb-4">▶</div>
-              <div className="text-slate-500 text-sm">Press ⌘E or click Run to start</div>
+              <div className="text-tertiary text-4xl mb-4">▶</div>
+              <div className="text-secondary text-sm">Press ⌘E or click Run to start</div>
             </div>
           </div>
         )}
       </div>
 
       {terminalCreated && !isRunning && (
-        <div className="border-t border-slate-800 px-4 py-1 text-[11px] text-slate-500 flex-shrink-0" style={{ backgroundColor: theme.colors.background.elevated }}>
+        <div className="border-t border-subtle px-4 py-1 text-[11px] text-secondary flex-shrink-0" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
           [process has ended]
         </div>
       )}

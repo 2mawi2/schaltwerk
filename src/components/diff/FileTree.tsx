@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, ReactNode } from 'react'
 import { VscFolder, VscFolderOpened } from 'react-icons/vsc'
 import { buildFolderTree, getAllFolderPaths, type TreeNode, type FolderNode, type FileNode } from '../../utils/folderTree'
-import { theme } from '../../common/theme'
 import type { ChangedFile } from '../../common/events'
 
 interface FileTreeProps {
@@ -37,23 +36,23 @@ export function FileTree({ files, renderFileNode, renderFolderContent }: FileTre
     return (
       <div key={node.path}>
         <div
-          className="cursor-pointer hover:bg-slate-800/30 flex items-center gap-1.5"
+          className="cursor-pointer hover:bg-elevated/30 flex items-center gap-1.5"
           style={{ paddingLeft: `${depth * 12 + 12}px`, paddingTop: '4px', paddingBottom: '4px' }}
           onClick={() => toggleFolder(node.path)}
         >
           {isExpanded ? (
-            <VscFolderOpened size={14} style={{ color: theme.colors.accent.blue.light }} />
+            <VscFolderOpened size={14} style={{ color: 'var(--color-accent-blue-light)' }} />
           ) : (
-            <VscFolder size={14} style={{ color: theme.colors.text.muted }} />
+            <VscFolder size={14} style={{ color: 'var(--color-text-muted)' }} />
           )}
           <div className="flex-1 flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium truncate" style={{ color: theme.colors.text.secondary }}>
+            <span className="text-sm font-medium truncate" style={{ color: 'var(--color-text-secondary)' }}>
               {node.name}
             </span>
             {renderFolderContent ? (
               renderFolderContent(node)
             ) : (
-              <span className="text-xs flex-shrink-0" style={{ color: theme.colors.text.muted }}>
+              <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
                 ({node.fileCount})
               </span>
             )}

@@ -169,21 +169,21 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
 
   return (
     <div className="relative" ref={menuRef}>
-      <div className="flex rounded overflow-hidden border border-slate-700/60 bg-slate-800/50 h-[22px]">
+      <div className="flex rounded overflow-hidden border border-subtle/60 bg-elevated/50 h-[22px]">
         <button
           onClick={() => { void handleMainClick() }}
           disabled={isOpening}
-          className="flex items-center gap-1.5 px-2 text-xs text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-2 text-xs text-secondary hover:bg-hover/50 disabled:opacity-50 disabled:cursor-not-allowed"
           title={`Open in ${defaultAppLabel}`}
         >
           <VscFolder className="text-[12px] opacity-90" />
           <span>{isOpening ? 'Opening...' : 'Open'}</span>
         </button>
-        <div className="w-px bg-slate-700/60" />
+        <div className="w-px bg-subtle/60" />
         <button
           onClick={() => setOpen(v => !v)}
           disabled={isOpening}
-          className="px-1.5 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-1.5 text-secondary hover:bg-hover/50 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-haspopup="menu"
           aria-expanded={open}
         >
@@ -194,22 +194,22 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 min-w-[200px] z-20 rounded-xl border border-slate-700/60 bg-slate-900 shadow-xl p-1"
+          className="absolute right-0 mt-2 min-w-[200px] z-20 rounded-xl border border-subtle/60 bg-primary shadow-xl p-1"
         >
           {filteredApps.map(app => (
             <button
               key={app.id}
               onClick={() => void handleSelectApp(app)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-slate-200 hover:bg-slate-700/40"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-secondary hover:bg-hover/40"
               role="menuitem"
               title={`Open in ${app.name}`}
             >
               <span className="w-4 inline-flex items-center justify-center">{iconFor(app.id)}</span>
               <span className="flex-1">{app.name}</span>
               {app.id === effectiveDefaultApp ? (
-                <VscCheck className="text-[14px] text-slate-400" />
+                <VscCheck className="text-[14px] text-tertiary" />
               ) : (
-                <VscChevronRight className="text-[14px] text-slate-500 opacity-60" />
+                <VscChevronRight className="text-[14px] text-tertiary opacity-60" />
               )}
             </button>
           ))}

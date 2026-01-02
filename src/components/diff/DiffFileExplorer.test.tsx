@@ -74,7 +74,7 @@ describe('DiffFileExplorer', () => {
     render(<DiffFileExplorer {...mockProps} />)
     
     const selectedFileElement = screen.getByText('file1.ts').closest('.cursor-pointer')
-    expect(selectedFileElement).toHaveClass('bg-slate-800')
+    expect(selectedFileElement).toHaveClass('bg-elevated')
   })
 
   it('calls onFileSelect when file is clicked', () => {

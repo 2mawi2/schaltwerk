@@ -137,8 +137,8 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
               width: menuGeometry.width,
               maxHeight: menuGeometry.maxHeight,
               zIndex: theme.layers.dropdownMenu,
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.default}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: `1px solid ${'var(--color-border-default)'}`,
             }}
           >
             {items.map((item, index) => {
@@ -153,8 +153,8 @@ export function Dropdown({ open, onOpenChange, items, selectedKey, onSelect, ali
                   disabled={!canSelect}
                   className={`block w-full text-left px-3 py-1.5 ${canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${isFocused ? 'opacity-90' : isSelected ? 'opacity-90' : canSelect ? 'hover:opacity-80' : ''}`}
                   style={{
-                    color: canSelect ? theme.colors.text.primary : theme.colors.text.muted,
-                    backgroundColor: isFocused ? theme.colors.background.hover : isSelected ? theme.colors.background.active : 'transparent'
+                    color: canSelect ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                    backgroundColor: isFocused ? 'var(--color-bg-hover)' : isSelected ? 'var(--color-bg-active)' : 'transparent'
                   }}
                   title={typeof item.label === 'string' ? (item.label as string) : item.title}
                 >

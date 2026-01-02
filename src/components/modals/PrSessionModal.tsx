@@ -49,17 +49,17 @@ interface PrSessionModalProps {
 }
 
 const modalBackdropStyle: React.CSSProperties = {
-  backgroundColor: theme.colors.overlay.backdrop,
+  backgroundColor: 'var(--color-overlay-backdrop)',
 }
 
 const modalContainerStyle: React.CSSProperties = {
-  backgroundColor: theme.colors.background.elevated,
-  border: `1px solid ${theme.colors.border.subtle}`,
-  color: theme.colors.text.primary,
+  backgroundColor: 'var(--color-bg-elevated)',
+  border: `1px solid ${'var(--color-border-subtle)'}`,
+  color: 'var(--color-text-primary)',
 }
 
 const fieldLabelStyle: React.CSSProperties = {
-  color: theme.colors.text.secondary,
+  color: 'var(--color-text-secondary)',
   fontSize: theme.fontSize?.label || '0.75rem',
 }
 
@@ -218,22 +218,22 @@ export function PrSessionModal({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-start gap-4 border-b px-6 py-4 flex-shrink-0" style={{ borderColor: theme.colors.border.subtle }}>
+        <div className="flex justify-between items-start gap-4 border-b px-6 py-4 flex-shrink-0" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div>
-            <h2 id="pr-session-title" className="text-lg font-semibold" style={{ color: theme.colors.text.primary }}>
+            <h2 id="pr-session-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
               Create Pull Request
             </h2>
-            <p className="text-sm" style={{ color: theme.colors.text.secondary }}>
+            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               {sessionBranch} → {baseBranch || preview?.parentBranch || '—'}
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm" style={{ color: theme.colors.text.secondary }}>
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               <input
                 type="checkbox"
                 checked={autoCancelEnabled}
                 onChange={handleToggleAutoCancel}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                className="w-4 h-4 rounded border-default bg-elevated text-accent-cyan focus:ring-border-focus"
                 aria-label="Auto-cancel after PR"
               />
               <span>Auto-cancel after PR</span>
@@ -241,7 +241,7 @@ export function PrSessionModal({
             <button
               onClick={onClose}
               className="text-sm"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
               aria-label="Close PR dialog"
               title="Close (Esc)"
             >
@@ -263,9 +263,9 @@ export function PrSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.red.bg,
-                    border: `1px solid ${theme.colors.accent.red.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-red-bg)',
+                    border: `1px solid ${'var(--color-accent-red-border)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Branch conflict detected</p>
@@ -277,9 +277,9 @@ export function PrSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.amber.bg,
-                    border: `1px solid ${theme.colors.accent.amber.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-amber-bg)',
+                    border: `1px solid ${'var(--color-accent-amber-border)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Cannot squash pushed branch</p>
@@ -295,9 +295,9 @@ export function PrSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.red.bg,
-                    border: `1px solid ${theme.colors.accent.red.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-red-bg)',
+                    border: `1px solid ${'var(--color-accent-red-border)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Uncommitted changes conflict with pushed branch</p>
@@ -313,9 +313,9 @@ export function PrSessionModal({
                 <div
                   className="rounded-md px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.accent.amber.bg,
-                    border: `1px solid ${theme.colors.accent.amber.border}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-accent-amber-bg)',
+                    border: `1px solid ${'var(--color-accent-amber-border)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                 >
                   <p className="font-medium">Uncommitted changes detected</p>
@@ -330,11 +330,11 @@ export function PrSessionModal({
               <div
                 className="flex items-center gap-3 rounded px-4 py-3"
                 style={{
-                  backgroundColor: theme.colors.background.tertiary,
-                  border: `1px solid ${theme.colors.border.subtle}`,
+                  backgroundColor: 'var(--color-bg-tertiary)',
+                  border: `1px solid ${'var(--color-border-subtle)'}`,
                 }}
               >
-                <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   {mode === 'squash'
                     ? 'All changes will be squashed into a single commit for this PR.'
                     : `${commitCount} commit${commitCount !== 1 ? 's' : ''} will be included${
@@ -353,11 +353,11 @@ export function PrSessionModal({
                     className="px-3 py-2 rounded text-sm"
                     style={{
                       backgroundColor:
-                        mode === 'squash' ? theme.colors.accent.green.bg : theme.colors.background.tertiary,
+                        mode === 'squash' ? 'var(--color-accent-green-bg)' : 'var(--color-bg-tertiary)',
                       border: `1px solid ${
-                        mode === 'squash' ? theme.colors.accent.green.border : theme.colors.border.subtle
+                        mode === 'squash' ? 'var(--color-accent-green-border)' : 'var(--color-border-subtle)'
                       }`,
-                      color: theme.colors.text.primary,
+                      color: 'var(--color-text-primary)',
                     }}
                   >
                     Squash changes
@@ -368,17 +368,17 @@ export function PrSessionModal({
                     className="px-3 py-2 rounded text-sm"
                     style={{
                       backgroundColor:
-                        mode === 'reapply' ? theme.colors.accent.blue.bg : theme.colors.background.tertiary,
+                        mode === 'reapply' ? 'var(--color-accent-blue-bg)' : 'var(--color-bg-tertiary)',
                       border: `1px solid ${
-                        mode === 'reapply' ? theme.colors.accent.blue.border : theme.colors.border.subtle
+                        mode === 'reapply' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)'
                       }`,
-                      color: theme.colors.text.primary,
+                      color: 'var(--color-text-primary)',
                     }}
                   >
                     Use existing commits
                   </button>
                 </div>
-                <p className="mt-2 text-sm" style={{ color: theme.colors.text.secondary }}>
+                <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   {mode === 'squash'
                     ? 'Create a single commit (including uncommitted changes), then create the PR.'
                     : 'Create the PR with the existing commits, preserving history.'}
@@ -396,9 +396,9 @@ export function PrSessionModal({
                     onChange={(event) => setCommitMessage(event.target.value)}
                     className="mt-1 w-full rounded px-3 py-2 text-sm"
                     style={{
-                      backgroundColor: theme.colors.background.tertiary,
-                      border: `1px solid ${theme.colors.border.subtle}`,
-                      color: theme.colors.text.primary,
+                      backgroundColor: 'var(--color-bg-tertiary)',
+                      border: `1px solid ${'var(--color-border-subtle)'}`,
+                      color: 'var(--color-text-primary)',
                     }}
                     placeholder={title || 'Describe the changes'}
                   />
@@ -417,9 +417,9 @@ export function PrSessionModal({
                   onChange={(event) => setTitle(event.target.value)}
                   className="mt-1 w-full rounded px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.background.tertiary,
-                    border: `1px solid ${theme.colors.border.subtle}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    border: `1px solid ${'var(--color-border-subtle)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                   placeholder="Enter a title for your pull request"
                 />
@@ -436,9 +436,9 @@ export function PrSessionModal({
                   rows={8}
                   className="mt-1 w-full rounded px-3 py-2 text-sm resize-y"
                   style={{
-                    backgroundColor: theme.colors.background.tertiary,
-                    border: `1px solid ${theme.colors.border.subtle}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    border: `1px solid ${'var(--color-border-subtle)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                   placeholder="Describe the changes in this pull request"
                 />
@@ -454,24 +454,24 @@ export function PrSessionModal({
                   onChange={(event) => setBaseBranch(event.target.value)}
                   className="mt-1 w-full rounded px-3 py-2 text-sm"
                   style={{
-                    backgroundColor: theme.colors.background.tertiary,
-                    border: `1px solid ${theme.colors.border.subtle}`,
-                    color: theme.colors.text.primary,
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    border: `1px solid ${'var(--color-border-subtle)'}`,
+                    color: 'var(--color-text-primary)',
                   }}
                   placeholder={preview.parentBranch}
                 />
-                <p className="mt-1 text-xs" style={{ color: theme.colors.text.tertiary }}>
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                   The branch this PR will be merged into (defaults to the session parent branch)
                 </p>
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-sm mb-2" style={{ color: theme.colors.text.secondary }}>
+                <label className="flex items-center gap-2 text-sm mb-2" style={{ color: 'var(--color-text-secondary)' }}>
                   <input
                     type="checkbox"
                     checked={usePrBranchName}
                     onChange={(e) => setUsePrBranchName(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                    className="w-4 h-4 rounded border-default bg-elevated text-accent-cyan focus:ring-border-focus"
                   />
                   <span>Use custom PR branch name</span>
                 </label>
@@ -483,13 +483,13 @@ export function PrSessionModal({
                       onChange={(event) => setPrBranchName(event.target.value)}
                       className="mt-1 w-full rounded px-3 py-2 text-sm"
                       style={{
-                        backgroundColor: theme.colors.background.tertiary,
-                        border: `1px solid ${theme.colors.border.subtle}`,
-                        color: theme.colors.text.primary,
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        border: `1px solid ${'var(--color-border-subtle)'}`,
+                        color: 'var(--color-text-primary)',
                       }}
                       placeholder={`pr/${sessionName}`}
                     />
-                    <p className="mt-1 text-xs" style={{ color: theme.colors.text.tertiary }}>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                       Your session will switch to this branch after the PR is created.
                     </p>
                   </>
@@ -503,9 +503,9 @@ export function PrSessionModal({
             <div
               className="rounded-md px-3 py-2 text-sm"
               style={{
-                backgroundColor: theme.colors.accent.red.bg,
-                border: `1px solid ${theme.colors.accent.red.border}`,
-                color: theme.colors.text.primary,
+                backgroundColor: 'var(--color-accent-red-bg)',
+                border: `1px solid ${'var(--color-accent-red-border)'}`,
+                color: 'var(--color-text-primary)',
               }}
             >
               {error}
@@ -513,8 +513,8 @@ export function PrSessionModal({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t px-6 py-4 flex-shrink-0" style={{ borderColor: theme.colors.border.subtle }}>
-          <div className="text-xs" style={{ color: theme.colors.text.secondary }}>
+        <div className="flex items-center justify-between gap-3 border-t px-6 py-4 flex-shrink-0" style={{ borderColor: 'var(--color-border-subtle)' }}>
+          <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             Shortcut: ⌘⇧P
           </div>
           <div className="flex gap-3">
@@ -523,9 +523,9 @@ export function PrSessionModal({
               onClick={onClose}
               className="px-4 py-2 text-sm rounded border group inline-flex items-center gap-2"
               style={{
-                backgroundColor: theme.colors.background.tertiary,
-                borderColor: theme.colors.border.subtle,
-                color: theme.colors.text.secondary,
+                backgroundColor: 'var(--color-bg-tertiary)',
+                borderColor: 'var(--color-border-subtle)',
+                color: 'var(--color-text-secondary)',
               }}
               title="Cancel (Esc)"
             >
@@ -540,10 +540,10 @@ export function PrSessionModal({
               title={confirmTitle}
               style={{
                 backgroundColor: confirmDisabled
-                  ? theme.colors.background.hover
-                  : theme.colors.accent.blue.DEFAULT,
-                border: `1px solid ${theme.colors.accent.blue.dark}`,
-                color: confirmDisabled ? theme.colors.text.secondary : theme.colors.text.inverse,
+                  ? 'var(--color-bg-hover)'
+                  : 'var(--color-accent-blue)',
+                border: `1px solid ${'var(--color-accent-blue-dark)'}`,
+                color: confirmDisabled ? 'var(--color-text-secondary)' : 'var(--color-text-inverse)',
                 cursor: confirmDisabled ? 'not-allowed' : 'pointer',
                 opacity: confirmDisabled ? 0.6 : 1,
               }}

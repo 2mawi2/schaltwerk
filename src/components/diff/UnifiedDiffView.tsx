@@ -59,7 +59,6 @@ import { ReviewCommentThread, ReviewComment } from "../../types/review";
 import { listenEvent, SchaltEvent } from "../../common/eventSystem";
 import { ORCHESTRATOR_SESSION_NAME } from "../../constants/sessions";
 import { createGuardedLoader } from "./guardedLoader";
-import { theme } from "../../common/theme";
 import { ResizableModal } from "../shared/ResizableModal";
 import { computeRenderOrder } from "./virtualization";
 import type { HistoryDiffContext, LineInfo } from "../../types/diff";
@@ -3127,7 +3126,7 @@ export function UnifiedDiffView({
           onClick={() => {
             void handleFinishReview();
           }}
-          className="p-1.5 hover:bg-slate-800 rounded-lg flex items-center gap-2 px-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/30 text-blue-200"
+          className="p-1.5 hover:bg-elevated rounded-lg flex items-center gap-2 px-2 bg-accent-blue/20 hover:bg-accent-blue/30 border border-accent-blue/30 text-accent-blue"
           title={`Finish Review (${currentReview.comments.length} comments)`}
         >
           <VscCheck />
@@ -3138,7 +3137,7 @@ export function UnifiedDiffView({
         onClick={() => {
           toggleCompactDiffs();
         }}
-        className="p-1.5 hover:bg-slate-800 rounded-lg"
+        className="p-1.5 hover:bg-elevated rounded-lg"
         title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
         aria-label={
           compactDiffs ? "Show full context" : "Collapse unchanged lines"
@@ -3174,7 +3173,7 @@ export function UnifiedDiffView({
           onClick={() => {
             void toggleContinuousScroll();
           }}
-          className="p-1.5 hover:bg-slate-800 rounded-lg"
+          className="p-1.5 hover:bg-elevated rounded-lg"
           title={
             continuousScroll
               ? "Switch to single file view"
@@ -3193,7 +3192,7 @@ export function UnifiedDiffView({
 
   const diffContent = (
     <div
-      className={`flex-1 flex flex-col overflow-hidden min-h-0 w-full relative bg-slate-900/30 ${className || ""}`}
+      className={`flex-1 flex flex-col overflow-hidden min-h-0 w-full relative bg-secondary/30 ${className || ""}`}
     >
       <DiffViewer
         files={files}
@@ -3260,7 +3259,7 @@ export function UnifiedDiffView({
             }}
           />
           <div
-            className="fixed right-4 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 w-96 z-[60]"
+            className="fixed right-4 bg-secondary border border-default rounded-lg shadow-xl p-4 w-96 z-[60]"
             style={{
               top: commentFormPosition
                 ? Math.min(commentFormPosition.y, window.innerHeight - 300)
@@ -3269,9 +3268,9 @@ export function UnifiedDiffView({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-sm mb-3 text-slate-300">
+            <div className="text-sm mb-3 text-secondary">
               <div className="font-medium mb-1">Add Review Comment</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-tertiary">
                 {lineSelection.selection.startLine ===
                 lineSelection.selection.endLine
                   ? `Line ${lineSelection.selection.startLine}`
@@ -3305,12 +3304,12 @@ export function UnifiedDiffView({
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-3">
           <span>Commit Diff Viewer</span>
-          <span className="text-xs text-slate-400 font-mono">
+          <span className="text-xs text-tertiary font-mono">
             {historyHeader.hash.slice(0, 12)}
           </span>
         </div>
-        <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
-          <span className="font-medium text-slate-300 truncate">
+        <div className="text-xs text-tertiary flex flex-wrap items-center gap-2">
+          <span className="font-medium text-secondary truncate">
             {historyHeader.subject}
           </span>
           <span>•</span>
@@ -3323,7 +3322,7 @@ export function UnifiedDiffView({
           )}
         </div>
         {selectedFile && (
-          <div className="text-xs text-slate-500 truncate max-w-md">
+          <div className="text-xs text-tertiary truncate max-w-md">
             {selectedFile}
           </div>
         )}
@@ -3383,8 +3382,8 @@ export function UnifiedDiffView({
               width: "6px",
               cursor: "col-resize",
               backgroundColor: isResizingSidebar
-                ? theme.colors.accent.blue.DEFAULT
-                : theme.colors.border.subtle,
+                ? 'var(--color-accent-blue)'
+                : 'var(--color-border-subtle)',
             }}
           >
             <div
@@ -3392,13 +3391,13 @@ export function UnifiedDiffView({
                 width: "2px",
                 height: "40px",
                 borderRadius: "9999px",
-                backgroundColor: theme.colors.border.strong,
+                backgroundColor: 'var(--color-border-strong)',
                 opacity: 0.6,
               }}
             />
           </div>
           <div
-            className={`flex-1 flex flex-col overflow-hidden relative bg-slate-900/30 ${className || ""}`}
+            className={`flex-1 flex flex-col overflow-hidden relative bg-secondary/30 ${className || ""}`}
           >
             <DiffViewer
               files={files}
@@ -3459,7 +3458,7 @@ export function UnifiedDiffView({
   const sessionTitle = selectedFile ? (
     <div className="flex items-center gap-4">
       <span>Git Diff Viewer</span>
-      <div className="text-sm text-slate-400 font-mono">{selectedFile}</div>
+      <div className="text-sm text-tertiary font-mono">{selectedFile}</div>
     </div>
   ) : (
     "Git Diff Viewer"
@@ -3543,8 +3542,8 @@ export function UnifiedDiffView({
                   width: "6px",
                   cursor: "col-resize",
                   backgroundColor: isResizingSidebar
-                    ? theme.colors.accent.blue.DEFAULT
-                    : theme.colors.border.subtle,
+                    ? 'var(--color-accent-blue)'
+                    : 'var(--color-border-subtle)',
                 }}
               >
                 <div
@@ -3552,7 +3551,7 @@ export function UnifiedDiffView({
                     width: "2px",
                     height: "40px",
                     borderRadius: "9999px",
-                    backgroundColor: theme.colors.border.strong,
+                    backgroundColor: 'var(--color-border-strong)',
                     opacity: 0.6,
                   }}
                 />
@@ -3748,7 +3747,7 @@ function CommentForm({
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Write your comment..."
-        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm focus:outline-none focus:border-cyan-400 resize-none"
+        className="w-full px-3 py-2 bg-elevated border border-default rounded text-sm focus:outline-none focus:border-accent-cyan resize-none"
         rows={4}
         onKeyDown={(e) => {
           const nativeEvent = e.nativeEvent as KeyboardEvent;
@@ -3769,14 +3768,14 @@ function CommentForm({
       <div className="mt-3 flex justify-end gap-2">
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm"
+          className="px-3 py-1.5 bg-elevated hover:bg-elevated-hover rounded text-sm"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={!text.trim()}
-          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
+          className="px-3 py-1.5 bg-accent-cyan hover:bg-accent-cyan-hover disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
         >
           <VscSend />
           Submit

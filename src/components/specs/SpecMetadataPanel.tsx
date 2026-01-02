@@ -87,28 +87,28 @@ export function SpecMetadataPanel({ sessionName }: Props) {
   }
 
   return (
-    <div className="h-full flex flex-col p-6" style={{ backgroundColor: theme.colors.background.primary }}>
+    <div className="h-full flex flex-col p-6" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <div 
             className="h-10 w-10 rounded-lg flex items-center justify-center"
             style={{ 
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.subtle}`
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: `1px solid ${'var(--color-border-subtle)'}`
             }}
           >
-            <VscNotebook style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.heading }} />
+            <VscNotebook style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.heading }} />
           </div>
           <div>
             <h3 style={{ 
-              color: theme.colors.text.primary, 
+              color: 'var(--color-text-primary)', 
               fontSize: theme.fontSize.heading,
               fontWeight: 600,
               marginBottom: '2px'
             }}>
               Spec Information
             </h3>
-            <p style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}>
               View spec metadata
             </p>
           </div>
@@ -125,18 +125,18 @@ export function SpecMetadataPanel({ sessionName }: Props) {
         <div className="flex items-start gap-3">
           <VscCalendar 
             className="mt-0.5 flex-shrink-0" 
-            style={{ color: theme.colors.accent.blue.DEFAULT, fontSize: theme.fontSize.heading }} 
+            style={{ color: 'var(--color-accent-blue)', fontSize: theme.fontSize.heading }} 
           />
           <div>
             <div style={{ 
-              color: theme.colors.text.secondary, 
+              color: 'var(--color-text-secondary)', 
               fontSize: theme.fontSize.caption,
               marginBottom: '4px'
             }}>
               Created
             </div>
             <div style={{ 
-              color: theme.colors.text.primary, 
+              color: 'var(--color-text-primary)', 
               fontSize: theme.fontSize.body 
             }}>
               {formatDateTime(metadata.created_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}
@@ -148,18 +148,18 @@ export function SpecMetadataPanel({ sessionName }: Props) {
           <div className="flex items-start gap-3">
             <VscWatch 
               className="mt-0.5 flex-shrink-0" 
-              style={{ color: theme.colors.accent.amber.DEFAULT, fontSize: theme.fontSize.heading }} 
+              style={{ color: 'var(--color-accent-amber)', fontSize: theme.fontSize.heading }} 
             />
             <div>
               <div style={{ 
-                color: theme.colors.text.secondary, 
+                color: 'var(--color-text-secondary)', 
                 fontSize: theme.fontSize.caption,
                 marginBottom: '4px'
               }}>
                 Last Modified
               </div>
               <div style={{ 
-                color: theme.colors.text.primary, 
+                color: 'var(--color-text-primary)', 
                 fontSize: theme.fontSize.body 
               }}>
                 {formatDateTime(metadata.updated_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}

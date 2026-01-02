@@ -111,21 +111,21 @@ export function ModelSelector({
                     ) : (
                         <span className={`w-2 h-2 rounded-full ${!available && !loading ? 'opacity-50' : ''}`}
                               style={{
-                                  backgroundColor: model.color === 'blue' ? theme.colors.accent.blue.DEFAULT :
-                                                  model.color === 'green' ? theme.colors.accent.green.DEFAULT :
-                                                  model.color === 'orange' ? theme.colors.accent.amber.DEFAULT :
-                                                  model.color === 'red' ? theme.colors.accent.red.DEFAULT :
-                                                  model.color === 'violet' ? theme.colors.accent.violet.DEFAULT :
-                                                  model.color === 'cyan' ? theme.colors.accent.cyan.DEFAULT :
-                                                  model.color === 'yellow' ? theme.colors.accent.yellow.DEFAULT :
-                                                  model.color === 'copilot' ? theme.colors.accent.copilot.DEFAULT :
-                                                  theme.colors.accent.red.DEFAULT
+                                  backgroundColor: model.color === 'blue' ? 'var(--color-accent-blue)' :
+                                                  model.color === 'green' ? 'var(--color-accent-green)' :
+                                                  model.color === 'orange' ? 'var(--color-accent-amber)' :
+                                                  model.color === 'red' ? 'var(--color-accent-red)' :
+                                                  model.color === 'violet' ? 'var(--color-accent-violet)' :
+                                                  model.color === 'cyan' ? 'var(--color-accent-cyan)' :
+                                                  model.color === 'yellow' ? 'var(--color-accent-yellow)' :
+                                                  model.color === 'copilot' ? 'var(--color-accent-copilot)' :
+                                                  'var(--color-accent-red)'
                               }} />
                     )}
                     <span className="flex items-center gap-1">
                         {model.label}
                         {!loading && !available && (
-                            <svg className="w-3 h-3" style={{ color: theme.colors.status.warning }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3" style={{ color: 'var(--color-status-warning)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                             </svg>
                         )}
@@ -180,9 +180,9 @@ export function ModelSelector({
                                 : ''
                         }`}
                         style={{
-                            backgroundColor: theme.colors.background.elevated,
-                            borderColor: theme.colors.border.default,
-                            color: selectedDisabled && !loading ? theme.colors.text.muted : theme.colors.text.primary
+                            backgroundColor: 'var(--color-bg-elevated)',
+                            borderColor: 'var(--color-border-default)',
+                            color: selectedDisabled && !loading ? 'var(--color-text-muted)' : 'var(--color-text-primary)'
                         }}
                         title={getTooltipText(selectedModel.value)}
                         aria-label={selectedModel.label}
@@ -192,7 +192,7 @@ export function ModelSelector({
                             {showShortcutHint && (
                                 <span
                                     aria-hidden="true"
-                                    style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                    style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}
                                 >
                                     ⌘↑ · ⌘↓
                                 </span>
@@ -213,9 +213,9 @@ export function ModelSelector({
                         aria-pressed={!skipPermissions}
                         className="flex-1 px-3 py-1.5 rounded border text-xs"
                         style={{
-                            backgroundColor: skipPermissions ? theme.colors.background.elevated : theme.colors.background.active,
-                            borderColor: theme.colors.border.default,
-                            color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.secondary : theme.colors.text.primary)
+                            backgroundColor: skipPermissions ? 'var(--color-bg-elevated)' : 'var(--color-bg-active)',
+                            borderColor: 'var(--color-border-default)',
+                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-secondary)' : 'var(--color-text-primary)')
                         }}
                         title="Require macOS permission prompts when starting the agent"
                     >
@@ -228,9 +228,9 @@ export function ModelSelector({
                         aria-pressed={!!skipPermissions}
                         className="flex-1 px-3 py-1.5 rounded border text-xs"
                         style={{
-                            backgroundColor: skipPermissions ? theme.colors.background.active : theme.colors.background.elevated,
-                            borderColor: theme.colors.border.default,
-                            color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.primary : theme.colors.text.secondary)
+                            backgroundColor: skipPermissions ? 'var(--color-bg-active)' : 'var(--color-bg-elevated)',
+                            borderColor: 'var(--color-border-default)',
+                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-primary)' : 'var(--color-text-secondary)')
                         }}
                         title="Skip macOS permission prompts when starting the agent"
                     >

@@ -59,11 +59,11 @@ export function SpecInfoPanel({ sessionName }: Props) {
   return (
     <div className="h-full flex items-center justify-center p-6">
       <div className="text-center max-w-[280px]">
-        <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center">
-          <VscRocket style={{ fontSize: theme.fontSize.heading, color: theme.colors.text.secondary }} />
+        <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-elevated border border-subtle flex items-center justify-center">
+          <VscRocket style={{ fontSize: theme.fontSize.heading, color: 'var(--color-text-secondary)' }} />
         </div>
-        <h3 style={{ fontSize: theme.fontSize.body, fontWeight: 600, marginBottom: '0.5rem', color: theme.colors.text.primary }}>Spec Agent</h3>
-        <p style={{ fontSize: theme.fontSize.caption, marginBottom: '1rem', color: theme.colors.text.muted }}>
+        <h3 style={{ fontSize: theme.fontSize.body, fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>Spec Agent</h3>
+        <p style={{ fontSize: theme.fontSize.caption, marginBottom: '1rem', color: 'var(--color-text-muted)' }}>
           Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
         </p>
 
@@ -87,7 +87,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
         </div>
 
         {error && (
-          <div style={{ marginTop: '0.75rem', fontSize: theme.fontSize.caption, color: theme.colors.accent.red.DEFAULT }}>{error}</div>
+          <div style={{ marginTop: '0.75rem', fontSize: theme.fontSize.caption, color: 'var(--color-accent-red)' }}>{error}</div>
         )}
       </div>
     </div>

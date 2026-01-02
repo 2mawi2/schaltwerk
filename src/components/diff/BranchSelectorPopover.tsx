@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
-import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { VscSettings } from 'react-icons/vsc'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
@@ -156,8 +155,8 @@ export function BranchSelectorPopover({
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
         disabled={isUpdating}
-        className="p-1 rounded hover:bg-slate-800 transition-colors relative"
-        style={{ color: isOpen ? theme.colors.accent.blue.DEFAULT : hasCustomCompare ? theme.colors.accent.amber.DEFAULT : theme.colors.text.secondary }}
+        className="p-1 rounded hover:bg-elevated transition-colors relative"
+        style={{ color: isOpen ? 'var(--color-accent-blue)' : hasCustomCompare ? 'var(--color-accent-amber)' : 'var(--color-text-secondary)' }}
         title={hasCustomCompare ? `Custom compare: ${currentBaseBranch} (click to change)` : "Change diff comparison branch"}
         aria-label="Change diff comparison branch"
       >
@@ -169,7 +168,7 @@ export function BranchSelectorPopover({
         {hasCustomCompare && !isUpdating && (
           <span
             className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-            style={{ backgroundColor: theme.colors.accent.amber.DEFAULT }}
+            style={{ backgroundColor: 'var(--color-accent-amber)' }}
           />
         )}
       </button>
@@ -178,8 +177,8 @@ export function BranchSelectorPopover({
         <div
           className="absolute left-0 top-full mt-1 p-2 rounded shadow-lg border z-50"
           style={{
-            backgroundColor: theme.colors.background.elevated,
-            borderColor: theme.colors.border.default,
+            backgroundColor: 'var(--color-bg-elevated)',
+            borderColor: 'var(--color-border-default)',
             minWidth: '200px'
           }}
         >
@@ -190,25 +189,25 @@ export function BranchSelectorPopover({
               disabled={isUpdating}
               className="w-full text-left text-xs px-2 py-1.5 mb-2 rounded border transition-colors hover:opacity-80"
               style={{
-                backgroundColor: theme.colors.background.primary,
-                borderColor: theme.colors.accent.amber.border,
-                color: theme.colors.text.primary
+                backgroundColor: 'var(--color-bg-primary)',
+                borderColor: 'var(--color-accent-amber-border)',
+                color: 'var(--color-text-primary)'
               }}
             >
-              <span style={{ color: theme.colors.text.secondary }}>Reset to: </span>
-              <span style={{ color: theme.colors.accent.amber.DEFAULT }}>{originalBaseBranch}</span>
+              <span style={{ color: 'var(--color-text-secondary)' }}>Reset to: </span>
+              <span style={{ color: 'var(--color-accent-amber)' }}>{originalBaseBranch}</span>
             </button>
           )}
-          <div className="text-xs mb-1.5" style={{ color: theme.colors.text.secondary }}>
+          <div className="text-xs mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
             Compare against
           </div>
           {isLoading ? (
             <div
               className="w-full rounded px-2 py-1.5 border text-xs"
               style={{
-                backgroundColor: theme.colors.background.primary,
-                borderColor: theme.colors.border.default,
-                color: theme.colors.text.muted
+                backgroundColor: 'var(--color-bg-primary)',
+                borderColor: 'var(--color-border-default)',
+                color: 'var(--color-text-muted)'
               }}
             >
               Loading...

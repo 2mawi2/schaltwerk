@@ -5,7 +5,6 @@ import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke } from '@tauri-apps/api/core'
 
-import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { XtermAddonImporter } from './xtermAddonImporter'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -44,28 +43,34 @@ interface ITerminalWithCore extends XTerm {
   _core?: IXtermCore
 }
 
+function getComputedColor(varName: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+}
+
 function buildTheme(): TerminalTheme {
   return {
-    background: theme.colors.background.secondary,
-    foreground: theme.colors.text.primary,
-    cursor: theme.colors.text.primary,
-    cursorAccent: theme.colors.background.secondary,
-    black: theme.colors.background.elevated,
-    red: theme.colors.accent.red.DEFAULT,
-    green: theme.colors.accent.green.DEFAULT,
-    yellow: theme.colors.accent.yellow.DEFAULT,
-    blue: theme.colors.accent.blue.DEFAULT,
-    magenta: theme.colors.accent.purple.DEFAULT,
-    cyan: theme.colors.accent.cyan.DEFAULT,
-    white: theme.colors.text.primary,
-    brightBlack: theme.colors.background.hover,
-    brightRed: theme.colors.accent.red.light,
-    brightGreen: theme.colors.accent.green.light,
-    brightYellow: theme.colors.accent.yellow.light,
-    brightBlue: theme.colors.accent.blue.light,
-    brightMagenta: theme.colors.accent.purple.light,
-    brightCyan: theme.colors.accent.cyan.light,
-    brightWhite: theme.colors.text.primary,
+    background: getComputedColor('--color-bg-secondary') || '#0b1220',
+    foreground: getComputedColor('--color-text-primary') || '#f1f5f9',
+    cursor: getComputedColor('--color-text-primary') || '#f1f5f9',
+    cursorAccent: getComputedColor('--color-bg-secondary') || '#0b1220',
+    selectionBackground: getComputedColor('--color-selection-bg') || 'rgba(34, 211, 238, 0.5)',
+    selectionForeground: getComputedColor('--color-text-primary') || '#f1f5f9',
+    black: getComputedColor('--color-bg-elevated') || '#1e293b',
+    red: getComputedColor('--color-accent-red') || '#ef4444',
+    green: getComputedColor('--color-accent-green') || '#22c55e',
+    yellow: getComputedColor('--color-accent-yellow') || '#eab308',
+    blue: getComputedColor('--color-accent-blue') || '#22d3ee',
+    magenta: getComputedColor('--color-accent-purple') || '#a855f7',
+    cyan: getComputedColor('--color-accent-cyan') || '#06b6d4',
+    white: getComputedColor('--color-text-primary') || '#f1f5f9',
+    brightBlack: getComputedColor('--color-bg-hover') || '#334155',
+    brightRed: getComputedColor('--color-accent-red-light') || '#f87171',
+    brightGreen: getComputedColor('--color-accent-green-light') || '#4ade80',
+    brightYellow: getComputedColor('--color-accent-yellow-light') || '#fde047',
+    brightBlue: getComputedColor('--color-accent-blue-light') || '#22d3ee',
+    brightMagenta: getComputedColor('--color-accent-purple-light') || '#c084fc',
+    brightCyan: getComputedColor('--color-accent-cyan-light') || '#67e8f9',
+    brightWhite: getComputedColor('--color-text-primary') || '#f1f5f9',
   }
 }
 
@@ -122,6 +127,7 @@ export class XtermTerminal {
     const resolvedOptions = buildTerminalOptions(this.config)
 
     this.raw = new XTerm(resolvedOptions)
+    registerTerminalInstance(this)
     this.fitAddon = new FitAddon()
     this.raw.loadAddon(this.fitAddon)
 
@@ -383,6 +389,10 @@ export class XtermTerminal {
     }
   }
 
+  refreshTheme(): void {
+    this.raw.options.theme = buildTheme()
+  }
+
   forceScrollbarRefresh(): void {
     const terminal = this.raw as ITerminalWithCore
     terminal._core?.viewport?._innerRefresh()
@@ -394,6 +404,7 @@ export class XtermTerminal {
 
   dispose(): void {
     this.detach()
+    unregisterTerminalInstance(this)
     try {
       this.fileLinkProvider.dispose()
     } catch (error) {
@@ -484,4 +495,18 @@ export class XtermTerminal {
       logger.debug(`[XtermTerminal ${this.terminalId}] Synchronized output handler registration failed`, error)
     }
   }
+}
+
+const terminalInstances = new Set<XtermTerminal>()
+
+export function registerTerminalInstance(instance: XtermTerminal): void {
+  terminalInstances.add(instance)
+}
+
+export function unregisterTerminalInstance(instance: XtermTerminal): void {
+  terminalInstances.delete(instance)
+}
+
+export function refreshAllTerminalThemes(): void {
+  terminalInstances.forEach(instance => instance.refreshTheme())
 }

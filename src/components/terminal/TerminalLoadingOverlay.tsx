@@ -16,7 +16,8 @@ export function TerminalLoadingOverlay({ visible }: Props) {
     >
       <AnimatedText
         text="loading"
-        colorClassName="text-slate-500"
+        colorClassName="text-muted"
+        size="md"
         speedMultiplier={3}
       />
     </div>

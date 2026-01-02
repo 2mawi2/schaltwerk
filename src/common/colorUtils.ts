@@ -1,4 +1,5 @@
 const HEX_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+const CSS_VAR_PATTERN = /^var\(--([^)]+)\)$/
 
 export type RgbTuple = [number, number, number]
 
@@ -19,12 +20,18 @@ export const hexToRgb = (hex: string): RgbTuple => {
   return [r, g, b]
 }
 
-export const withOpacity = (hex: string, alpha: number): string => {
+export const withOpacity = (color: string, alpha: number): string => {
   if (alpha < 0 || alpha > 1) {
     throw new Error(`Opacity must be between 0 and 1. Received: ${alpha}`)
   }
 
-  const [r, g, b] = hexToRgb(hex)
+  const cssVarMatch = color.match(CSS_VAR_PATTERN)
+  if (cssVarMatch) {
+    const varName = cssVarMatch[1]
+    return `rgb(var(--${varName}-rgb) / ${alpha})`
+  }
+
+  const [r, g, b] = hexToRgb(color)
   const toHex = (value: number) => value.toString(16).padStart(2, '0')
   const alphaHex = toHex(Math.round(alpha * 255))
   return `#${toHex(r)}${toHex(g)}${toHex(b)}${alphaHex}`

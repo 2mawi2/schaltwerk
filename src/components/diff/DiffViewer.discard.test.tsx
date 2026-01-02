@@ -120,7 +120,7 @@ describe('DiffViewer - Discard File Button', () => {
     })
 
     const confirmButtons = screen.getAllByRole('button', { name: /discard/i })
-    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-red'))
+    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-accent-red'))
     expect(confirmButton).toBeDefined()
     await user.click(confirmButton!)
 
@@ -200,7 +200,7 @@ describe('DiffViewer - Discard File Button', () => {
     })
 
     const confirmButtons = screen.getAllByRole('button', { name: /discard/i })
-    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-red'))
+    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-accent-red'))
     expect(confirmButton).toBeDefined()
     await user.click(confirmButton!)
 
@@ -228,7 +228,7 @@ describe('DiffViewer - Discard File Button', () => {
     })
 
     const confirmButtons = screen.getAllByRole('button', { name: /discard/i })
-    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-red'))
+    const confirmButton = confirmButtons.find(btn => btn.className.includes('bg-accent-red'))
     expect(confirmButton).toBeDefined()
     await user.click(confirmButton!)
 

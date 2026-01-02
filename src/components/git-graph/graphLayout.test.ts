@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { toViewModel, findNodeColor } from './graphLayout'
 import type { HistoryProviderSnapshot, HistoryItem, HistoryItemViewModel } from './types'
-import { theme } from '../../common/theme'
 
-const SWIMLANE_COLORS = theme.colors.graph.swimlane
+const SWIMLANE_COLORS = [
+  'var(--color-graph-swimlane-0)',
+  'var(--color-graph-swimlane-1)',
+  'var(--color-graph-swimlane-2)',
+  'var(--color-graph-swimlane-3)',
+  'var(--color-graph-swimlane-4)',
+]
 
 function createSnapshot(items: HistoryItem[]): HistoryProviderSnapshot {
   return {
@@ -224,9 +229,9 @@ describe('graphLayout - toViewModel', () => {
 
   describe('Color Assignment with References', () => {
     it('should use custom colors from references', () => {
-      const customRefColor = theme.colors.graph.references.default
-      const customRemoteRefColor = theme.colors.graph.references.remote
-      const customBaseRefColor = theme.colors.graph.references.base
+      const customRefColor = 'var(--color-graph-ref-default)'
+      const customRemoteRefColor = 'var(--color-graph-ref-remote)'
+      const customBaseRefColor = 'var(--color-graph-ref-base)'
 
       const snapshot = createSnapshot([
         {
@@ -352,6 +357,7 @@ describe('graphLayout - findNodeColor', () => {
   })
 
   it('falls back to input lane color when no output lane matches', () => {
+    const testColor = SWIMLANE_COLORS[0]
     const viewModel: HistoryItemViewModel = {
       historyItem: {
         id: 'a',
@@ -361,11 +367,11 @@ describe('graphLayout - findNodeColor', () => {
         timestamp: Date.now(),
       },
       isCurrent: false,
-      inputSwimlanes: [{ id: 'a', color: '#abcdef' }],
+      inputSwimlanes: [{ id: 'a', color: testColor }],
       outputSwimlanes: []
     }
 
-    expect(findNodeColor(viewModel)).toBe('#abcdef')
+    expect(findNodeColor(viewModel)).toBe(testColor)
   })
 
   it('returns default color when neither input nor output lanes exist', () => {
@@ -382,6 +388,6 @@ describe('graphLayout - findNodeColor', () => {
       outputSwimlanes: []
     }
 
-    expect(findNodeColor(viewModel)).toBe(theme.colors.graph.references.default)
+    expect(findNodeColor(viewModel)).toBe('var(--color-graph-ref-default)')
   })
 })

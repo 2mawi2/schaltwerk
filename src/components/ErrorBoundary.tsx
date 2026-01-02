@@ -79,11 +79,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                   idleArtifactMaxDelayMs={2000}
                 />
               </div>
-              
+
               <h2 className="text-xl font-semibold mb-2 text-slate-100">
                 Well, that's unexpected
               </h2>
-              
+
               <p className="text-sm text-slate-300">
                 Don't worry - this happens sometimes. Let's get things back on track.
               </p>
@@ -101,7 +101,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 </pre>
               </div>
             </details>
-            
+
             {/* Action buttons */}
             <div className="flex gap-3 justify-end">
               <button
@@ -123,7 +123,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                 Reload App
                 <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⇧⌘R</span>
               </button>
-              
+
               <button
                 onClick={this.resetError}
                 className="px-4 py-2 text-sm font-medium rounded-md group inline-flex items-center gap-2 focus:outline-none focus:ring-2"

@@ -23,11 +23,11 @@ const buildButtonClass = (active: boolean, localFocus: boolean) => (
     'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
     active
       ? localFocus
-        ? 'text-cyan-200 bg-cyan-800/30'
-        : 'text-slate-200 bg-slate-800/50'
+        ? 'text-accent-blue bg-accent-blue/20'
+        : 'text-secondary bg-elevated'
       : localFocus
-        ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+        ? 'text-accent-blue hover:text-accent-blue hover:bg-accent-blue/10'
+        : 'text-muted hover:text-secondary hover:bg-hover'
   )
 )
 
@@ -124,7 +124,7 @@ export const RightPanelTabsHeader = ({
   if (descriptors.length === 0) return null
 
   return (
-    <div className="h-8 flex items-center border-b border-slate-800">
+    <div className="h-8 flex items-center border-b border-default">
       {descriptors.map(({ key, label, title, icon, dataAttrs }) => (
         <button
           key={key}

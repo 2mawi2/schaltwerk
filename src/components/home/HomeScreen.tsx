@@ -9,7 +9,6 @@ import {
   getHomeContainerStyles,
   LAYOUT_CONSTANTS
 } from '../../constants/layout'
-import { theme } from '../../common/theme'
 import { formatDateTime } from '../../utils/dateTime'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
@@ -106,7 +105,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
   return (
     <div
       className="w-full"
-      style={{ backgroundColor: theme.colors.background.primary }}
+      style={{ backgroundColor: 'var(--color-bg-primary)' }}
     >
       <div style={getHomeContainerStyles()}>
         <div style={getHomeLogoPositionStyles()}>
@@ -120,9 +119,12 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
           style={getContentAreaStyles()}
         >
           {displayError && (
-            <div className="p-4 bg-red-950/50 border border-red-800 rounded-lg flex items-start gap-3">
-              <VscWarning className="text-red-400 text-xl flex-shrink-0 mt-0.5" />
-              <p className="text-red-300 text-sm">{displayError}</p>
+            <div className="p-4 rounded-lg flex items-start gap-3 border" style={{
+              backgroundColor: 'var(--color-accent-red-bg)',
+              borderColor: 'var(--color-accent-red-border)'
+            }}>
+              <VscWarning className="text-xl flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-red)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-accent-red)' }}>{displayError}</p>
             </div>
           )}
 
@@ -138,9 +140,9 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               onClick={() => { void handleSelectDirectory() }}
               className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
               style={{
-                backgroundColor: theme.colors.accent.blue.bg,
-                border: `1px solid ${theme.colors.accent.blue.border}`,
-                color: theme.colors.accent.blue.DEFAULT
+                backgroundColor: 'var(--color-accent-blue-bg)',
+                border: `1px solid ${'var(--color-accent-blue-border)'}`,
+                color: 'var(--color-accent-blue)'
               }}
             >
               <VscFolderOpened className="text-2xl" />
@@ -150,9 +152,9 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               onClick={() => setShowCloneDialog(true)}
               className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
               style={{
-                backgroundColor: theme.colors.accent.purple.bg,
-                border: `1px solid ${theme.colors.accent.purple.border}`,
-                color: theme.colors.accent.purple.DEFAULT
+                backgroundColor: 'var(--color-accent-purple-bg)',
+                border: `1px solid ${'var(--color-accent-purple-border)'}`,
+                color: 'var(--color-accent-purple)'
               }}
             >
               <VscRepoClone className="text-2xl" />
@@ -162,7 +164,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
 
           {recentProjects.length > 0 && (
             <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2 text-slate-400">
+              <div className="flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
                 <VscHistory className="text-lg" />
                 <h2 className="text-sm font-medium uppercase tracking-wider">Recent Projects</h2>
               </div>
@@ -174,11 +176,26 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                 {recentProjects.map((project, index) => (
                   <div
                     key={project.path}
-                    className="bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-lg p-4 group relative"
+                    className="rounded-lg p-4 group relative border transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-bg-elevated)',
+                      borderColor: 'var(--color-border-subtle)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-default)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-subtle)'
+                    }}
                   >
                     {index < 9 && (
                       <div className="absolute top-2 right-2 transition-opacity group-hover:opacity-0">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                        <span className="text-xs px-1.5 py-0.5 rounded" style={{
+                          backgroundColor: 'var(--color-bg-secondary)',
+                          color: 'var(--color-text-secondary)'
+                        }}>
                           {platform === 'mac' ? `⌘${index + 1}` : `Ctrl + ${index + 1}`}
                         </span>
                       </div>
@@ -191,19 +208,19 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                         <VscFolderOpened
                           className="transition-colors text-lg flex-shrink-0 mt-0.5"
                           style={{
-                            color: theme.colors.text.muted,
+                            color: 'var(--color-text-muted)',
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = theme.colors.accent.blue.DEFAULT }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = theme.colors.text.muted }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-blue)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
                         />
                         <div className="flex-1 min-w-0 pr-8">
-                          <h3 className="text-slate-200 font-medium truncate text-sm">
+                          <h3 className="font-medium truncate text-sm" style={{ color: 'var(--color-text-primary)' }}>
                             {project.name}
                           </h3>
-                          <p className="text-slate-500 text-xs truncate mt-1">
+                          <p className="text-xs truncate mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {project.path}
                           </p>
-                          <p className="text-slate-600 text-xs mt-2">
+                          <p className="text-xs mt-2" style={{ color: 'var(--color-text-tertiary)' }}>
                             {formatDateTime(project.lastOpened, RECENT_PROJECT_DATE_OPTIONS)}
                           </p>
                         </div>
@@ -211,7 +228,10 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                     </button>
                     <button
                       onClick={(e) => { void handleRemoveProject(project, e) }}
-                      className="absolute top-2 right-2 p-1 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute top-2 right-2 p-1 transition-colors opacity-0 group-hover:opacity-100"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-red)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
                       title={`Remove ${project.name} from recent projects`}
                     >
                       <VscTrash className="text-sm" />

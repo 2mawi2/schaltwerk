@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, ReactElement 
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { terminalFontSizeAtom, uiFontSizeAtom } from '../../store/atoms/fontSize'
+import { themeModeValueAtom, setThemeModeActionAtom } from '../../store/atoms/themeMode'
 import { useSettings } from '../../hooks/useSettings'
 import type { AgentType, ProjectMergePreferences, AttentionNotificationMode, AgentPreferenceConfig } from '../../hooks/useSettings'
 import { useSessions } from '../../hooks/useSessions'
@@ -28,7 +29,6 @@ import { KEYBOARD_SHORTCUT_SECTIONS } from '../../keyboardShortcuts/metadata'
 import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/matcher'
 import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
-import { theme } from '../../common/theme'
 import { getAllCodexModels } from '../../common/codexModels'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
@@ -37,6 +37,7 @@ import type { SettingsCategory } from '../../types/settings'
 import { requestDockBounce } from '../../utils/attentionBridge'
 import { MarkdownEditor } from '../specs/MarkdownEditor'
 import { useModal } from '../../contexts/ModalContext'
+import { theme } from '../../common/theme'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -296,6 +297,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const { registerModal, unregisterModal } = useModal()
     const [terminalFontSize, setTerminalFontSize] = useAtom(terminalFontSizeAtom)
     const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
+    const themeMode = useAtomValue(themeModeValueAtom)
+    const setThemeMode = useSetAtom(setThemeModeActionAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
 
     useEffect(() => {
@@ -364,7 +367,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
 
     const renderShortcutTokens = (binding: string) => {
         if (!binding) {
-            return <span className="text-caption text-slate-500">Not set</span>
+            return <span className="text-caption text-muted">Not set</span>
         }
 
         const segments = splitShortcutBinding(binding)
@@ -379,7 +382,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                         return (
                             <kbd
                                 key={`${segment}-${index}`}
-                                className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
+                                className="px-2 py-1 bg-bg-elevated/70 border border-subtle/60 rounded text-caption text-primary"
                             >
                                 {label}
                             </kbd>
@@ -394,16 +397,16 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     {segments.map((segment, index) => {
                         const label = getDisplayLabelForSegment(segment, platform)
                         const isLast = index === segments.length - 1
-                        
+
                         return (
                             <React.Fragment key={`${segment}-${index}`}>
                                 <kbd
-                                    className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
+                                    className="px-2 py-1 bg-bg-elevated/70 border border-subtle/60 rounded text-caption text-primary"
                                 >
                                     {label}
                                 </kbd>
                                 {!isLast && (
-                                    <span className="text-caption text-slate-400">+</span>
+                                    <span className="text-caption text-tertiary">+</span>
                                 )}
                             </React.Fragment>
                         )
@@ -1079,9 +1082,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
 
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
-                        <div className="text-body text-slate-400 mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
+                        <h3 className="text-body font-medium text-primary mb-2">Branch Prefix</h3>
+                        <div className="text-body text-tertiary mb-3">
+                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className="text-accent-blue">team/frontend</code>). Spaces will be converted to hyphens automatically.
                         </div>
                         <input
                             type="text"
@@ -1092,17 +1095,17 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 setHasUnsavedChanges(true)
                             }}
                             placeholder=""
-                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                            className={`w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted text-body focus:outline-none focus:ring-border-focus transition-colors`}
                             spellCheck={false}
                         />
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Merge Defaults</h3>
-                        <div className="text-body text-slate-400 mb-3">
+                        <h3 className="text-body font-medium text-primary mb-2">Merge Defaults</h3>
+                        <div className="text-body text-tertiary mb-3">
                             Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
                         </div>
-                        <label className="flex items-center gap-3 text-sm text-slate-200">
+                        <label className="flex items-center gap-3 text-sm text-primary">
                             <input
                                 type="checkbox"
                                 checked={mergePreferences.autoCancelAfterMerge}
@@ -1113,11 +1116,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                     }))
                                     setHasUnsavedChanges(true)
                                 }}
-                                className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                                className="rounded border-strong bg-bg-elevated text-accent-cyan focus:ring-accent-cyan"
                             />
                             <span>Auto-cancel sessions after successful merge</span>
                         </label>
-                        <p className="text-caption text-slate-500 mt-2">
+                        <p className="text-caption text-muted mt-2">
                             You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
                         </p>
                     </div>
@@ -1131,27 +1134,27 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-8">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-primary mb-2">Worktree Setup Script</h3>
+                        <div className="text-body text-tertiary mb-4">
                             Configure a script that runs automatically when a new worktree is created for this project.
                             The script will be executed in the new worktree directory.
                         </div>
 
-                        <div className="mb-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400 mb-2">
+                        <div className="mb-4 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary mb-2">
                                 <strong>Available variables:</strong>
                             </div>
-                            <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$WORKTREE_PATH</code> - Path to the new worktree</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$REPO_PATH</code> - Path to the main repository</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$SESSION_NAME</code> - Name of the agent</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$BRANCH_NAME</code> - Name of the new branch</li>
+                            <ul className="text-caption text-muted space-y-1 list-disc list-inside">
+                                <li><code className="text-accent-blue">$WORKTREE_PATH</code> - Path to the new worktree</li>
+                                <li><code className="text-accent-blue">$REPO_PATH</code> - Path to the main repository</li>
+                                <li><code className="text-accent-blue">$SESSION_NAME</code> - Name of the agent</li>
+                                <li><code className="text-accent-blue">$BRANCH_NAME</code> - Name of the new branch</li>
                             </ul>
                         </div>
 
                         <div
-                            className="relative h-64 border border-slate-700 rounded overflow-hidden"
-                            style={{ backgroundColor: theme.colors.background.secondary }}
+                            className="relative h-64 border border-subtle rounded overflow-hidden"
+                            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
                             data-testid="setup-script-editor"
                         >
                             <MarkdownEditor
@@ -1167,11 +1170,11 @@ fi`}
                             />
                         </div>
 
-                        <div className={`mt-4 p-3 ${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded`}>
-                            <div className={`text-caption ${theme.colors.accent.cyan.light} mb-2`}>
+                        <div className={`mt-4 p-3 bg-accent-cyan/10 border border-accent-cyan/50 rounded`}>
+                            <div className={`text-caption text-accent-cyan-light mb-2`}>
                                 <strong>Example use cases:</strong>
                             </div>
-                            <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
+                            <ul className="text-caption text-tertiary space-y-1 list-disc list-inside">
                                 <li>Copy environment files (.env, .env.local)</li>
                                 <li>Install dependencies (bun install, pip install)</li>
                                 <li>Set up database connections</li>
@@ -1182,33 +1185,33 @@ fi`}
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Run Script</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-primary mb-2">Run Script</h3>
+                        <div className="text-body text-tertiary mb-4">
                             Configure the command executed by Run Mode (⌘E). When it finishes or is killed, the run terminal becomes read-only and shows the exit status.
                         </div>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-caption text-slate-400 mb-1">Command</label>
+                                <label className="block text-caption text-tertiary mb-1">Command</label>
                                 <input
                                     type="text"
                                     value={runScript.command}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
                                     placeholder="e.g., bun run dev or npm run dev"
-                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    className={`w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-caption text-slate-400 mb-1">Working Directory (optional)</label>
+                                <label className="block text-caption text-tertiary mb-1">Working Directory (optional)</label>
                                 <input
                                     type="text"
                                     value={runScript.workingDirectory || ''}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
                                     placeholder="Defaults to active project folder"
-                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    className={`w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-caption text-slate-400 mb-2">Environment Variables</label>
+                                <label className="block text-caption text-tertiary mb-2">Environment Variables</label>
                                 <div className="space-y-2">
                                     {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
                                         <div key={index} className="flex gap-2">
@@ -1217,18 +1220,18 @@ fi`}
                                                 value={k}
                                                 onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
                                                 placeholder="KEY"
-                                                className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                                className={`flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                     />
                                     <input
                                         type="text"
                                         value={v}
                                         onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
                                         placeholder="value"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                        className={`flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                     />
                                     <button
                                         onClick={() => handleRemoveRunEnvVar(index)}
-                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                        className="px-3 py-2 bg-accent-red/20 hover:bg-accent-red/30 border border-accent-red-dark rounded transition-colors text-accent-red"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1238,7 +1241,7 @@ fi`}
                             ))}
                             <button
                                 onClick={handleAddRunEnvVar}
-                                className="w-full mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                                className="w-full mt-1 px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-tertiary flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1246,11 +1249,11 @@ fi`}
                                 Add Environment Variable
                             </button>
                             <div className="space-y-2 pt-3">
-                                <div className="text-caption text-slate-400">Preview automation</div>
-                                <div className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded px-3 py-2">
+                                <div className="text-caption text-tertiary">Preview automation</div>
+                                <div className="flex items-center justify-between bg-bg-elevated border border-subtle rounded px-3 py-2">
                                     <div>
-                                        <div className="text-body text-slate-200">Preview localhost on terminal click</div>
-                                        <div className="text-caption text-slate-400">Intercept localhost links in terminals and open them in Preview.</div>
+                                        <div className="text-body text-primary">Preview localhost on terminal click</div>
+                                        <div className="text-caption text-tertiary">Intercept localhost links in terminals and open them in Preview.</div>
                                     </div>
                                     <input
                                         type="checkbox"
@@ -1263,15 +1266,15 @@ fi`}
                             </div>
                         </div>
                             </div>
-                            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
+                            <div className="p-3 bg-bg-elevated/50 border border-subtle rounded text-caption text-muted">
                                 Tip: Use a package manager script (for example, "bun run dev" or "npm run dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Project Environment Variables</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-primary mb-2">Project Environment Variables</h3>
+                        <div className="text-body text-tertiary mb-4">
                             Configure environment variables that will be set for all agents in this project.
                             These variables are applied to all terminals and agent processes.
                         </div>
@@ -1284,18 +1287,18 @@ fi`}
                                         value={envVar.key}
                                         onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
                                         placeholder="KEY"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                        className={`flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                     />
                                     <input
                                         type="text"
                                         value={envVar.value}
                                         onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
                                         placeholder="value"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                        className={`flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted focus:outline-none focus:ring-border-focus transition-colors`}
                                     />
                                     <button
                                         onClick={() => handleRemoveProjectEnvVar(index)}
-                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                        className="px-3 py-2 bg-accent-red/20 hover:bg-accent-red/30 border border-accent-red-dark rounded transition-colors text-accent-red"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1306,7 +1309,7 @@ fi`}
 
                             <button
                                 onClick={handleAddProjectEnvVar}
-                                className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                                className="w-full mt-2 px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-tertiary flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1315,8 +1318,8 @@ fi`}
                             </button>
                         </div>
 
-                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-4 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common project environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>API keys and tokens specific to this project</li>
@@ -1337,17 +1340,17 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Action Buttons</h3>
-                        <p className="text-body text-slate-400">
+                        <h3 className="text-body font-medium text-primary mb-2">Action Buttons</h3>
+                        <p className="text-body text-tertiary">
                             Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
                             These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
                         </p>
                     </div>
 
-                    <div className={`${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded p-3`}>
-                        <div className={`text-caption ${theme.colors.accent.cyan.light}`}>
+                    <div className={`bg-accent-cyan/10 border border-accent-cyan/50 rounded p-3`}>
+                        <div className={`text-caption text-accent-cyan-light`}>
                             <strong>💡 How it works:</strong>
-                            <ul className={`mt-2 space-y-1 list-disc list-inside ${theme.colors.accent.cyan.DEFAULT}`}>
+                            <ul className="mt-2 space-y-1 list-disc list-inside text-accent-cyan">
                                 <li>Click any action button to instantly paste its prompt into Claude</li>
                                 <li>Use keyboard shortcuts F1-F6 for even faster access</li>
                                 <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
@@ -1358,10 +1361,10 @@ fi`}
 
                     <div className="space-y-4">
                         {editableActionButtons.map((button, index) => (
-                            <div key={button.id} className="bg-slate-800/50 border border-slate-700 rounded p-4">
+                            <div key={button.id} className="bg-bg-elevated/50 border border-subtle rounded p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-body text-slate-300 mb-2">Label</label>
+                                        <label className="block text-body text-secondary mb-2">Label</label>
                                         <input
                                             type="text"
                                             value={button.label}
@@ -1371,12 +1374,12 @@ fi`}
                                                 setEditableActionButtons(updated)
                                                 setHasUnsavedChanges(true)
                                             }}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                            className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle"
                                             placeholder="Button Label"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-body text-slate-300 mb-2">Color</label>
+                                        <label className="block text-body text-secondary mb-2">Color</label>
                                         <select
                                             value={button.color || 'slate'}
                                             onChange={(e) => {
@@ -1385,7 +1388,7 @@ fi`}
                                                 setEditableActionButtons(updated)
                                                 setHasUnsavedChanges(true)
                                             }}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                            className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle"
                                         >
                                             <option value="slate">Default (Slate)</option>
                                             <option value="green">Green</option>
@@ -1395,7 +1398,7 @@ fi`}
                                     </div>
                                 </div>
                                 <div className="mt-4">
-                                    <label className="block text-body text-slate-300 mb-2">AI Prompt</label>
+                                    <label className="block text-body text-secondary mb-2">AI Prompt</label>
                                     <textarea
                                         value={button.prompt}
                                         onChange={(e) => {
@@ -1404,7 +1407,7 @@ fi`}
                                             setEditableActionButtons(updated)
                                             setHasUnsavedChanges(true)
                                         }}
-                                        className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-body min-h-[80px] resize-y"
+                                        className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle font-mono text-body min-h-[80px] resize-y"
                                         placeholder="Enter the AI prompt that will be pasted into Claude chat..."
                                     />
                                 </div>
@@ -1414,7 +1417,7 @@ fi`}
                                             setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
                                             setHasUnsavedChanges(true)
                                         }}
-                                        className="text-red-400 hover:text-red-300 text-body flex items-center gap-1"
+                                        className="text-accent-red hover:text-accent-red-light text-body flex items-center gap-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1437,7 +1440,7 @@ fi`}
                                     setEditableActionButtons([...editableActionButtons, newButton])
                                     setHasUnsavedChanges(true)
                                 }}
-                                className="w-full border-2 border-dashed border-slate-600 rounded-lg p-4 text-slate-400 hover:text-slate-300 hover:border-slate-500 transition-colors flex items-center justify-center gap-2"
+                                className="w-full border-2 border-dashed border-strong rounded-lg p-4 text-tertiary hover:text-secondary hover:border-focus transition-colors flex items-center justify-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1445,7 +1448,7 @@ fi`}
                                 Add New Action Button
                             </button>
                         ) : (
-                            <div className="w-full border-2 border-dashed border-slate-700 rounded-lg p-4 text-slate-500 flex items-center justify-center gap-2">
+                            <div className="w-full border-2 border-dashed border-subtle rounded-lg p-4 text-muted flex items-center justify-center gap-2">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
@@ -1456,7 +1459,7 @@ fi`}
                 </div>
             </div>
 
-            <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">
+            <div className="border-t border-border-default p-4 bg-bg-secondary/50 flex items-center justify-between">
                 <button
                     onClick={() => {
                         void (async () => {
@@ -1467,11 +1470,11 @@ fi`}
                             }
                         })()
                     }}
-                    className="text-slate-400 hover:text-slate-300 text-body"
+                    className="text-tertiary hover:text-secondary text-body"
                 >
                     Reset to Defaults
                 </button>
-                <span className={`text-caption ${hasUnsavedChanges ? 'text-amber-300' : 'text-slate-500'}`}>
+                <span className={`text-caption ${hasUnsavedChanges ? 'text-accent-amber' : 'text-muted'}`}>
                     {hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}
                 </span>
             </div>
@@ -1542,7 +1545,7 @@ fi`}
 
     const renderEnvironmentSettings = () => (
         <div className="flex flex-col h-full">
-            <div className="border-b border-slate-800">
+            <div className="border-b border-border-default">
                 <div className="flex">
                     {AGENT_TYPES.map(agent => (
                         <button
@@ -1550,8 +1553,8 @@ fi`}
                             onClick={() => setActiveAgentTab(agent)}
                              className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
                                  activeAgentTab === agent
-                                     ? `text-slate-200 border-b-2 ${theme.colors.border.focus}`
-                                     : 'text-slate-400 hover:text-slate-300'
+                                     ? `text-primary border-b-2 border-focus`
+                                     : 'text-tertiary hover:text-secondary'
                              }`}
                         >
                             {displayNameForAgent(agent)}
@@ -1572,22 +1575,22 @@ fi`}
                     {/* Binary Path Configuration */}
                     {activeAgentTab !== 'terminal' && (
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Binary Path</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-primary mb-2">Binary Path</h3>
+                        <div className="text-body text-tertiary mb-4">
                             Configure which {displayNameForAgent(activeAgentTab)} binary to use.
                             Auto-detection finds all installed versions and recommends the best one.
-                            <span className="block mt-2 text-caption text-slate-500">
+                            <span className="block mt-2 text-caption text-muted">
                                 Note: Agent binary configurations are stored globally and apply to all projects.
                             </span>
                         </div>
 
                         {/* Current Configuration */}
-                        <div className="mb-4 p-3 bg-slate-800 rounded border border-slate-700">
+                        <div className="mb-4 p-3 bg-bg-elevated rounded border border-subtle">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-caption text-slate-400">Current Binary</span>
+                                <span className="text-caption text-tertiary">Current Binary</span>
                                 <button
                                     onClick={() => { void handleRefreshBinaryDetection(activeAgentTab) }}
-                                    className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600 active:bg-slate-700 border border-slate-600 hover:border-cyan-400/50 rounded transition-all duration-150 text-caption text-slate-300 hover:text-cyan-400 flex items-center gap-1.5 active:scale-95"
+                                    className="px-3 py-1.5 bg-bg-hover/50 hover:bg-bg-hover active:bg-bg-hover border border-strong hover:border-accent-cyan/50 rounded transition-all duration-150 text-caption text-secondary hover:text-accent-cyan flex items-center gap-1.5 active:scale-95"
                                     title="Refresh detection"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1599,13 +1602,13 @@ fi`}
                             
                             {binaryConfigs[activeAgentTab].custom_path ? (
                                 <div className="space-y-2">
-                                    <div className="font-mono text-body text-green-400">
+                                    <div className="font-mono text-body text-accent-green">
                                         {binaryConfigs[activeAgentTab].custom_path}
                                     </div>
-                                    <div className="text-caption text-slate-500">Custom path (user configured)</div>
+                                    <div className="text-caption text-muted">Custom path (user configured)</div>
                                     <button
                                         onClick={() => { void handleBinaryPathChange(activeAgentTab, null) }}
-                                        className="text-caption text-orange-400 hover:text-orange-300 transition-colors"
+                                        className="text-caption text-accent-amber hover:text-accent-amber-light transition-colors"
                                     >
                                         Reset to auto-detection
                                     </button>
@@ -1616,30 +1619,30 @@ fi`}
                                         const recommended = binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)
                                         return recommended ? (
                                             <div>
-                                                <div className="font-mono text-body text-slate-200">
+                                                <div className="font-mono text-body text-primary">
                                                     {recommended.path}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-caption">
-                                                    <span className="text-green-400">✓ Recommended</span>
-                                                    <span className="text-slate-500">•</span>
-                                                    <span className="text-slate-400">{recommended.installation_method}</span>
+                                                    <span className="text-accent-green">✓ Recommended</span>
+                                                    <span className="text-muted">•</span>
+                                                    <span className="text-tertiary">{recommended.installation_method}</span>
                                                     {recommended.version && (
                                                         <>
-                                                            <span className="text-slate-500">•</span>
-                                                            <span className="text-slate-400">{recommended.version}</span>
+                                                            <span className="text-muted">•</span>
+                                                            <span className="text-tertiary">{recommended.version}</span>
                                                         </>
                                                     )}
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-body text-slate-400">
+                                            <div className="text-body text-tertiary">
                                                 {binaryConfigs[activeAgentTab].detected_binaries[0].path}
                                             </div>
                                         )
                                     })()}
                                 </div>
                             ) : (
-                                <div className="text-body text-yellow-400">
+                                <div className="text-body text-accent-amber">
                                     No {activeAgentTab} binary detected
                                 </div>
                             )}
@@ -1653,11 +1656,11 @@ fi`}
                                     value={binaryConfigs[activeAgentTab].custom_path || ''}
                                     onChange={(e) => { void handleBinaryPathChange(activeAgentTab, e.target.value || null) }}
                                     placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${displayNameForAgent(activeAgentTab)} binary`}
-                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                    className="flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                                 />
                                 <button
                                     onClick={() => { void openFilePicker(activeAgentTab) }}
-                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded border border-slate-600 text-body transition-colors"
+                                    className="px-3 py-2 bg-bg-hover hover:bg-bg-hover text-primary rounded border border-strong text-body transition-colors"
                                     title="Browse for binary"
                                 >
                                     Browse
@@ -1667,33 +1670,33 @@ fi`}
                             {/* Detected Binaries List */}
                             {binaryConfigs[activeAgentTab].detected_binaries.length > 0 && (
                                 <div className="mt-4">
-                                    <h4 className="text-caption font-medium text-slate-300 mb-2">Detected Binaries</h4>
+                                    <h4 className="text-caption font-medium text-secondary mb-2">Detected Binaries</h4>
                                     <div className="space-y-1 max-h-32 overflow-y-auto">
                                         {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
                                             <div
                                                 key={index}
-                                                className="flex items-center justify-between p-2 bg-slate-800 rounded border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                                                className="flex items-center justify-between p-2 bg-bg-elevated rounded border border-subtle hover:border-strong transition-colors cursor-pointer"
                                                 onClick={() => { void handleBinaryPathChange(activeAgentTab, binary.path) }}
                                             >
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="font-mono text-caption text-slate-200 truncate">
+                                                    <div className="font-mono text-caption text-primary truncate">
                                                         {binary.path}
                                                     </div>
                                                     <div className="flex items-center gap-2 text-caption mt-1">
                                                         {binary.is_recommended && (
-                                                            <span className="text-green-400">Recommended</span>
+                                                            <span className="text-accent-green">Recommended</span>
                                                         )}
-                                                        <span className="text-slate-400">{binary.installation_method}</span>
+                                                        <span className="text-tertiary">{binary.installation_method}</span>
                                                         {binary.version && (
                                                             <>
-                                                                <span className="text-slate-500">•</span>
-                                                                <span className="text-slate-400">{binary.version}</span>
+                                                                <span className="text-muted">•</span>
+                                                                <span className="text-tertiary">{binary.version}</span>
                                                             </>
                                                         )}
                                                         {binary.is_symlink && binary.symlink_target && (
                                                             <>
-                                                                <span className="text-slate-500">•</span>
-                                                                 <span className={theme.colors.accent.blue.DEFAULT}>→ {binary.symlink_target}</span>
+                                                                <span className="text-muted">•</span>
+                                                                 <span className="text-accent-blue">→ {binary.symlink_target}</span>
                                                             </>
                                                         )}
                                                     </div>
@@ -1720,21 +1723,21 @@ fi`}
                         const reasoningPlaceholder = metadata.reasoningPlaceholder ?? 'Optional reasoning effort (e.g. medium)'
 
                         return (
-                            <div className="border-t border-slate-700 pt-6">
-                                <h3 className="text-body font-medium text-slate-200 mb-2">Model &amp; Reasoning</h3>
-                                <div className="text-body text-slate-400 mb-4">
+                            <div className="border-t border-subtle pt-6">
+                                <h3 className="text-body font-medium text-primary mb-2">Model &amp; Reasoning</h3>
+                                <div className="text-body text-tertiary mb-4">
                                     Set default parameters for {displayNameForAgent(activeAgentTab)} launches. Leave blank to use the agent&apos;s built-in defaults.
                                 </div>
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <label className="block text-caption text-slate-400">Model</label>
+                                        <label className="block text-caption text-tertiary">Model</label>
                                         <input
                                             type="text"
                                             value={currentPrefs.model ?? ''}
                                             onChange={(e) => handleAgentPreferenceChange(activeAgentTab, 'model', e.target.value)}
                                             placeholder={modelPlaceholder}
                                             list={modelListId}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                            className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                                             autoCorrect="off"
                                             autoCapitalize="off"
                                             spellCheck={false}
@@ -1748,14 +1751,14 @@ fi`}
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="block text-caption text-slate-400">Reasoning Effort</label>
+                                        <label className="block text-caption text-tertiary">Reasoning Effort</label>
                                         <input
                                             type="text"
                                             value={currentPrefs.reasoningEffort ?? ''}
                                             onChange={(e) => handleAgentPreferenceChange(activeAgentTab, 'reasoningEffort', e.target.value)}
                                             placeholder={reasoningPlaceholder}
                                             list={reasoningListId}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body"
+                                            className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted text-body"
                                             autoCorrect="off"
                                             autoCapitalize="off"
                                             spellCheck={false}
@@ -1769,7 +1772,7 @@ fi`}
                                         )}
                                     </div>
                                 </div>
-                                <div className="mt-2 text-caption text-slate-500">
+                                <div className="mt-2 text-caption text-muted">
                                     Preferences apply when launching new processes for this agent. Existing CLI arguments still run afterwards.
                                 </div>
                             </div>
@@ -1777,9 +1780,9 @@ fi`}
                     })()}
 
                     {activeAgentTab !== 'terminal' && (
-                    <div className="border-t border-slate-700 pt-6">
-                        <h3 className="text-body font-medium text-slate-200 mb-2">CLI Arguments</h3>
-                        <div className="text-body text-slate-400 mb-3">
+                    <div className="border-t border-subtle pt-6">
+                        <h3 className="text-body font-medium text-primary mb-2">CLI Arguments</h3>
+                        <div className="text-body text-tertiary mb-3">
                             Add custom command-line arguments that will be appended to the {displayNameForAgent(activeAgentTab)} command.
                         </div>
                         <input
@@ -1787,7 +1790,7 @@ fi`}
                             value={cliArgs[activeAgentTab]}
                             onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: e.target.value }))}
                             placeholder="e.g., --profile test or -p some 'quoted value'"
-                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                            className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                             autoCorrect="off"
                             autoCapitalize="off"
                             autoComplete="off"
@@ -1795,20 +1798,20 @@ fi`}
                             inputMode="text"
                             style={{ fontVariantLigatures: 'none' }}
                         />
-                        <div className="mt-2 text-caption text-slate-500">
-                             Examples: <code className={theme.colors.accent.blue.DEFAULT}>--profile test</code>, <code className={theme.colors.accent.blue.DEFAULT}>-d</code>, <code className={theme.colors.accent.blue.DEFAULT}>--model gpt-4</code>
+                        <div className="mt-2 text-caption text-muted">
+                             Examples: <code className="text-accent-blue">--profile test</code>, <code className="text-accent-blue">-d</code>, <code className="text-accent-blue">--model gpt-4</code>
                         </div>
                     </div>
                     )}
 
-                    <div className="border-t border-slate-700 pt-6">
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Environment Variables</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                    <div className="border-t border-subtle pt-6">
+                        <h3 className="text-body font-medium text-primary mb-2">Environment Variables</h3>
+                        <div className="text-body text-tertiary mb-4">
                             {activeAgentTab === 'terminal' ? (
                                 <>
                                     Configure environment variables for {displayNameForAgent(activeAgentTab)} sessions.
                                     These variables will be available in the terminal shell.
-                                    <div className="mt-3 p-3 bg-blue-900/30 border border-blue-700/50 rounded text-caption text-blue-200">
+                                    <div className="mt-3 p-3 bg-accent-blue/10 border border-accent-blue/50 rounded text-caption text-accent-blue-light">
                                         <p className="font-medium mb-1">Terminal-only mode</p>
                                         <p>Terminal mode opens a session with your default system shell. No binary configuration or CLI arguments are needed.</p>
                                     </div>
@@ -1829,7 +1832,7 @@ fi`}
                                         value={item.key}
                                         onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
                                         placeholder="Variable name (e.g., API_KEY)"
-                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                        className="flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted"
                                         autoCorrect="off"
                                         autoCapitalize="off"
                                         autoComplete="off"
@@ -1842,7 +1845,7 @@ fi`}
                                         value={item.value}
                                         onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
                                         placeholder="Value"
-                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                        className="flex-1 bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted"
                                         autoCorrect="off"
                                         autoCapitalize="off"
                                         autoComplete="off"
@@ -1852,7 +1855,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
-                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 hover:text-red-400"
+                                        className="px-3 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-tertiary hover:text-accent-red"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1864,7 +1867,7 @@ fi`}
 
                         <button
                             onClick={() => handleAddEnvVar(activeAgentTab)}
-                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-300"
+                            className="flex items-center gap-2 px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-secondary"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1874,8 +1877,8 @@ fi`}
                     </div>
 
                     {activeAgentTab === 'claude' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common Claude CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>-d</code> or <code>--dangerously-skip-permissions</code> - Skip permission prompts</li>
@@ -1892,8 +1895,8 @@ fi`}
                     )}
 
                     {activeAgentTab === 'opencode' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common OpenCode CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--model gpt-4-turbo</code> - Specify OpenAI model</li>
@@ -1909,8 +1912,8 @@ fi`}
                     )}
 
                     {activeAgentTab === 'gemini' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common Gemini CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--model gemini-1.5-pro</code> - Specify Gemini model</li>
@@ -1926,8 +1929,8 @@ fi`}
                     )}
 
                     {activeAgentTab === 'codex' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common Codex CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--sandbox workspace-write</code> - Workspace write access</li>
@@ -1945,8 +1948,8 @@ fi`}
                     )}
 
                     {activeAgentTab === 'kilocode' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Common Kilo Code CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--auto "Prompt"</code> - Run in autonomous mode</li>
@@ -1973,12 +1976,40 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Font Sizes</h3>
+                        <h3 className="text-body font-medium text-primary mb-4">Theme</h3>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setThemeMode('dark')}
+                                className={`px-4 py-2 rounded-md text-body font-medium transition-colors ${
+                                    themeMode === 'dark'
+                                        ? 'bg-accent-blue text-inverse'
+                                        : 'bg-bg-elevated text-secondary hover:bg-bg-hover'
+                                }`}
+                            >
+                                Dark
+                            </button>
+                            <button
+                                onClick={() => setThemeMode('light')}
+                                className={`px-4 py-2 rounded-md text-body font-medium transition-colors ${
+                                    themeMode === 'light'
+                                        ? 'bg-accent-blue text-inverse'
+                                        : 'bg-bg-elevated text-secondary hover:bg-bg-hover'
+                                }`}
+                            >
+                                Light
+                            </button>
+                        </div>
+                        <p className="mt-2 text-caption text-muted">
+                            Choose between dark and light color themes for the interface.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 className="text-body font-medium text-primary mb-4">Font Sizes</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-slate-300">Terminal Font Size</span>
-                                    <span className="text-body text-slate-400">{terminalFontSize}px</span>
+                                    <span className="text-body text-secondary">Terminal Font Size</span>
+                                    <span className="text-body text-tertiary">{terminalFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input
@@ -1987,24 +2018,23 @@ fi`}
                                         max="24"
                                         value={terminalFontSize}
                                         onChange={(e) => setTerminalFontSize(Number(e.target.value))}
-                                        className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                                        className="flex-1 h-2 bg-bg-hover rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
+                                            background: `linear-gradient(to right, var(--color-accent-blue) 0%, var(--color-accent-blue) ${((terminalFontSize - 8) / 16) * 100}%, var(--color-bg-active) ${((terminalFontSize - 8) / 16) * 100}%, var(--color-bg-active) 100%)`
                                         }}
                                     />
                                     <button
                                         onClick={() => setTerminalFontSize(13)}
-                                        className="px-3 py-1 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
+                                        className="px-3 py-1 text-caption bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-tertiary"
                                     >
                                         Reset
                                     </button>
                                 </div>
                             </div>
-                            
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-slate-300">UI Font Size</span>
-                                    <span className="text-body text-slate-400">{uiFontSize}px</span>
+                                    <span className="text-body text-secondary">UI Font Size</span>
+                                    <span className="text-body text-tertiary">{uiFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input
@@ -2013,14 +2043,14 @@ fi`}
                                         max="24"
                                         value={uiFontSize}
                                         onChange={(e) => setUiFontSize(Number(e.target.value))}
-                                        className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                                        className="flex-1 h-2 bg-bg-hover rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
+                                            background: `linear-gradient(to right, var(--color-accent-blue) 0%, var(--color-accent-blue) ${((uiFontSize - 8) / 16) * 100}%, var(--color-bg-active) ${((uiFontSize - 8) / 16) * 100}%, var(--color-bg-active) 100%)`
                                         }}
                                     />
                                     <button
                                         onClick={() => setUiFontSize(12)}
-                                        className="px-3 py-1 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
+                                        className="px-3 py-1 text-caption bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-tertiary"
                                     >
                                         Reset
                                     </button>
@@ -2029,18 +2059,18 @@ fi`}
                         </div>
                         
                         <div className="mt-6">
-                            <label className="block text-body text-slate-300 mb-2">Terminal Font Family</label>
+                            <label className="block text-body text-secondary mb-2">Terminal Font Family</label>
                             <input
                                 type="text"
                                 value={terminalSettings.fontFamily || ''}
                                 onChange={(e) => setTerminalSettings({ ...terminalSettings, fontFamily: e.target.value || null })}
                                 placeholder='Examples: "JetBrains Mono, MesloLGS NF" or "Monaspace Neon"'
-                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                             />
                             <div className="mt-2">
                                 <button
                                     onClick={() => setShowFontPicker(v => !v)}
-                                    className="px-3 py-1.5 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300"
+                                    className="px-3 py-1.5 text-caption bg-bg-elevated hover:bg-bg-hover border border-subtle rounded text-secondary"
                                 >Browse installed fonts</button>
                             </div>
                             {showFontPicker && (
@@ -2053,7 +2083,7 @@ fi`}
                                     onClose={() => setShowFontPicker(false)}
                                 />
                             )}
-                            <div className="mt-2 text-caption text-slate-500">
+                            <div className="mt-2 text-caption text-muted">
                                 Uses your system-installed fonts. Powerline/ glyphs need a Nerd Font. A safe fallback chain is applied automatically.
                             </div>
                         </div>
@@ -2064,40 +2094,40 @@ fi`}
                                     type="checkbox"
                                     checked={terminalSettings.webglEnabled ?? true}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, webglEnabled: e.target.checked })}
-                                    className="w-4 h-4 bg-slate-800 border border-slate-700 rounded cursor-pointer"
+                                    className="w-4 h-4 bg-bg-elevated border border-subtle rounded cursor-pointer"
                                 />
-                                <span className="text-body text-slate-300">Enable GPU-accelerated rendering (WebGL)</span>
+                                <span className="text-body text-secondary">Enable GPU-accelerated rendering (WebGL)</span>
                             </label>
-                            <div className="mt-2 text-caption text-slate-500">
+                            <div className="mt-2 text-caption text-muted">
                                 Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to the DOM renderer if WebGL is unavailable.
                             </div>
                         </div>
 
                         <div className="mt-6">
-                            <h3 className="text-body font-medium text-slate-200 mb-2">Development Diagnostics</h3>
-                            <div className="text-body text-slate-400 mb-3">
+                            <h3 className="text-body font-medium text-primary mb-2">Development Diagnostics</h3>
+                            <div className="text-body text-tertiary mb-3">
                                 Surface popup toasts whenever frontend or backend errors occur while running Schaltwerk in development mode. Release builds ignore this toggle.
                             </div>
-                            <label className="flex items-center gap-3 text-sm text-slate-200">
+                            <label className="flex items-center gap-3 text-sm text-primary">
                                 <input
                                     type="checkbox"
                                     checked={devErrorToastsEnabled}
                                     onChange={(event) => {
                                         setDevErrorToastsEnabled(event.target.checked)
                                     }}
-                                    className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                                    className="rounded border-strong bg-bg-elevated text-accent-cyan focus:ring-accent-cyan"
                                 />
                                 <span>Show error toasts automatically during dev runs</span>
                             </label>
                         </div>
 
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-6 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Keyboard shortcuts:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">+</kbd> Increase both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">-</kbd> Decrease both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">0</kbd> Reset both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">+</kbd> Increase both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">-</kbd> Decrease both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">0</kbd> Reset both font sizes</li>
                                 </ul>
                             </div>
                         </div>
@@ -2112,16 +2142,16 @@ fi`}
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {shortcutRecording && (
-                    <div className="px-4 py-3 rounded border border-amber-500/60 bg-amber-500/10 text-amber-100 text-body">
+                    <div className="px-4 py-3 rounded border border-accent-amber/60 bg-accent-amber/10 text-accent-amber-light text-body">
                         Press the new shortcut for <span className="font-semibold">{recordingLabel}</span> or press Escape to cancel.
                     </div>
                 )}
                 {KEYBOARD_SHORTCUT_SECTIONS.map(section => (
                     <div key={section.id} className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-body font-medium text-slate-200">{section.title}</h3>
+                            <h3 className="text-body font-medium text-primary">{section.title}</h3>
                         </div>
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl divide-y divide-slate-800/70">
+                        <div className="bg-bg-secondary/60 border border-border-default rounded-xl divide-y divide-default/70">
                             {section.items.map(item => {
                                 const currentValue = editableKeyboardShortcuts[item.action]?.[0] ?? ''
                                 const isRecording = shortcutRecording === item.action
@@ -2129,13 +2159,13 @@ fi`}
                                 return (
                                     <div key={item.action} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-5 py-4">
                                         <div>
-                                            <div className="text-body text-slate-300">{item.label}</div>
+                                            <div className="text-body text-secondary">{item.label}</div>
                                             {item.description && (
-                                                <div className="text-caption text-slate-500">{item.description}</div>
+                                                <div className="text-caption text-muted">{item.description}</div>
                                             )}
                                         </div>
                                         <div className="flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
-                                            <div className="flex items-center gap-2 rounded-lg bg-slate-900/50 border border-slate-800 px-3 py-2">
+                                            <div className="flex items-center gap-2 rounded-lg bg-bg-secondary/50 border border-border-default px-3 py-2">
                                                 {renderShortcutTokens(currentValue)}
                                             </div>
                                             <input
@@ -2143,28 +2173,28 @@ fi`}
                                                 value={currentValue}
                                                 onChange={(e) => handleShortcutInputChange(item.action, e.target.value)}
                                                 placeholder="Type shortcut (e.g. Mod+Shift+S)"
-                                                 className={`w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:${theme.colors.border.focus}/80 disabled:opacity-60`}
+                                                 className={`w-48 bg-bg-secondary/40 text-primary border border-subtle/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:ring-border-focus/80 disabled:opacity-60`}
                                                 disabled={isRecording}
                                             />
                                             <button
                                                 onClick={() => handleShortcutRecord(item.action)}
                                                  className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
                                                      isRecording
-                                                         ? `border-${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.bg}`
-                                                         : 'border-slate-600/70 text-slate-200 hover:border-slate-500 hover:bg-slate-800/50'
+                                                         ? `border-accent-cyan-light text-accent-cyan-light bg-accent-cyan/10`
+                                                         : 'border-strong/70 text-primary hover:border-focus hover:bg-bg-elevated/50'
                                                  }`}
                                             >
                                                 {isRecording ? 'Listening…' : 'Record'}
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutReset(item.action)}
-                                                className="px-2.5 py-1.5 text-caption text-slate-300 border border-slate-600/70 rounded-lg hover:border-slate-500 hover:bg-slate-800/50"
+                                                className="px-2.5 py-1.5 text-caption text-secondary border border-strong/70 rounded-lg hover:border-focus hover:bg-bg-elevated/50"
                                             >
                                                 Reset
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutClear(item.action)}
-                                                className="px-2.5 py-1.5 text-caption text-slate-400 border border-slate-600/70 rounded-lg hover:border-slate-500 hover:bg-slate-800/50"
+                                                className="px-2.5 py-1.5 text-caption text-tertiary border border-strong/70 rounded-lg hover:border-focus hover:bg-bg-elevated/50"
                                             >
                                                 Clear
                                             </button>
@@ -2175,26 +2205,26 @@ fi`}
                         </div>
                     </div>
                 ))}
-                <div className="p-4 bg-slate-800/30 border border-slate-700 rounded text-caption text-slate-400">
+                <div className="p-4 bg-bg-elevated/30 border border-subtle rounded text-caption text-tertiary">
                     {detectPlatformSafe() === 'mac' ? (
-                        <>Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
+                        <>Use <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">Cmd</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
                     ) : (
-                        <>Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
+                        <>Use <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">Ctrl</kbd> modifier key for keyboard shortcuts. Keyboard shortcuts apply globally throughout the application.</>
                     )}
                 </div>
             </div>
-            <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">
+            <div className="border-t border-border-default p-4 bg-bg-secondary/50 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleResetAllShortcuts}
-                        className="px-3 py-1.5 text-caption rounded-lg border border-slate-700 text-slate-300 hover:border-slate-500 hover:bg-slate-800/50"
+                        className="px-3 py-1.5 text-caption rounded-lg border border-subtle text-secondary hover:border-focus hover:bg-bg-elevated/50"
                     >
                         Reset All
                     </button>
                     {shortcutsDirty ? (
-                        <span className="text-caption text-amber-300">Unsaved shortcut changes</span>
+                        <span className="text-caption text-accent-amber">Unsaved shortcut changes</span>
                     ) : (
-                        <span className="text-caption text-slate-500">All shortcuts saved</span>
+                        <span className="text-caption text-muted">All shortcuts saved</span>
                     )}
                 </div>
             </div>
@@ -2206,25 +2236,25 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Terminal Shell Configuration</h3>
+                        <h3 className="text-body font-medium text-primary mb-4">Terminal Shell Configuration</h3>
                         
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-body text-slate-300 mb-2">Shell Path</label>
+                                <label className="block text-body text-secondary mb-2">Shell Path</label>
                                 <input
                                     type="text"
                                     value={terminalSettings.shell || ''}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, shell: e.target.value || null })}
                                     placeholder="Leave empty to use system default ($SHELL)"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                    className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                                 />
-                                <div className="mt-2 text-caption text-slate-500">
-                                     Examples: <code className={theme.colors.accent.blue.DEFAULT}>/usr/local/bin/nu</code>, <code className={theme.colors.accent.blue.DEFAULT}>/opt/homebrew/bin/fish</code>, <code className={theme.colors.accent.blue.DEFAULT}>/bin/zsh</code>
+                                <div className="mt-2 text-caption text-muted">
+                                     Examples: <code className="text-accent-blue">/usr/local/bin/nu</code>, <code className="text-accent-blue">/opt/homebrew/bin/fish</code>, <code className="text-accent-blue">/bin/zsh</code>
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-body text-slate-300 mb-2">Shell Arguments</label>
+                                <label className="block text-body text-secondary mb-2">Shell Arguments</label>
                                 <input
                                     type="text"
                                     value={(terminalSettings.shellArgs || []).join(' ')}
@@ -2234,41 +2264,41 @@ fi`}
                                         setTerminalSettings({ ...terminalSettings, shellArgs: args })
                                     }}
                                     placeholder="Default: -i (interactive mode)"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                                    className="w-full bg-bg-elevated text-primary rounded px-3 py-2 border border-subtle placeholder-muted font-mono text-body"
                                 />
-                                <div className="mt-2 text-caption text-slate-500">
+                                <div className="mt-2 text-caption text-muted">
                                     Space-separated arguments passed to the shell. Leave empty for default interactive mode.
                                 </div>
                             </div>
                         </div>
                         
-                        <div className="mt-6 p-4 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
-                                <strong className="text-slate-300">Popular Shell Configurations:</strong>
+                        <div className="mt-6 p-4 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
+                                <strong className="text-secondary">Popular Shell Configurations:</strong>
                                 <ul className="mt-3 space-y-2">
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Nushell:</span>
+                                         <span className="text-accent-blue">Nushell:</span>
                                          <div>
                                              <div>Path: <code>/usr/local/bin/nu</code> or <code>/opt/homebrew/bin/nu</code></div>
                                              <div>Args: (leave empty, Nushell doesn't need -i)</div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Fish:</span>
+                                         <span className="text-accent-blue">Fish:</span>
                                          <div>
                                              <div>Path: <code>/usr/local/bin/fish</code> or <code>/opt/homebrew/bin/fish</code></div>
                                              <div>Args: <code>-i</code></div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Zsh:</span>
+                                         <span className="text-accent-blue">Zsh:</span>
                                          <div>
                                              <div>Path: <code>/bin/zsh</code> or <code>/usr/bin/zsh</code></div>
                                              <div>Args: <code>-i</code></div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Bash:</span>
+                                         <span className="text-accent-blue">Bash:</span>
                                         <div>
                                             <div>Path: <code>/bin/bash</code> or <code>/usr/bin/bash</code></div>
                                             <div>Args: <code>-i</code></div>
@@ -2276,8 +2306,8 @@ fi`}
                                     </li>
                                 </ul>
                                 
-                                <div className="mt-4 pt-3 border-t border-slate-600">
-                                    <strong className="text-slate-300">Note:</strong> Changes will apply to new terminals only. Existing terminals will continue using their current shell.
+                                <div className="mt-4 pt-3 border-t border-strong">
+                                    <strong className="text-secondary">Note:</strong> Changes will apply to new terminals only. Existing terminals will continue using their current shell.
                                 </div>
                             </div>
                         </div>
@@ -2332,8 +2362,8 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Session Review Settings</h3>
-                        <div className="text-body text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-primary mb-2">Session Review Settings</h3>
+                        <div className="text-body text-tertiary mb-4">
                             Configure how sessions are handled when marked as reviewed.
                         </div>
                         
@@ -2346,13 +2376,13 @@ fi`}
                                            ...sessionPreferences,
                                            skip_confirmation_modals: e.target.checked
                                        })}
-                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                       className="w-4 h-4 text-accent-cyan-dark bg-bg-elevated border-strong rounded focus:ring-accent-cyan focus:ring-2"
                                  />
                                 <div className="flex-1">
-                                    <div className="text-body font-medium text-slate-200">
+                                    <div className="text-body font-medium text-primary">
                                         Skip Confirmation Dialogs
                                     </div>
-                                    <div className="text-caption text-slate-400 mt-1">
+                                    <div className="text-caption text-tertiary mt-1">
                                         Skip confirmation dialogs for actions that ask "Don't ask me again".
                                         When enabled, previously dismissed confirmations will be automatically applied.
                                     </div>
@@ -2367,21 +2397,21 @@ fi`}
                                            ...sessionPreferences,
                                            always_show_large_diffs: e.target.checked
                                        })}
-                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                       className="w-4 h-4 text-accent-cyan-dark bg-bg-elevated border-strong rounded focus:ring-accent-cyan focus:ring-2"
                                  />
                                 <div className="flex-1">
-                                    <div className="text-body font-medium text-slate-200">
+                                    <div className="text-body font-medium text-primary">
                                         Always Show Large Diffs
                                     </div>
-                                    <div className="text-caption text-slate-400 mt-1">
+                                    <div className="text-caption text-tertiary mt-1">
                                         Always render large diffs instead of collapsing them by default.
                                         When disabled, diffs over 500 lines or 100KB will be collapsed for performance.
                                     </div>
                                 </div>
                             </label>
 
-                            <div className="pt-4 mt-6 border-t border-slate-700/60 space-y-3">
-                                <h4 className="text-body font-medium text-slate-200">
+                            <div className="pt-4 mt-6 border-t border-subtle/60 space-y-3">
+                                <h4 className="text-body font-medium text-primary">
                                     Idle Notifications
                                 </h4>
                                 <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -2392,9 +2422,9 @@ fi`}
                                             ...sessionPreferences,
                                             attention_notification_mode: event.target.checked ? 'dock' : 'off'
                                         })}
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-accent-cyan-dark bg-bg-elevated border-strong rounded focus:ring-accent-cyan focus:ring-2"
                                     />
-                                    <span className="text-body text-slate-200">Notify on idle</span>
+                                    <span className="text-body text-primary">Notify on idle</span>
                                 </label>
                                 <label
                                     className={`flex items-start gap-3 cursor-pointer transition-opacity ${
@@ -2409,15 +2439,15 @@ fi`}
                                             ...sessionPreferences,
                                             remember_idle_baseline: e.target.checked
                                         })}
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-accent-cyan-dark bg-bg-elevated border-strong rounded focus:ring-accent-cyan focus:ring-2"
                                     />
-                                    <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
+                                    <span className="text-body text-primary">Remember idle sessions when I switch away</span>
                                 </label>
                                 {attentionNotificationsEnabled && (
                                     <button
                                         type="button"
                                         onClick={() => { void requestDockBounce() }}
-                                        className="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-body text-slate-300 transition-colors"
+                                        className="mt-2 px-3 py-1.5 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded text-body text-secondary transition-colors"
                                     >
                                         Test notification
                                     </button>
@@ -2425,8 +2455,8 @@ fi`}
                             </div>
                         </div>
 
-                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
+                        <div className="mt-4 p-3 bg-bg-elevated/50 border border-subtle rounded">
+                            <div className="text-caption text-tertiary">
                                 <strong>Skip Confirmation Dialogs:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>Applies to dialogs that have "Don't ask me again" options</li>
@@ -2447,21 +2477,21 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Application Information</h3>
+                        <h3 className="text-body font-medium text-primary mb-4">Application Information</h3>
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                            <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-slate-200">Version</span>
-                                    <span className="text-caption text-slate-400">Current application version</span>
+                                    <span className="text-body font-medium text-primary">Version</span>
+                                    <span className="text-caption text-tertiary">Current application version</span>
                                 </div>
-                                <span className="text-body font-mono text-slate-300 bg-slate-900/50 px-3 py-1 rounded">
+                                <span className="text-body font-mono text-secondary bg-bg-secondary/50 px-3 py-1 rounded">
                                     {appVersion || 'Loading...'}
                                 </span>
                             </div>
-                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                            <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-slate-200">Automatic updates</span>
-                                    <span className="text-caption text-slate-400 mt-1">
+                                    <span className="text-body font-medium text-primary">Automatic updates</span>
+                                    <span className="text-caption text-tertiary mt-1">
                                         Keep Schaltwerk up to date by installing releases on startup.
                                     </span>
                                 </div>
@@ -2470,20 +2500,20 @@ fi`}
                                         id="auto-update-toggle"
                                         type="checkbox"
                                         aria-label="Automatically install updates"
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-accent-cyan-dark bg-bg-elevated border-strong rounded focus:ring-accent-cyan focus:ring-2"
                                         checked={autoUpdateEnabled}
                                         disabled={loadingAutoUpdate}
                                         onChange={() => { void handleAutoUpdateToggle() }}
                                     />
-                                    <span className="text-caption text-slate-300">
+                                    <span className="text-caption text-secondary">
                                         {loadingAutoUpdate ? 'Loading...' : autoUpdateEnabled ? 'Enabled' : 'Disabled'}
                                     </span>
                                 </label>
                             </div>
-                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                            <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-slate-200">Manual update check</span>
-                                    <span className="text-caption text-slate-400 mt-1">
+                                    <span className="text-body font-medium text-primary">Manual update check</span>
+                                    <span className="text-caption text-tertiary mt-1">
                                         Fetch the latest release information from GitHub and install it immediately if available.
                                     </span>
                                 </div>
@@ -2491,7 +2521,7 @@ fi`}
                                     type="button"
                                     onClick={() => { void handleManualUpdateCheck() }}
                                     disabled={checkingUpdate}
-                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {checkingUpdate ? 'Checking...' : 'Check for updates'}
                                 </button>
@@ -2534,20 +2564,23 @@ fi`}
         <>
             {notification.visible && (
                  <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
-                     notification.type === 'error' ? 'bg-red-900' :
-                     notification.type === 'success' ? 'bg-green-900' : 'bg-slate-800'
-                 }`} style={notification.type === 'info' ? { backgroundColor: theme.colors.status.info } : {}}>
-                    <div className="text-white text-body">{notification.message}</div>
+                     notification.type === 'error' ? 'bg-accent-red-dark' :
+                     notification.type === 'success' ? 'bg-accent-green-dark' : 'bg-bg-elevated'
+                 }`} style={notification.type === 'info' ? { backgroundColor: 'var(--color-status-info)' } : {}}>
+                    <div className="text-inverse text-body">{notification.message}</div>
                 </div>
             )}
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-                <div className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
+                <div 
+                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border border-subtle rounded-xl shadow-xl overflow-hidden flex flex-col"
+                    style={{ backgroundColor: 'var(--color-bg-elevated)' }}
+                >
                 {/* Header */}
-                <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium flex items-center justify-between">
+                <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
                     <span>Settings</span>
                     <button
                         onClick={onClose}
-                        className="text-slate-400 hover:text-slate-200 transition-colors"
+                        className="text-tertiary hover:text-primary transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2557,16 +2590,19 @@ fi`}
 
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center py-8">
-                        <span className="text-body text-slate-300">Loading settings...</span>
+                        <span className="text-body text-secondary">Loading settings...</span>
                     </div>
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
                         {/* Sidebar */}
-                        <div className="w-56 bg-slate-950/50 border-r border-slate-800 py-4">
+                        <div 
+                            className="w-56 border-r border-border-default py-4"
+                            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                        >
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
-                                        <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Project</div>
+                                        <div className="text-caption font-medium text-muted uppercase tracking-wider">Project</div>
                                     </div>
                                     <nav className="space-y-1 px-2">
                                         {projectCategories.map(category => (
@@ -2575,8 +2611,8 @@ fi`}
                                                 onClick={() => setActiveCategory(category.id)}
                                                 className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                                     activeCategory === category.id
-                                                        ? 'bg-slate-800 text-slate-200'
-                                                        : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+                                                        ? 'bg-bg-elevated text-primary'
+                                                        : 'text-tertiary hover:text-secondary hover:bg-bg-elevated/50'
                                                 }`}
                                             >
                                                 {category.icon}
@@ -2585,13 +2621,13 @@ fi`}
                                         ))}
                                     </nav>
                                     <div className="px-3 mt-6 mb-2">
-                                        <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Application</div>
+                                        <div className="text-caption font-medium text-muted uppercase tracking-wider">Application</div>
                                     </div>
                                 </>
                             )}
                             {projectCategories.length === 0 && (
                                 <div className="px-3 mb-2">
-                                    <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Application</div>
+                                    <div className="text-caption font-medium text-muted uppercase tracking-wider">Application</div>
                                 </div>
                             )}
                             <nav className="space-y-1 px-2">
@@ -2601,8 +2637,8 @@ fi`}
                                         onClick={() => setActiveCategory(category.id)}
                                         className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                             activeCategory === category.id
-                                                ? 'bg-slate-800 text-slate-200'
-                                                : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+                                                ? 'bg-bg-elevated text-primary'
+                                                : 'text-tertiary hover:text-secondary hover:bg-bg-elevated/50'
                                         }`}
                                     >
                                         {category.icon}
@@ -2621,7 +2657,7 @@ fi`}
 
                 {/* Footer */}
                 {!loading && (
-                    <div className="px-4 py-3 border-t border-slate-800 flex justify-between">
+                    <div className="px-4 py-3 border-t border-border-default flex justify-between">
                         <div className="flex gap-2">
                             {onOpenTutorial && (
                                 <button
@@ -2629,7 +2665,7 @@ fi`}
                                         onOpenTutorial()
                                         onClose()
                                     }}
-                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-300 flex items-center gap-2"
+                                    className="px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-secondary flex items-center gap-2"
                                     title="Open interactive tutorial"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2642,7 +2678,7 @@ fi`}
                         <div className="flex gap-2">
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-300"
+                                className="px-4 py-2 bg-bg-elevated hover:bg-bg-hover border border-subtle rounded transition-colors text-secondary"
                             >
                                 Cancel
                             </button>
@@ -2651,19 +2687,19 @@ fi`}
                                 disabled={saving}
                                 className="px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 style={{
-                                    backgroundColor: theme.colors.accent.blue.DEFAULT,
-                                    border: `1px solid ${theme.colors.accent.blue.border}`,
-                                    color: theme.colors.text.inverse,
+                                    backgroundColor: 'var(--color-accent-blue)',
+                                    border: `1px solid border-accent-blue`,
+                                    color: 'var(--color-text-inverse)',
                                 }}
                                 onMouseEnter={event => {
                                     if (saving) return
-                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
                                 }}
                                 onMouseLeave={event => {
-                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
                                 }}
                                 onFocus={event => {
-                                    event.currentTarget.style.outline = `2px solid ${theme.colors.border.focus}`
+                                    event.currentTarget.style.outline = `2px solid border-focus`
                                     event.currentTarget.style.outlineOffset = '2px'
                                 }}
                                 onBlur={event => {
@@ -2672,7 +2708,7 @@ fi`}
                                 }}
                             >
                                 {saving ? (
-                                    <span className="text-button text-white/80">Saving...</span>
+                                    <span className="text-button text-inverse/80">Saving...</span>
                                 ) : (
                                     'Save'
                                 )}

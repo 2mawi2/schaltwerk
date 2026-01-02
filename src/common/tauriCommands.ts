@@ -113,6 +113,7 @@ export const TauriCommands = {
   SchaltwerkCoreGetOrchestratorAgentType: 'schaltwerk_core_get_orchestrator_agent_type',
   SchaltwerkCoreGetArchiveMaxEntries: 'schaltwerk_core_get_archive_max_entries',
   SchaltwerkCoreGetFontSizes: 'schaltwerk_core_get_font_sizes',
+  SchaltwerkCoreGetThemeMode: 'schaltwerk_core_get_theme_mode',
   SchaltwerkCoreGetSession: 'schaltwerk_core_get_session',
   SchaltwerkCoreGetSpec: 'schaltwerk_core_get_spec',
   SchaltwerkCoreGetSessionAgentContent: 'schaltwerk_core_get_session_agent_content',
@@ -147,6 +148,7 @@ export const TauriCommands = {
   SchaltwerkCoreSetAgentType: 'schaltwerk_core_set_agent_type',
   SchaltwerkCoreSetArchiveMaxEntries: 'schaltwerk_core_set_archive_max_entries',
   SchaltwerkCoreSetFontSizes: 'schaltwerk_core_set_font_sizes',
+  SchaltwerkCoreSetThemeMode: 'schaltwerk_core_set_theme_mode',
   SchaltwerkCoreSetSessionAgentType: 'schaltwerk_core_set_session_agent_type',
   SchaltwerkCoreSetSkipPermissions: 'schaltwerk_core_set_skip_permissions',
   SchaltwerkCoreSetOrchestratorAgentType: 'schaltwerk_core_set_orchestrator_agent_type',
@@ -200,4 +202,6 @@ export const TauriCommands = {
   ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
   RestartApp: 'restart_app',
+  // Window commands
+  SetNativeWindowBackgroundColor: 'set_native_window_background_color',
 } as const

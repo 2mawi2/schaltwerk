@@ -30,7 +30,6 @@ import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { useAtom } from 'jotai'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -259,15 +258,15 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
   }, [activeFile, onActiveFileChange])
 
   const renderReviewHeader = () => (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-950 shrink-0 gap-2">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-subtle bg-primary shrink-0 gap-2">
       <button
         onClick={handleBackToList}
-        className="group pl-2 pr-3 py-1 rounded text-xs font-medium flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+        className="group pl-2 pr-3 py-1 rounded text-xs font-medium flex items-center gap-2 text-secondary hover:text-primary hover:bg-hover transition-colors"
         title={`Back to file list (${openDiffViewerShortcut || '⌘G'})`}
       >
         <VscChevronLeft className="w-4 h-4" />
         <span>Back to List</span>
-        <span className="ml-1 text-[10px] opacity-50 group-hover:opacity-100 border border-slate-700/50 rounded px-1 bg-slate-800/50">
+        <span className="ml-1 text-[10px] opacity-50 group-hover:opacity-100 border border-subtle rounded px-1 bg-elevated">
           {openDiffViewerShortcut || '⌘G'}
         </span>
       </button>
@@ -275,7 +274,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         {onOpenDiff && (
           <button
             onClick={() => onOpenDiff(activeFile, true)}
-            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 hover:bg-hover rounded text-secondary hover:text-primary transition-colors"
             title="Open in Modal"
           >
             <VscScreenFull />
@@ -319,21 +318,21 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           />
         </div>
         {currentReview && currentReview.comments.length > 0 && (
-          <div className="px-3 py-2 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 text-xs">
-            <span className="text-slate-400">
+          <div className="px-3 py-2 border-t border-subtle bg-primary flex items-center justify-between gap-3 text-xs">
+            <span className="text-secondary">
               {getConfirmationMessage(currentReview.comments.length)}
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCancelReview}
-                className="px-2 py-1 border border-slate-600 text-slate-200 rounded hover:bg-slate-800 transition-colors"
+                className="px-2 py-1 border border-subtle text-primary rounded hover:bg-hover transition-colors"
                 title="Discard pending comments"
               >
                 Cancel Review
               </button>
               <button
                 onClick={() => { void handleFinishReview() }}
-                className="px-2 py-1 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-medium text-white transition-colors"
+                className="px-2 py-1 bg-accent-blue hover:bg-accent-blue-dark rounded text-xs font-medium text-inverse transition-colors"
                 title="Send review comments"
               >
                 Finish Review ({currentReview.comments.length})
@@ -349,14 +348,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
   }
 
   const renderViewSourceToggle = () => (
-    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ backgroundColor: theme.colors.background.secondary }}>
+    <div className="flex items-center gap-1 rounded-md p-0.5" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <button
         onClick={() => { setViewSource('changes'); setFileViewerPath(null) }}
         className={clsx(
           'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
-          viewSource === 'changes' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
+          viewSource === 'changes' ? 'text-primary' : 'text-muted hover:text-secondary'
         )}
-        style={viewSource === 'changes' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        style={viewSource === 'changes' ? { backgroundColor: 'var(--color-bg-elevated)' } : undefined}
         title="Show changed files"
       >
         <VscGitCompare className="w-3 h-3" />
@@ -366,9 +365,9 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         onClick={() => { setViewSource('files'); setFileViewerPath(null) }}
         className={clsx(
           'flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors',
-          viewSource === 'files' ? 'text-slate-100' : 'text-slate-400 hover:text-slate-200'
+          viewSource === 'files' ? 'text-primary' : 'text-muted hover:text-secondary'
         )}
-        style={viewSource === 'files' ? { backgroundColor: theme.colors.background.elevated } : undefined}
+        style={viewSource === 'files' ? { backgroundColor: 'var(--color-bg-elevated)' } : undefined}
         title="Browse all project files"
       >
         <VscFiles className="w-3 h-3" />
@@ -400,26 +399,26 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
 
   return (
     <div className="relative h-full flex flex-col overflow-hidden" {...testProps}>
-      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-950 shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-subtle bg-primary shrink-0">
         <div className="flex items-center gap-3">
           {renderViewSourceToggle()}
         </div>
         <div className="flex items-center gap-3">
           {viewSource === 'changes' && (
             <>
-              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+              <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 <input
                   type="checkbox"
-                  className="rounded border-slate-600 bg-slate-900"
+                  className="rounded border-subtle bg-elevated"
                   checked={preferInline}
                   onChange={handleToggleInlinePreference}
                 />
                 <span>Open diffs inline</span>
               </label>
-              <label className="flex items-center gap-2 text-xs" style={{ color: theme.colors.text.secondary }}>
+              <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 <input
                   type="checkbox"
-                  className="rounded border-slate-600 bg-slate-900"
+                  className="rounded border-subtle bg-elevated"
                   checked={reformatSidebarEnabled ?? true}
                   onChange={handleToggleLayoutPreference}
                   disabled={!preferInline}
@@ -432,22 +431,22 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             prNumber ? (
               <>
                 {prDetails && (
-                  <div className="flex items-center gap-2 mr-1 border-r border-slate-800 pr-2">
+                  <div className="flex items-center gap-2 mr-1 border-r border-default pr-2">
                     {prDetails.statusCheckState && (
                       <div title={`CI Status: ${prDetails.statusCheckState}`} className="flex items-center">
-                        {prDetails.statusCheckState === 'SUCCESS' && <VscPass className="text-green-500" />}
-                        {prDetails.statusCheckState === 'FAILURE' && <VscError className="text-red-500" />}
-                        {prDetails.statusCheckState === 'PENDING' && <VscCircleFilled className="text-yellow-500" />}
+                        {prDetails.statusCheckState === 'SUCCESS' && <VscPass className="text-accent-green" />}
+                        {prDetails.statusCheckState === 'FAILURE' && <VscError className="text-accent-red" />}
+                        {prDetails.statusCheckState === 'PENDING' && <VscCircleFilled className="text-accent-amber" />}
                       </div>
                     )}
                     {prDetails.reviewDecision && (
                       <div title={`Review: ${prDetails.reviewDecision}${prDetails.latestReviews.length > 0 ? ` by ${prDetails.latestReviews.map(r => r.author ?? 'Unknown').join(', ')}` : ''}`} className="flex items-center gap-1">
-                        {prDetails.reviewDecision === 'APPROVED' && <VscVerified className="text-green-500" />}
-                        {prDetails.reviewDecision === 'CHANGES_REQUESTED' && <VscRequestChanges className="text-red-500" />}
-                        {prDetails.reviewDecision === 'REVIEW_REQUIRED' && <VscCircleFilled className="text-slate-500" />}
+                        {prDetails.reviewDecision === 'APPROVED' && <VscVerified className="text-accent-green" />}
+                        {prDetails.reviewDecision === 'CHANGES_REQUESTED' && <VscRequestChanges className="text-accent-red" />}
+                        {prDetails.reviewDecision === 'REVIEW_REQUIRED' && <VscCircleFilled className="text-muted" />}
                         {prDetails.latestReviews.length > 0 && (
-                          <span className="text-xs text-slate-400 flex items-center gap-0.5">
-                            <VscAccount className="text-slate-500" />
+                          <span className="text-xs text-muted flex items-center gap-0.5">
+                            <VscAccount className="text-muted" />
                             {prDetails.latestReviews.length}
                           </span>
                         )}
@@ -457,7 +456,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 )}
                 <button
                   onClick={() => { void handleFetchAndPasteComments() }}
-                  className="p-1 hover:bg-slate-800 rounded text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
+                  className="p-1 hover:bg-hover rounded text-accent-blue hover:text-accent-blue transition-colors disabled:opacity-50"
                   title={`Send PR #${prNumber} review comments to terminal`}
                   disabled={fetchingComments}
                 >
@@ -466,7 +465,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 {prUrl && (
                   <button
                     onClick={() => { void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }) }}
-                    className="p-1 hover:bg-slate-800 rounded text-blue-400 hover:text-blue-300 transition-colors"
+                    className="p-1 hover:bg-hover rounded text-accent-blue hover:text-accent-blue transition-colors"
                     title={`Open PR #${prNumber} in browser`}
                   >
                     <VscLinkExternal />
@@ -474,7 +473,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 )}
                 <button
                   onClick={() => { void handleUnlinkPr() }}
-                  className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                  className="p-1 hover:bg-hover rounded text-muted hover:text-secondary transition-colors"
                   title={`Unlink PR #${prNumber} from this session`}
                 >
                   <VscClose />
@@ -483,7 +482,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             ) : (
               <button
                 onClick={() => setLinkPrModalOpen(true)}
-                className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                className="p-1 hover:bg-hover rounded text-secondary hover:text-primary transition-colors"
                 title="Link to GitHub PR"
               >
                 <VscLink />
@@ -493,7 +492,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           {viewSource === 'changes' && onOpenDiff && (
             <button
               onClick={() => onOpenDiff(activeFile, true)}
-              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-1 hover:bg-hover rounded text-secondary hover:text-primary transition-colors"
               title="Open in Modal"
             >
               <VscScreenFull />

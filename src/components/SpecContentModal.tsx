@@ -29,7 +29,7 @@ export const SpecContentModal: React.FC<SpecContentModalProps> = ({
           className="whitespace-pre-wrap font-mono"
           style={{
             fontSize: theme.fontSize.code,
-            color: theme.colors.text.primary,
+            color: 'var(--color-text-primary)',
             lineHeight: '1.6'
           }}
         >

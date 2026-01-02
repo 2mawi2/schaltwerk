@@ -36,18 +36,18 @@ import { VscSend } from 'react-icons/vsc'
 const specText = {
   title: {
     ...typography.headingLarge,
-    color: theme.colors.text.primary,
+    color: 'var(--color-text-primary)',
     fontWeight: 600,
   },
   badge: {
     ...typography.caption,
     lineHeight: theme.lineHeight.compact,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   saving: {
     ...typography.caption,
     lineHeight: theme.lineHeight.compact,
-    color: theme.colors.accent.blue.light,
+    color: 'var(--color-accent-blue-light)',
   },
   toolbarButton: {
     ...typography.button,
@@ -55,11 +55,11 @@ const specText = {
   },
   toolbarMeta: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   toolbarMetaError: {
     ...typography.caption,
-    color: theme.colors.accent.red.light,
+    color: 'var(--color-accent-red-light)',
   },
 }
 
@@ -328,7 +328,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
     logger.info('[SpecEditor] Added review comment', { lineRange: newComment.lineRange })
   }, [lineSelection, currentContent, sessionName, commentText])
 
-  
+
   const handleCancelComment = useCallback(() => {
     lineSelection.clearSelection()
     setShowCommentForm(false)
@@ -444,7 +444,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
 
   return (
     <div className="h-full flex flex-col bg-panel">
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-default flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="truncate" style={specText.title}>{displayName || sessionName}</h2>
           <EpicSelect
@@ -454,7 +454,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           />
           {!disableFocusShortcut && (
             <span
-              className="px-1.5 py-0.5 rounded bg-slate-700/50"
+              className="px-1.5 py-0.5 rounded bg-elevated"
               style={specText.badge}
               title={viewMode === 'edit' ? 'Focus spec content' : 'Edit spec content'}
             >
@@ -466,7 +466,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
               className="px-1.5 py-0.5 rounded"
               style={{
                 ...specText.saving,
-                backgroundColor: theme.colors.accent.blue.bg,
+                backgroundColor: 'var(--color-accent-blue-bg)',
               }}
               title="Saving..."
             >
@@ -480,8 +480,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
             style={{
               ...specText.toolbarButton,
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.inverse
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-inverse)'
             }}
             title={buildSpecRefineReference(sessionName, displayName)}
           >
@@ -492,7 +492,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             <>
               <button
                 onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
-                className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+                className="px-2 py-1 rounded bg-elevated hover:bg-hover text-primary flex items-center gap-1"
                 style={specText.toolbarButton}
                 title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
               >
@@ -504,11 +504,11 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
                 style={{
                   ...specText.toolbarButton,
-                  backgroundColor: theme.colors.accent.purple.bg,
+                  backgroundColor: 'var(--color-accent-purple-bg)',
                   borderWidth: 1,
                   borderStyle: 'solid',
-                  borderColor: theme.colors.accent.purple.border,
-                  color: theme.colors.accent.purple.DEFAULT
+                  borderColor: 'var(--color-accent-purple-border)',
+                  color: 'var(--color-accent-purple)'
                 }}
                 title="Add comments to this spec"
               >
@@ -519,7 +519,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           ) : (
             <button
               onClick={handleExitReviewMode}
-              className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
+              className="px-2 py-1 rounded bg-elevated hover:bg-hover text-primary flex items-center gap-1"
               style={specText.toolbarButton}
               title="Exit review mode"
             >
@@ -530,8 +530,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           <button
             onClick={() => { void handleRun() }}
             disabled={starting}
-            className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={specText.toolbarButton}
+            className="px-3 py-1 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              ...specText.toolbarButton,
+              backgroundColor: 'var(--color-accent-green)',
+              color: 'var(--color-text-inverse)'
+            }}
             title="Run agent"
           >
             <VscPlay />
@@ -544,8 +548,12 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           <button
             onClick={() => { void handleCopy() }}
             disabled={copying || !currentContent}
-            className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={specText.toolbarButton}
+            className="px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              ...specText.toolbarButton,
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-inverse)'
+            }}
             title="Copy content"
           >
             <VscCopy />
@@ -554,7 +562,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
         </div>
       </div>
 
-      <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
+      <div className="px-4 py-1 border-b border-default flex items-center justify-between">
         <div style={specText.toolbarMeta}>
           {error ? (
             <span style={specText.toolbarMetaError}>{error}</span>
@@ -603,7 +611,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 }}
               />
               <div
-                className="fixed right-4 bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-4 w-96 z-[60]"
+                className="fixed right-4 bg-secondary border border-default rounded-lg shadow-xl p-4 w-96 z-[60]"
                 style={{
                   top: commentFormPosition
                     ? Math.min(commentFormPosition.y, window.innerHeight - 300)
@@ -614,9 +622,9 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 onMouseDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <div className="mb-3" style={{ color: theme.colors.text.secondary }}>
+                <div className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>
                   <div className="font-medium mb-1" style={{ fontSize: theme.fontSize.body }}>Add Review Comment</div>
-                  <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>
+                  <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>
                     {lineSelection.selection.startLine === lineSelection.selection.endLine
                       ? `Line ${lineSelection.selection.startLine}`
                       : `Lines ${lineSelection.selection.startLine}-${lineSelection.selection.endLine}`}
@@ -627,7 +635,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Write your comment..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded focus:outline-none focus:border-cyan-400 resize-none"
+                  className="w-full px-3 py-2 bg-elevated border border-default rounded focus:outline-none focus:border-accent-blue resize-none"
                   style={{ fontSize: theme.fontSize.body }}
                   rows={4}
                   onKeyDown={(e) => {
@@ -651,7 +659,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 <div className="mt-3 flex justify-end gap-2">
                   <button
                     onClick={handleCancelComment}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded"
+                    className="px-3 py-1.5 bg-elevated hover:bg-hover rounded"
                     style={{ fontSize: theme.fontSize.body }}
                   >
                     Cancel
@@ -659,7 +667,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                   <button
                     onClick={handleSubmitComment}
                     disabled={!commentText.trim()}
-                    className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded font-medium flex items-center gap-2"
+                    className="px-3 py-1.5 bg-accent-blue hover:bg-accent-blue-dark disabled:opacity-50 rounded font-medium flex items-center gap-2"
                     style={{ fontSize: theme.fontSize.body }}
                   >
                     <VscSend />
@@ -671,16 +679,16 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           )}
           {reviewComments.length > 0 && (
             <div
-              className="px-3 py-2 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 shrink-0"
+              className="px-3 py-2 border-t border-default bg-primary flex items-center justify-between gap-3 shrink-0"
               style={{ fontSize: theme.fontSize.caption }}
             >
-              <span style={{ color: theme.colors.text.muted }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>
                 {getConfirmationMessage(reviewComments.length)}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleExitReviewMode}
-                  className="px-2 py-1 border border-slate-600 text-slate-200 rounded hover:bg-slate-800 transition-colors"
+                  className="px-2 py-1 border border-default text-primary rounded hover:bg-hover transition-colors"
                   style={{ fontSize: theme.fontSize.caption }}
                   title="Discard pending comments"
                 >
@@ -688,7 +696,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 </button>
                 <button
                   onClick={() => { void handleFinishReview() }}
-                  className="px-2 py-1 bg-cyan-600 hover:bg-cyan-700 rounded font-medium text-white transition-colors"
+                  className="px-2 py-1 bg-accent-blue hover:bg-accent-blue-dark rounded font-medium text-inverse transition-colors"
                   style={{ fontSize: theme.fontSize.caption }}
                   title="Send review comments"
                 >

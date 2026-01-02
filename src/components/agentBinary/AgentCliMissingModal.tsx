@@ -1,5 +1,4 @@
 import { AgentBinaryStatus } from '../../hooks/useAgentBinarySnapshot'
-import { theme } from '../../common/theme'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import { AGENT_TYPES } from '../../types/session'
 
@@ -18,18 +17,18 @@ function StatusList({ items }: { items: Record<string, { status: 'present' | 'mi
       {AGENT_TYPES.map(agent => {
         const status = items[agent]?.status ?? 'missing'
         const preferred = items[agent]?.preferredPath ?? null
-        const color = status === 'present' ? theme.colors.accent.green.DEFAULT : theme.colors.text.secondary
+        const color = status === 'present' ? 'var(--color-accent-green)' : 'var(--color-text-secondary)'
         return (
           <div
             key={agent}
             className="flex items-start justify-between border rounded px-3 py-2"
-            style={{ borderColor: theme.colors.border.subtle }}
+            style={{ borderColor: 'var(--color-border-subtle)' }}
           >
             <div>
-              <div className="text-sm" style={{ color: theme.colors.text.primary }}>
+              <div className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
                 {displayNameForAgent(agent)}
               </div>
-              <div className="text-xs" style={{ color: theme.colors.text.secondary }}>
+              <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 {preferred ?? 'No path detected'}
               </div>
             </div>
@@ -49,18 +48,18 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/70" />
-      <div className="relative z-10 w-[640px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 space-y-4">
+      <div className="relative z-10 w-[640px] max-w-[95vw] bg-primary border border-default rounded-xl shadow-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-100">No agent CLIs detected</h2>
+          <h2 className="text-lg font-semibold text-primary">No agent CLIs detected</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200"
+            className="text-muted hover:text-primary"
             aria-label="Close"
           >
             ×
           </button>
         </div>
-        <p className="text-sm text-slate-300">
+        <p className="text-sm text-secondary">
           We couldn't find any supported agent command-line binaries. Install one (e.g., via Homebrew) or set a custom path in Settings → Agent Configuration, then re-run detection.
         </p>
         <StatusList items={statusByAgent} />
@@ -69,9 +68,9 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
             onClick={onRefresh}
             className="px-3 py-1.5 rounded border text-sm"
             style={{
-              borderColor: theme.colors.border.subtle,
-              color: theme.colors.text.secondary,
-              backgroundColor: theme.colors.background.elevated,
+              borderColor: 'var(--color-border-subtle)',
+              color: 'var(--color-text-secondary)',
+              backgroundColor: 'var(--color-bg-elevated)',
             }}
             disabled={loading}
           >
@@ -80,7 +79,7 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
           <button
             onClick={onOpenSettings}
             className="px-3 py-1.5 rounded text-sm text-white"
-            style={{ backgroundColor: theme.colors.accent.blue.dark }}
+            style={{ backgroundColor: 'var(--color-accent-blue-dark)' }}
           >
             Open Settings
           </button>

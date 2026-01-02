@@ -143,21 +143,21 @@ export function MultiAgentAllocationDropdown({
                         width: Math.max(260, menuGeometry.width),
                         maxHeight: Math.max(220, menuGeometry.maxHeight),
                         zIndex: theme.layers.dropdownMenu,
-                        backgroundColor: theme.colors.background.elevated,
-                        border: `1px solid ${theme.colors.border.default}`,
+                        backgroundColor: 'var(--color-bg-elevated)',
+                        border: `1px solid ${'var(--color-border-default)'}`,
                     }}
                 >
                     <div
                         className="flex items-center justify-between px-3 py-2 border-b"
-                        style={{ borderColor: theme.colors.border.subtle }}
+                        style={{ borderColor: 'var(--color-border-subtle)' }}
                     >
                         <span
                             className="text-xs font-medium uppercase tracking-wide"
-                            style={{ color: theme.colors.text.secondary }}
+                            style={{ color: 'var(--color-text-secondary)' }}
                         >
                             Multi-agent setup
                         </span>
-                        <span className="text-xs" style={{ color: theme.colors.text.secondary }}>
+                        <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                             {totalCount}/{maxCount}
                         </span>
                     </div>
@@ -170,8 +170,8 @@ export function MultiAgentAllocationDropdown({
                             const reachedMax = totalCount >= maxCount
                             const disableNewSelection = !checked && (unavailable || reachedMax)
                             const textColor = disableNewSelection && !checked
-                                ? theme.colors.text.secondary
-                                : theme.colors.text.primary
+                                ? 'var(--color-text-secondary)'
+                                : 'var(--color-text-primary)'
                             return (
                                 <div key={agent} className="flex items-center justify-between gap-3">
                                     <label
@@ -185,7 +185,7 @@ export function MultiAgentAllocationDropdown({
                                             checked={checked}
                                             disabled={disableNewSelection && !checked}
                                             onChange={event => onToggleAgent(agent, event.target.checked)}
-                                            style={{ accentColor: theme.colors.accent.blue.DEFAULT }}
+                                            style={{ accentColor: 'var(--color-accent-blue)' }}
                                         />
                                         <span>{displayNameForAgent(agent)}</span>
                                     </label>
@@ -216,16 +216,16 @@ export function MultiAgentAllocationDropdown({
                 onClick={() => setOpen(prev => !prev)}
                 className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
                 style={{
-                    backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
-                    color: theme.colors.text.primary,
-                    border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                    backgroundColor: open ? 'var(--color-bg-hover)' : 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                    border: `1px solid ${open ? 'var(--color-border-default)' : 'var(--color-border-subtle)'}`,
                 }}
                 title={summaryLabel}
             >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
                         d="M4 7h16M6 12h12M8 17h8"
-                        stroke={theme.colors.text.primary}
+                        stroke={'var(--color-text-primary)'}
                         strokeWidth={1.6}
                         strokeLinecap="round"
                     />
@@ -293,9 +293,9 @@ function AgentCountSelector({ agent, count, maxCount, onChange }: AgentCountSele
                     onClick={toggle}
                     className="px-2 h-8 rounded inline-flex items-center gap-1 text-sm hover:opacity-90"
                     style={{
-                        backgroundColor: dropdownOpen ? theme.colors.background.hover : theme.colors.background.primary,
-                        color: theme.colors.text.primary,
-                        border: `1px solid ${dropdownOpen ? theme.colors.border.default : theme.colors.border.subtle}`,
+                        backgroundColor: dropdownOpen ? 'var(--color-bg-hover)' : 'var(--color-bg-primary)',
+                        color: 'var(--color-text-primary)',
+                        border: `1px solid ${dropdownOpen ? 'var(--color-border-default)' : 'var(--color-border-subtle)'}`,
                     }}
                 >
                     <span>{normalizedCount}x</span>

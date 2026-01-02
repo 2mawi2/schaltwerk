@@ -23,9 +23,9 @@ export function DeleteSpecConfirmation({
   if (!open) return null
 
   const body = (
-    <p className="text-zinc-300">
+    <p className="text-secondary">
       This will archive the spec prompt so you can recover it later from Settings → Archives.
-      <span className="block mt-2 text-zinc-400">
+      <span className="block mt-2 text-tertiary">
         You can permanently delete it from the archive if desired.
       </span>
     </p>

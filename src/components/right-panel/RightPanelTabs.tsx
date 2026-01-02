@@ -417,7 +417,8 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
       ref={diffContainerRef}
       tabIndex={-1}
       data-testid="right-panel-container"
-      className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}
+      className={`h-full flex flex-col border-2 rounded ${localFocus ? 'border-accent-blue/60 shadow-lg shadow-accent-blue/20' : 'border-default'}`}
+      style={{ backgroundColor: 'var(--color-panel)' }}
       onClick={handlePanelClick}
     >
       {/* Header */}
@@ -435,10 +436,14 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
         />
       )}
 
-      <div className={`h-[2px] flex-shrink-0 ${localFocus && !isDragging
-        ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
-        : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
-        }`} />
+      <div
+        className="h-[2px] flex-shrink-0"
+        style={{
+          background: localFocus && !isDragging
+            ? 'linear-gradient(to right, transparent, color-mix(in srgb, var(--color-accent-blue) 50%, transparent), transparent)'
+            : 'linear-gradient(to right, transparent, var(--color-border-subtle), transparent)'
+        }}
+      />
 
       {/* Body: split mode for running sessions; tabbed mode otherwise */}
       <div className="flex-1 overflow-hidden relative">

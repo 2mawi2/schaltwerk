@@ -16,6 +16,7 @@ pub mod settings;
 pub mod terminal;
 pub mod updater;
 pub mod utility;
+pub mod window;
 
 #[cfg(test)]
 mod tests;
@@ -40,7 +41,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_discard_file_in_orchestrator, schaltwerk_core_discard_file_in_session,
     schaltwerk_core_create_epic,
     schaltwerk_core_get_agent_type, schaltwerk_core_get_archive_max_entries,
-    schaltwerk_core_get_font_sizes, schaltwerk_core_get_merge_preview,
+    schaltwerk_core_get_font_sizes, schaltwerk_core_get_theme_mode, schaltwerk_core_get_merge_preview,
     schaltwerk_core_get_merge_preview_with_worktree, schaltwerk_core_get_orchestrator_agent_type,
     schaltwerk_core_get_orchestrator_skip_permissions, schaltwerk_core_get_session,
     schaltwerk_core_get_session_agent_content, schaltwerk_core_get_skip_permissions,
@@ -57,7 +58,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_reset_orchestrator,
     schaltwerk_core_reset_session_worktree, schaltwerk_core_restore_archived_spec,
     schaltwerk_core_set_agent_type, schaltwerk_core_set_archive_max_entries,
-    schaltwerk_core_set_font_sizes, schaltwerk_core_set_orchestrator_agent_type,
+    schaltwerk_core_set_font_sizes, schaltwerk_core_set_theme_mode, schaltwerk_core_set_orchestrator_agent_type,
     schaltwerk_core_set_orchestrator_skip_permissions, schaltwerk_core_set_session_agent_type,
     schaltwerk_core_set_item_epic,
     schaltwerk_core_set_skip_permissions, schaltwerk_core_start_claude,
@@ -73,3 +74,4 @@ pub use settings::*;
 pub use terminal::*;
 pub use updater::*;
 pub use utility::*;
+pub use window::*;

@@ -1,6 +1,19 @@
 import { withOpacity } from './colorUtils'
 
+export type NativeWindowColor = {
+  r: number
+  g: number
+  b: number
+  a: number
+}
+
+export const nativeWindowColors: Record<'dark' | 'light', NativeWindowColor> = {
+  dark: { r: 2 / 255, g: 6 / 255, b: 23 / 255, a: 1.0 },
+  light: { r: 250 / 255, g: 250 / 255, b: 250 / 255, a: 1.0 },
+}
+
 export const theme = {
+  /* eslint-disable local/no-hardcoded-colors */
   colors: {
     background: {
       primary: '#020617',    // slate-950
@@ -328,6 +341,7 @@ export const theme = {
       },
     },
   },
+  /* eslint-enable local/no-hardcoded-colors */
 
   layers: {
     modalOverlay: 1600,

@@ -1101,6 +1101,7 @@ async fn create_session(
         epic_id: None,
         agent_type: agent_type.as_deref(),
         skip_permissions,
+        pr_number: None,
     };
 
     match manager.create_session_with_agent(params) {

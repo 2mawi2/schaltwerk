@@ -96,13 +96,13 @@ describe('useActionButtons color updates', () => {
 
     await waitFor(() => {
       expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
-      expect(getByTestId('btn-classes').textContent || '').toContain('text-blue-200')
+      expect(getByTestId('btn-classes').textContent || '').toContain('text-accent-blue')
     })
 
     fireEvent.click(getByText('save-green'))
 
     await waitFor(() => {
-      expect(getByTestId('btn-classes').textContent || '').toContain('text-green-200')
+      expect(getByTestId('btn-classes').textContent || '').toContain('text-accent-green')
     })
 
     expect(mockInvoke).toHaveBeenCalledTimes(3)

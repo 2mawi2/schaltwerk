@@ -21,17 +21,17 @@ const containerStyle: CSSProperties = {
   gap: theme.spacing.xs,
   marginRight: theme.spacing.sm,
   padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-  backgroundColor: theme.colors.accent.blue.bg,
-  border: `1px solid ${theme.colors.accent.blue.border}`,
+  backgroundColor: 'var(--color-accent-blue-bg)',
+  border: `1px solid ${'var(--color-accent-blue-border)'}`,
   borderRadius: theme.borderRadius.lg,
-  color: theme.colors.accent.blue.light,
+  color: 'var(--color-accent-blue-light)',
   fontSize: theme.fontSize.caption,
   lineHeight: 1.2,
 }
 
 const badgeTextStyle: CSSProperties = {
   fontFamily: codeFontFamily,
-  color: theme.colors.accent.blue.light,
+  color: 'var(--color-accent-blue-light)',
 }
 
 export function BranchIndicator() {
@@ -60,7 +60,7 @@ export function BranchIndicator() {
 
   return (
     <div data-testid="branch-indicator" style={containerStyle}>
-      <VscSourceControl size={14} aria-hidden="true" style={{ color: theme.colors.accent.blue.light }} />
+      <VscSourceControl size={14} aria-hidden="true" style={{ color: 'var(--color-accent-blue-light)' }} />
       {devInfo.sessionName && (
         <span data-testid="branch-indicator-session" style={badgeTextStyle}>
           {devInfo.sessionName}

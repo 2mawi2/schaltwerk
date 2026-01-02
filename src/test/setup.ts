@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { randomUUID as nodeRandomUUID } from 'node:crypto'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import '../styles/theme.css'
 
 const actEnvTarget = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 actEnvTarget.IS_REACT_ACT_ENVIRONMENT = true

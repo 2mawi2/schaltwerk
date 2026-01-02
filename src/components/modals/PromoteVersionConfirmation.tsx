@@ -101,24 +101,24 @@ export function PromoteVersionConfirmation({
       body={
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-slate-300 mb-3">
+            <p className="text-sm text-secondary mb-3">
               This will permanently delete the following sessions:
             </p>
-            <ul className="space-y-1 text-sm text-slate-400 bg-slate-800/50 rounded p-3 border border-slate-700">
+            <ul className="space-y-1 text-sm text-tertiary bg-elevated/50 rounded p-3 border border-subtle">
               {sessionsToDelete.map((version) => (
                 <li key={version.session.info.session_id} className="flex items-center gap-2">
-                  <span className="text-red-400">•</span>
+                  <span style={{ color: 'var(--color-accent-red)' }}>•</span>
                   <span className="font-mono">{version.session.info.session_id}</span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-muted">
                     (v{version.versionNumber})
                   </span>
                 </li>
               ))}
             </ul>
           </div>
-          
+
           <div>
-            <p className="text-sm text-slate-300 mb-2">
+            <p className="text-sm text-secondary mb-2">
               The selected session will remain in <strong>Running</strong> state for continued work.
             </p>
           </div>
@@ -129,9 +129,10 @@ export function PromoteVersionConfirmation({
               id="dont-ask-again"
               checked={dontAskAgain}
               onChange={(e) => setDontAskAgain(e.target.checked)}
-              className="rounded border-slate-600 bg-slate-700 text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
+              className="rounded border-strong bg-hover focus:ring-border-focus focus:ring-offset-0"
+              style={{ color: 'var(--color-accent-cyan)' }}
             />
-            <label htmlFor="dont-ask-again" className="text-xs text-slate-400">
+            <label htmlFor="dont-ask-again" className="text-xs text-tertiary">
               Don't ask again
             </label>
           </div>

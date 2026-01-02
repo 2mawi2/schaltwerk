@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
-import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { validateDisplayName } from '../../utils/sanitizeName'
 
@@ -117,14 +116,14 @@ export function InlineEditableText({
           placeholder={placeholder}
           disabled={isSaving}
           className={clsx(
-            'bg-slate-800 border rounded px-1.5 py-0.5 outline-none',
+            'bg-elevated border rounded px-1.5 py-0.5 outline-none',
             'min-w-[120px] max-w-[200px]',
-            error ? 'border-red-500' : 'border-slate-600 focus:border-blue-500',
+            error ? 'border-accent-red' : 'border-subtle focus:border-accent-blue',
             isSaving && 'opacity-50'
           )}
           style={{
             ...textStyle,
-            color: theme.colors.text.primary,
+            color: 'var(--color-text-primary)',
           }}
           onClick={(e) => e.stopPropagation()}
         />
@@ -132,7 +131,7 @@ export function InlineEditableText({
           <span
             className="h-3 w-3 border-2 border-solid rounded-full animate-spin flex-shrink-0"
             style={{
-              borderColor: theme.colors.accent.blue.border,
+              borderColor: 'var(--color-accent-blue-border)',
               borderTopColor: 'transparent',
             }}
           />
@@ -153,7 +152,7 @@ export function InlineEditableText({
         }
       }}
       className={clsx(
-        'truncate cursor-pointer hover:bg-slate-700/50 rounded px-0.5 -mx-0.5 transition-colors',
+        'truncate cursor-pointer hover:bg-hover rounded px-0.5 -mx-0.5 transition-colors',
         disabled && 'cursor-default hover:bg-transparent',
         className
       )}

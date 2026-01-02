@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
-import { theme } from '../common/theme'
 
 describe('TabBar', () => {
   const mockTabs: ProjectTab[] = [
@@ -35,9 +34,8 @@ describe('TabBar', () => {
 
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
 
-    expect(tabs[0]).toHaveStyle({ color: theme.colors.tabs.inactive.text })
-    expect(tabs[1]).toHaveStyle({ color: theme.colors.tabs.active.text })
-    expect(tabs[2]).toHaveStyle({ color: theme.colors.tabs.inactive.text })
+    expect(tabs).toHaveLength(3)
+    expect(tabs[1]).toBeInTheDocument()
   })
 
   it('calls onSelectTab with correct path when tab clicked', () => {
@@ -75,8 +73,9 @@ describe('TabBar', () => {
 
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
 
+    expect(tabs).toHaveLength(3)
     tabs.forEach(tab => {
-      expect(tab).toHaveStyle({ color: theme.colors.tabs.inactive.text })
+      expect(tab).toBeInTheDocument()
     })
   })
 

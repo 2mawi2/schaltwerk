@@ -19,6 +19,28 @@ export default {
   ],
   theme: {
     extend: {
+      textColor: {
+        primary: withOpacityValue('--color-text-primary-rgb'),
+        secondary: withOpacityValue('--color-text-secondary-rgb'),
+        tertiary: withOpacityValue('--color-text-tertiary-rgb'),
+        muted: withOpacityValue('--color-text-muted-rgb'),
+        inverse: withOpacityValue('--color-text-inverse-rgb'),
+      },
+      backgroundColor: {
+        primary: withOpacityValue('--color-bg-primary-rgb'),
+        secondary: withOpacityValue('--color-bg-secondary-rgb'),
+        tertiary: withOpacityValue('--color-bg-tertiary-rgb'),
+        elevated: withOpacityValue('--color-bg-elevated-rgb'),
+        hover: withOpacityValue('--color-bg-hover-rgb'),
+        active: withOpacityValue('--color-bg-active-rgb'),
+      },
+      borderColor: {
+        DEFAULT: withOpacityValue('--color-border-default-rgb'),
+        default: withOpacityValue('--color-border-default-rgb'),
+        subtle: withOpacityValue('--color-border-subtle-rgb'),
+        strong: withOpacityValue('--color-border-strong-rgb'),
+        focus: withOpacityValue('--color-border-focus-rgb'),
+      },
       colors: {
         panel: withOpacityValue('--color-panel-rgb'),
         panelAlt: withOpacityValue('--color-panel-alt-rgb'),
@@ -54,6 +76,18 @@ export default {
         'status-warning': withOpacityValue('--color-status-warning-rgb'),
         'status-error': withOpacityValue('--color-status-error-rgb'),
 
+        // Semantic aliases for ring-*, shadow-*, etc.
+        info: withOpacityValue('--color-accent-blue-rgb'),
+        success: withOpacityValue('--color-accent-green-rgb'),
+        warning: withOpacityValue('--color-accent-amber-rgb'),
+        danger: withOpacityValue('--color-accent-red-rgb'),
+
+        // Background variants for semantic colors
+        'info-bg': 'var(--color-accent-blue-bg)',
+        'success-bg': 'var(--color-accent-green-bg)',
+        'warning-bg': 'var(--color-accent-amber-bg)',
+        'danger-bg': 'var(--color-accent-red-bg)',
+
         slate: createScale('gray', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
         gray: createScale('gray', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
         blue: createScale('blue', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
@@ -80,7 +114,7 @@ export default {
         'display': '2rem',          // 32px - Hero text, important notices
         // UI-specific sizes
         'button': '0.875rem',       // 14px - Button text
-        'input': '0.875rem',        // 14px - Input field text  
+        'input': '0.875rem',        // 14px - Input field text
         'label': '0.8125rem',       // 13px - Form labels
         'code': '0.8125rem',        // 13px - Code snippets (monospace)
         'terminal': '0.8125rem',    // 13px - Terminal text

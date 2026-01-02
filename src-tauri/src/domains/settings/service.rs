@@ -121,6 +121,18 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_theme_mode(&self) -> crate::domains::settings::types::ThemeMode {
+        self.settings.theme_mode
+    }
+
+    pub fn set_theme_mode(
+        &mut self,
+        theme_mode: crate::domains::settings::types::ThemeMode,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.theme_mode = theme_mode;
+        self.save()
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         if agent_type == "terminal" {
             return String::new();

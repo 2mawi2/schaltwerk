@@ -117,11 +117,11 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
         }
 
         if (loadError) {
-            return <div className="text-body text-red-300">{loadError}</div>
+            return <div className="text-body" style={{ color: 'var(--color-accent-red)' }}>{loadError}</div>
         }
 
         if (archives.length === 0) {
-            return <div className="text-slate-400 text-body">No archived specs.</div>
+            return <div className="text-tertiary text-body">No archived specs.</div>
         }
 
         return (
@@ -129,27 +129,38 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                 {archives.map(item => (
                     <div
                         key={item.id}
-                        className="w-full border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3 min-w-0"
+                        className="w-full border border-subtle rounded p-3 bg-primary flex items-start justify-between gap-3 min-w-0"
                     >
                         <div
                             className="flex-1 min-w-0 overflow-hidden pr-2 cursor-pointer hover:opacity-80 transition-opacity"
                             style={{ maxWidth: 'calc(100% - 140px)' }}
                             onClick={() => onOpenSpec({ name: item.session_name, content: item.content })}
                         >
-                            <div className="text-slate-200 text-body truncate">{item.session_name}</div>
-                            <div className="text-caption text-slate-500">{formatDateTime(item.archived_at)}</div>
-                            <div className="text-caption text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
+                            <div className="text-secondary text-body truncate">{item.session_name}</div>
+                            <div className="text-caption text-tertiary">{formatDateTime(item.archived_at)}</div>
+                            <div className="text-caption text-tertiary line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                             <button
                                 onClick={() => { void handleRestore(item) }}
-                                className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700"
+                                className="px-2 py-1 border border-subtle rounded text-secondary text-caption bg-elevated hover:bg-hover"
                             >
                                 Restore
                             </button>
                             <button
                                 onClick={() => { void handleDelete(item) }}
-                                className="px-2 py-1 border border-red-700 rounded text-red-200 text-caption bg-red-900/30 hover:bg-red-900/50"
+                                className="px-2 py-1 border rounded text-caption"
+                                style={{
+                                    borderColor: 'var(--color-accent-red-border)',
+                                    color: 'var(--color-accent-red)',
+                                    backgroundColor: 'var(--color-accent-red-bg)',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.opacity = '0.8'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.opacity = '1'
+                                }}
                             >
                                 Delete
                             </button>
@@ -165,10 +176,10 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Archived Specs</h3>
-                        <div className="text-body text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
+                        <h3 className="text-body font-medium text-secondary mb-2">Archived Specs</h3>
+                        <div className="text-body text-tertiary mb-4">Recover deleted prompts back to specs.</div>
                         <div className="mb-4 flex items-center gap-3">
-                            <label className="text-body text-slate-300">Max entries</label>
+                            <label className="text-body text-secondary">Max entries</label>
                             <input
                                 type="number"
                                 value={archiveMax}
@@ -176,12 +187,12 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                                     const nextValue = parseInt(event.target.value || '0', 10)
                                     setArchiveMax(Number.isNaN(nextValue) ? 0 : nextValue)
                                 }}
-                                className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                                className="w-24 bg-primary border border-subtle rounded px-2 py-1 text-secondary"
                             />
                             <button
                                 onClick={() => { void handleSaveLimit() }}
                                 disabled={savingLimit}
-                                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-body disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="px-3 py-1 bg-elevated hover:bg-hover border border-subtle rounded text-secondary text-body disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 Save
                             </button>

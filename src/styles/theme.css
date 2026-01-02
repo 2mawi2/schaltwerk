@@ -465,4 +465,293 @@
   --color-tab-badge-text: #020617;
   --color-tab-running-indicator: #06b6d4;
   --color-tab-running-glow: rgba(6, 182, 212, 0.3);
+
+  /* Git Graph Colors */
+  --color-graph-swimlane-0: #FFB000;
+  --color-graph-swimlane-1: #DC267F;
+  --color-graph-swimlane-2: #994F00;
+  --color-graph-swimlane-3: #40B0A6;
+  --color-graph-swimlane-4: #B66DFF;
+  --color-graph-ref-default: #81b88b;
+  --color-graph-ref-remote: #b180d7;
+  --color-graph-ref-base: #ea5c00;
+  --color-graph-ref-tag: #e5c07b;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] {
+  /* Background - neutral gray palette (not blue-tinted slate) */
+  --color-bg-primary: #fafafa;
+  --color-bg-primary-rgb: 250 250 250;
+  --color-bg-secondary: #f4f4f5;
+  --color-bg-secondary-rgb: 244 244 245;
+  --color-bg-tertiary: #e4e4e7;
+  --color-bg-tertiary-rgb: 228 228 231;
+  --color-bg-elevated: #ffffff;
+  --color-bg-elevated-rgb: 255 255 255;
+  --color-bg-hover: #e4e4e7;
+  --color-bg-hover-rgb: 228 228 231;
+  --color-bg-active: #d4d4d8;
+  --color-bg-active-rgb: 212 212 216;
+
+  /* Panel aliases - use direct values for RGB compatibility */
+  --color-panel: #f4f4f5;
+  --color-panel-rgb: 244 244 245;
+  --color-panel-alt: #e4e4e7;
+  --color-panel-alt-rgb: 228 228 231;
+
+  /* Text - dark on light */
+  --color-text-primary: #0f172a;
+  --color-text-primary-rgb: 15 23 42;
+  --color-text-secondary: #334155;
+  --color-text-secondary-rgb: 51 65 85;
+  --color-text-tertiary: #475569;
+  --color-text-tertiary-rgb: 71 85 105;
+  --color-text-muted: #64748b;
+  --color-text-muted-rgb: 100 116 139;
+  --color-text-inverse: #f8fafc;
+  --color-text-inverse-rgb: 248 250 252;
+
+  /* Borders - neutral gray */
+  --color-border-default: #e4e4e7;
+  --color-border-default-rgb: 228 228 231;
+  --color-border-subtle: #d4d4d8;
+  --color-border-subtle-rgb: 212 212 216;
+  --color-border-strong: #a1a1aa;
+  --color-border-strong-rgb: 161 161 170;
+
+  /* Scrollbar */
+  --color-scrollbar-track: rgba(0, 0, 0, 0.05);
+  --color-scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Overlays */
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.4);
+  --color-overlay-strong: rgba(0, 0, 0, 0.6);
+  --color-overlay-light: rgba(0, 0, 0, 0.05);
+  --color-overlay-dark: rgba(0, 0, 0, 0.15);
+
+  /* Surface */
+  --color-surface-modal: #ffffff;
+  --color-surface-modal-rgb: 255 255 255;
+
+  /* Editor */
+  --color-editor-background: #ffffff;
+  --color-editor-background-rgb: 255 255 255;
+  --color-editor-text: #1e293b;
+  --color-editor-caret: #1e293b;
+  --color-editor-gutter-text: #94a3b8;
+  --color-editor-gutter-active-text: #475569;
+  --color-editor-active-line: rgba(0, 0, 0, 0.04);
+  --color-editor-inline-code-bg: rgba(0, 0, 0, 0.06);
+  --color-editor-code-block-bg: rgba(0, 0, 0, 0.04);
+  --color-editor-blockquote-border: #cbd5e1;
+  --color-editor-line-rule: #cbd5e1;
+  --color-editor-strikethrough: #94a3b8;
+  --color-editor-selection: rgba(6, 182, 212, 0.25);
+  --color-editor-selection-focused: rgba(6, 182, 212, 0.35);
+  --color-editor-selection-alt: rgba(0, 0, 0, 0.06);
+
+  /* Syntax - VS Code Light+ inspired */
+  --color-syntax-default: #1e293b;
+  --color-syntax-comment: #6a9955;
+  --color-syntax-variable: #001080;
+  --color-syntax-number: #098658;
+  --color-syntax-type: #267f99;
+  --color-syntax-keyword: #0000ff;
+  --color-syntax-string: #a31515;
+  --color-syntax-function: #795e26;
+  --color-syntax-operator: #1e293b;
+  --color-syntax-punctuation: #64748b;
+  --color-syntax-tag: #800000;
+  --color-syntax-attribute: #ff0000;
+  --color-syntax-selector: #800000;
+  --color-syntax-property: #001080;
+  --color-syntax-bracket: #0431fa;
+  --color-syntax-class: #267f99;
+  --color-syntax-constant: #0070c1;
+  --color-syntax-decorator: #795e26;
+  --color-syntax-regex: #811f3f;
+  --color-syntax-escape: #ee0000;
+  --color-syntax-emphasis: #af00db;
+  --color-syntax-highlight: #1e293b;
+
+  /* Diff */
+  --color-diff-added-bg: rgba(34, 197, 94, 0.15);
+  --color-diff-added-text: #166534;
+  --color-diff-removed-bg: rgba(239, 68, 68, 0.15);
+  --color-diff-removed-text: #991b1b;
+  --color-diff-modified-bg: rgba(245, 158, 11, 0.15);
+  --color-diff-modified-text: #92400e;
+
+  /* Selection */
+  --color-selection-bg: rgba(6, 182, 212, 0.3);
+
+  /* Tabs */
+  --color-tab-inactive-bg: transparent;
+  --color-tab-inactive-text: #64748b;
+  --color-tab-inactive-hover-bg: rgba(0, 0, 0, 0.05);
+  --color-tab-inactive-hover-text: #334155;
+  --color-tab-active-bg: #ffffff;
+  --color-tab-active-text: #0f172a;
+  --color-tab-active-indicator: #0891b2;
+  --color-tab-close-bg: transparent;
+  --color-tab-close-hover-bg: rgba(0, 0, 0, 0.1);
+  --color-tab-close-color: #64748b;
+  --color-tab-close-hover-color: #0f172a;
+  --color-tab-badge-bg: #f59e0b;
+  --color-tab-badge-text: #ffffff;
+  --color-tab-running-indicator: #0891b2;
+  --color-tab-running-glow: rgba(8, 145, 178, 0.3);
+
+  /* Git Graph Colors - adjusted for light mode */
+  --color-graph-swimlane-0: #CC8C00;
+  --color-graph-swimlane-1: #B01E60;
+  --color-graph-swimlane-2: #7A3F00;
+  --color-graph-swimlane-3: #2E8680;
+  --color-graph-swimlane-4: #9147DD;
+  --color-graph-ref-default: #2d7a3e;
+  --color-graph-ref-remote: #7c4a9d;
+  --color-graph-ref-base: #b84900;
+  --color-graph-ref-tag: #b8922d;
+
+  /* Gray/Slate Scale - INVERTED for light mode */
+  /* This makes existing bg-slate-* and text-slate-* classes work in light mode */
+  --color-gray-50: #020617;
+  --color-gray-50-rgb: 2 6 23;
+  --color-gray-100: #0f172a;
+  --color-gray-100-rgb: 15 23 42;
+  --color-gray-200: #1e293b;
+  --color-gray-200-rgb: 30 41 59;
+  --color-gray-300: #334155;
+  --color-gray-300-rgb: 51 65 85;
+  --color-gray-400: #475569;
+  --color-gray-400-rgb: 71 85 105;
+  --color-gray-500: #64748b;
+  --color-gray-500-rgb: 100 116 139;
+  --color-gray-500-alt: #6b7280;
+  --color-gray-500-alt-rgb: 107 114 128;
+  --color-gray-600: #94a3b8;
+  --color-gray-600-rgb: 148 163 184;
+  --color-gray-700: #cbd5e1;
+  --color-gray-700-rgb: 203 213 225;
+  --color-gray-800: #e2e8f0;
+  --color-gray-800-rgb: 226 232 240;
+  --color-gray-900: #f1f5f9;
+  --color-gray-900-rgb: 241 245 249;
+  --color-gray-950: #f8fafc;
+  --color-gray-950-rgb: 248 250 252;
+
+  /* Accent RGB variants for withOpacity() */
+  --color-accent-blue-rgb: 34 211 238;
+  --color-accent-green-rgb: 34 197 94;
+  --color-accent-amber-rgb: 245 158 11;
+  --color-accent-red-rgb: 239 68 68;
+  --color-accent-violet-rgb: 139 92 246;
+  --color-accent-purple-rgb: 168 85 247;
+  --color-accent-yellow-rgb: 234 179 8;
+  --color-accent-cyan-rgb: 6 182 212;
+  --color-border-focus-rgb: 34 211 238;
+
+  /* Blue palette RGB variants */
+  --color-blue-50-rgb: 236 254 255;
+  --color-blue-100-rgb: 207 250 254;
+  --color-blue-200-rgb: 165 243 252;
+  --color-blue-300-rgb: 103 232 249;
+  --color-blue-400-rgb: 34 211 238;
+  --color-blue-500-rgb: 6 182 212;
+  --color-blue-600-rgb: 8 145 178;
+  --color-blue-700-rgb: 14 116 144;
+  --color-blue-800-rgb: 21 94 117;
+  --color-blue-900-rgb: 22 78 99;
+  --color-blue-950-rgb: 8 51 68;
+
+  /* Red palette RGB variants */
+  --color-red-50-rgb: 254 242 242;
+  --color-red-100-rgb: 254 226 226;
+  --color-red-200-rgb: 254 202 202;
+  --color-red-300-rgb: 252 165 165;
+  --color-red-400-rgb: 248 113 113;
+  --color-red-500-rgb: 239 68 68;
+  --color-red-600-rgb: 220 38 38;
+  --color-red-700-rgb: 185 28 28;
+  --color-red-800-rgb: 153 27 27;
+  --color-red-900-rgb: 127 29 29;
+  --color-red-950-rgb: 69 10 10;
+
+  /* Green palette RGB variants */
+  --color-green-50-rgb: 240 253 244;
+  --color-green-100-rgb: 220 252 231;
+  --color-green-200-rgb: 187 247 208;
+  --color-green-300-rgb: 134 239 172;
+  --color-green-400-rgb: 74 222 128;
+  --color-green-500-rgb: 34 197 94;
+  --color-green-600-rgb: 22 163 74;
+  --color-green-700-rgb: 21 128 61;
+  --color-green-800-rgb: 22 101 52;
+  --color-green-900-rgb: 20 83 45;
+  --color-green-950-rgb: 5 46 22;
+
+  /* Amber palette RGB variants */
+  --color-amber-50-rgb: 255 251 235;
+  --color-amber-100-rgb: 254 243 199;
+  --color-amber-200-rgb: 253 230 138;
+  --color-amber-300-rgb: 252 211 77;
+  --color-amber-400-rgb: 251 191 36;
+  --color-amber-500-rgb: 245 158 11;
+  --color-amber-600-rgb: 217 119 6;
+  --color-amber-700-rgb: 180 83 9;
+  --color-amber-800-rgb: 146 64 14;
+  --color-amber-900-rgb: 120 53 15;
+
+  /* Yellow palette RGB variants */
+  --color-yellow-50-rgb: 254 252 232;
+  --color-yellow-100-rgb: 254 249 195;
+  --color-yellow-200-rgb: 254 240 138;
+  --color-yellow-300-rgb: 253 224 71;
+  --color-yellow-400-rgb: 250 204 21;
+  --color-yellow-500-rgb: 234 179 8;
+  --color-yellow-600-rgb: 202 138 4;
+  --color-yellow-700-rgb: 161 98 7;
+  --color-yellow-800-rgb: 133 77 14;
+  --color-yellow-900-rgb: 113 63 18;
+
+  /* Violet palette RGB variants */
+  --color-violet-50-rgb: 245 243 255;
+  --color-violet-100-rgb: 237 233 254;
+  --color-violet-200-rgb: 221 214 254;
+  --color-violet-300-rgb: 196 181 253;
+  --color-violet-400-rgb: 167 139 250;
+  --color-violet-500-rgb: 139 92 246;
+  --color-violet-600-rgb: 124 58 237;
+  --color-violet-700-rgb: 109 40 217;
+  --color-violet-800-rgb: 91 33 182;
+  --color-violet-900-rgb: 76 29 149;
+  --color-violet-950-rgb: 46 16 101;
+
+  /* Purple palette RGB variants */
+  --color-purple-50-rgb: 250 245 255;
+  --color-purple-100-rgb: 243 232 255;
+  --color-purple-200-rgb: 233 213 255;
+  --color-purple-300-rgb: 216 180 254;
+  --color-purple-400-rgb: 192 132 252;
+  --color-purple-500-rgb: 168 85 247;
+  --color-purple-600-rgb: 147 51 234;
+  --color-purple-700-rgb: 126 34 206;
+  --color-purple-800-rgb: 107 33 168;
+  --color-purple-900-rgb: 88 28 135;
+  --color-purple-950-rgb: 59 7 100;
+
+  /* Cyan palette RGB variants */
+  --color-cyan-50-rgb: 236 254 255;
+  --color-cyan-100-rgb: 207 250 254;
+  --color-cyan-200-rgb: 165 243 252;
+  --color-cyan-300-rgb: 103 232 249;
+  --color-cyan-400-rgb: 34 211 238;
+  --color-cyan-500-rgb: 6 182 212;
+  --color-cyan-600-rgb: 8 145 178;
+  --color-cyan-700-rgb: 14 116 144;
+  --color-cyan-800-rgb: 21 94 117;
+  --color-cyan-900-rgb: 22 78 99;
+  --color-cyan-950-rgb: 8 51 68;
 }

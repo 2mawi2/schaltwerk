@@ -18,6 +18,8 @@ pub struct BootstrapConfig<'a> {
     pub use_existing_branch: bool,
     pub sync_with_origin: bool,
     pub should_copy_claude_locals: bool,
+    /// When set, fetch the PR's changes and create the session from those changes.
+    pub pr_number: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -39,6 +41,41 @@ impl<'a> WorktreeBootstrapper<'a> {
         );
 
         self.utils.cleanup_existing_worktree(config.worktree_path)?;
+
+        // If pr_number is set, fetch the PR and create worktree from it
+        if let Some(pr_number) = config.pr_number {
+            let final_branch = config.custom_branch
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| config.branch_name.to_string());
+
+            info!("Creating worktree from PR #{pr_number} with branch '{final_branch}'");
+
+            git::create_worktree_from_pr(
+                self.repo_path,
+                pr_number,
+                &final_branch,
+                config.worktree_path,
+            )
+            .with_context(|| format!("Failed to create worktree from PR #{pr_number}"))?;
+
+            self.verify_worktree(config.worktree_path)?;
+
+            if config.should_copy_claude_locals {
+                self.copy_claude_locals(config.worktree_path);
+            }
+
+            info!(
+                "Successfully bootstrapped worktree from PR #{} at: {}",
+                pr_number,
+                config.worktree_path.display()
+            );
+
+            return Ok(BootstrapResult {
+                branch: final_branch,
+                worktree_path: config.worktree_path.to_path_buf(),
+                parent_branch: config.parent_branch.to_string(),
+            });
+        }
 
         let final_branch = if config.use_existing_branch {
             if let Some(custom) = config.custom_branch {
@@ -338,6 +375,7 @@ mod tests {
             use_existing_branch: false,
             sync_with_origin: false,
             should_copy_claude_locals: false,
+            pr_number: None,
         };
 
         let result = bootstrapper.bootstrap_worktree(config).unwrap();
@@ -373,6 +411,7 @@ mod tests {
             use_existing_branch: false,
             sync_with_origin: false,
             should_copy_claude_locals: false,
+            pr_number: None,
         };
 
         let result = bootstrapper.bootstrap_worktree(config).unwrap();
@@ -442,6 +481,7 @@ mod tests {
             use_existing_branch: false,
             sync_with_origin: false,
             should_copy_claude_locals: true,
+            pr_number: None,
         };
 
         bootstrapper.bootstrap_worktree(config).unwrap();
@@ -499,6 +539,7 @@ mod tests {
             use_existing_branch: true,
             sync_with_origin: false,
             should_copy_claude_locals: false,
+            pr_number: None,
         };
 
         let result = bootstrapper.bootstrap_worktree(config).unwrap();
@@ -528,6 +569,7 @@ mod tests {
             use_existing_branch: true,
             sync_with_origin: false,
             should_copy_claude_locals: false,
+            pr_number: None,
         };
 
         let result = bootstrapper.bootstrap_worktree(config);
@@ -557,6 +599,7 @@ mod tests {
             use_existing_branch: true,
             sync_with_origin: false,
             should_copy_claude_locals: false,
+            pr_number: None,
         };
 
         let result = bootstrapper.bootstrap_worktree(config);

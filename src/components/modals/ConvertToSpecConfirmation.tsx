@@ -3,7 +3,6 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -50,16 +49,16 @@ export function ConvertToSpecConfirmation({
 
   const body = (
     <div>
-      <p className="text-slate-300 mb-4">
-        Convert <span className="font-mono" style={{ color: theme.colors.accent.cyan.DEFAULT }}>{displayName}</span> back to a spec agent?
+      <p className="text-secondary mb-4">
+        Convert <span className="font-mono" style={{ color: 'var(--color-accent-cyan)' }}>{displayName}</span> back to a spec agent?
       </p>
       {hasUncommittedChanges && (
-        <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
-          <p className="text-amber-200 text-sm font-semibold mb-2">⚠ Warning: Uncommitted changes will be lost</p>
-          <p className="text-amber-100 text-sm">
+        <div className="rounded p-3 mb-4" style={{ backgroundColor: 'var(--color-accent-amber-bg)', borderColor: 'var(--color-accent-amber-border)', borderWidth: '1px' }}>
+          <p className="text-sm font-semibold mb-2" style={{ color: 'var(--color-accent-amber-light)' }}>⚠ Warning: Uncommitted changes will be lost</p>
+          <p className="text-sm" style={{ color: 'var(--color-accent-amber)' }}>
             This session has uncommitted changes in the worktree. Converting to spec will:
           </p>
-          <ul className="text-amber-100 text-sm mt-2 ml-4 list-disc">
+          <ul className="text-sm mt-2 ml-4 list-disc" style={{ color: 'var(--color-accent-amber)' }}>
             <li>Remove the worktree and all uncommitted changes</li>
             <li>Archive the branch</li>
             <li>Preserve the agent description as a spec</li>
@@ -67,18 +66,18 @@ export function ConvertToSpecConfirmation({
         </div>
       )}
       {!hasUncommittedChanges && (
-        <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
-          <p className="text-slate-300 text-sm">
+        <div className="bg-elevated/50 border border-subtle rounded p-3 mb-4">
+          <p className="text-secondary text-sm">
             This will:
           </p>
-          <ul className="text-slate-300 text-sm mt-2 ml-4 list-disc">
+          <ul className="text-secondary text-sm mt-2 ml-4 list-disc">
             <li>Remove the worktree</li>
             <li>Archive the branch</li>
             <li>Preserve the agent description as a spec</li>
           </ul>
         </div>
       )}
-      <p className="text-slate-400 text-sm">
+      <p className="text-tertiary text-sm">
         The agent content will be preserved and can be started again later.
       </p>
     </div>

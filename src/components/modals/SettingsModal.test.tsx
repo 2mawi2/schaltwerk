@@ -318,8 +318,8 @@ describe('SettingsModal initial tab handling', () => {
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
-      expect(runButton).toHaveClass('bg-slate-800')
-      expect(runButton).toHaveClass('text-slate-200')
+      expect(runButton).toHaveClass('bg-bg-elevated')
+      expect(runButton).toHaveClass('text-primary')
     })
   })
 
@@ -333,8 +333,8 @@ describe('SettingsModal initial tab handling', () => {
 
     const projectSettingsButton = await screen.findByRole('button', { name: 'Project Settings' })
     await waitFor(() => {
-      expect(projectSettingsButton).toHaveClass('bg-slate-800')
-      expect(projectSettingsButton).toHaveClass('text-slate-200')
+      expect(projectSettingsButton).toHaveClass('bg-bg-elevated')
+      expect(projectSettingsButton).toHaveClass('text-primary')
     })
   })
 
@@ -349,7 +349,7 @@ describe('SettingsModal initial tab handling', () => {
 
     const appearanceButton = await screen.findByRole('button', { name: 'Appearance' })
     await waitFor(() => {
-      expect(appearanceButton).toHaveClass('bg-slate-800')
+      expect(appearanceButton).toHaveClass('bg-bg-elevated')
     })
 
     rerender(
@@ -362,8 +362,8 @@ describe('SettingsModal initial tab handling', () => {
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
-      expect(runButton).toHaveClass('bg-slate-800')
-      expect(appearanceButton).not.toHaveClass('bg-slate-800')
+      expect(runButton).toHaveClass('bg-bg-elevated')
+      expect(appearanceButton).not.toHaveClass('bg-bg-elevated')
     })
   })
 

@@ -11,7 +11,6 @@ import type {
   HistoryProviderSnapshot,
 } from './types'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -21,6 +20,7 @@ import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { HistorySearchInput, type HistorySearchInputHandle } from './HistorySearchInput'
+import { theme } from '../../common/theme'
 
 interface GitGraphPanelProps {
   onOpenCommitDiff?: (payload: {
@@ -699,7 +699,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
   if (!repoPath) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+      <div className="flex items-center justify-center h-full text-tertiary text-xs">
         No repository selected
       </div>
     )
@@ -708,7 +708,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
   if (!hasSnapshot) {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+        <div className="flex items-center justify-center h-full text-tertiary text-xs">
           Loading git history...
         </div>
       )
@@ -716,15 +716,15 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-red-400 text-xs p-4">
+        <div className="flex flex-col items-center justify-center h-full text-xs p-4" style={{ color: 'var(--color-accent-red)' }}>
           <div className="mb-2">Failed to load git history</div>
-          <div className="text-slate-500 text-[10px] max-w-md text-center break-words">{error}</div>
+          <div className="text-muted text-[10px] max-w-md text-center break-words">{error}</div>
         </div>
       )
     }
 
     return (
-      <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+      <div className="flex items-center justify-center h-full text-tertiary text-xs">
         No git history available
       </div>
     )
@@ -732,7 +732,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
   if (historyItems.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400 text-xs">
+      <div className="flex items-center justify-center h-full text-tertiary text-xs">
         No git history available
       </div>
     )
@@ -740,7 +740,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
 
   return (
     <div
-      className="h-full flex flex-col bg-panel relative"
+      className="h-full flex flex-col relative"
+      style={{ backgroundColor: 'var(--color-panel)', color: 'var(--color-text-secondary)' }}
       data-testid="git-history-panel"
       onMouseDown={handlePanelInteraction}
     >
@@ -766,9 +767,9 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         onOpenCommitDiff={(viewModel, filePath) => { void handleOpenCommitDiffInternal(viewModel.historyItem, filePath) }}
       />
       {hasMore && (
-        <div className="border-t border-slate-800 px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
+        <div className="border-t border-default px-3 py-2 text-xs text-tertiary flex items-center justify-between">
           {loadMoreError ? (
-            <span className="text-red-400" title={loadMoreError}>
+            <span style={{ color: 'var(--color-accent-red)' }} title={loadMoreError}>
               Failed to load more commits
             </span>
           ) : (
@@ -778,7 +779,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             onClick={() => {
               void handleLoadMore()
             }}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-slate-200"
+            className="px-3 py-1.5 bg-elevated hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed border border-subtle rounded text-secondary"
             disabled={isLoadingMore || pendingLoadMore}
           >
             {isLoadingMore || pendingLoadMore ? 'Loading…' : 'Load more commits'}
@@ -812,8 +813,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             style={{
               left: `${contextMenu.x}px`,
               top: `${contextMenu.y}px`,
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: `1px solid ${'var(--color-border-subtle)'}`,
               minWidth: '160px'
             }}
           >
@@ -821,7 +822,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
               <button
                 type="button"
                 className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-                style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+                style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
                 onClick={() => {
                   void handleOpenCommitDiffInternal(contextMenu.commit)
                   setContextMenu(null)
@@ -833,7 +834,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             <button
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-              style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+              style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
               onClick={() => { void handleCopyCommitId() }}
             >
               Copy commit ID
@@ -841,7 +842,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             <button
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-              style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+              style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
               onClick={() => { void handleCopyCommitMessage() }}
             >
               Copy commit message

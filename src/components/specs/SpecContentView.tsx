@@ -78,19 +78,19 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   if (editable) {
     return (
       <div className="h-full flex flex-col">
-        <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-3 py-2 border-b border-default flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>
-              {saving ? 'Saving…' : error ? <span style={{ color: theme.colors.accent.red.DEFAULT }}>{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
+            <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>
+              {saving ? 'Saving…' : error ? <span style={{ color: 'var(--color-accent-red)' }}>{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
             </div>
             {viewMode === 'edit' && (
-              <span style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted, backgroundColor: theme.colors.background.elevated, padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }} title="Focus spec content (⌘T)">⌘T</span>
+              <span style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-elevated)', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }} title="Focus spec content (⌘T)">⌘T</span>
             )}
           </div>
           <button
             onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
-            style={{ fontSize: theme.fontSize.caption, padding: '0.25rem 0.5rem', borderRadius: '0.25rem', backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary }}
-            className="hover:bg-slate-600 flex items-center gap-1"
+            style={{ fontSize: theme.fontSize.caption, padding: '0.25rem 0.5rem', borderRadius: '0.25rem', backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
+            className="hover:bg-hover flex items-center gap-1"
             title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
           >
             {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
@@ -116,9 +116,9 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-default flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>Spec</div>
+          <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>Spec</div>
         </div>
       </div>
       <div className="flex-1 overflow-auto">

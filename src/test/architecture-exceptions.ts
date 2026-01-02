@@ -12,6 +12,7 @@ export const EVENT_LISTENER_EXCEPTIONS: ArchitectureException[] = [
 ];
 
 export const THEME_EXCEPTIONS: ArchitectureException[] = [
+  { file: 'src/common/colorUtils.ts', reason: 'Utility functions for manipulating CSS variables with opacity' },
 ];
 
 export const MODULE_BOUNDARY_EXCEPTIONS: ArchitectureException[] = [

@@ -1,6 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { theme } from '../../common/theme'
 import { AgentType } from '../../types/session'
 import { AgentEnvVar, displayNameForAgent } from './agentDefaults'
 
@@ -30,11 +29,11 @@ export function AgentDefaultsSection({
     const [advancedOpen, setAdvancedOpen] = useState(false)
     const cliArgsRef = useRef<HTMLTextAreaElement | null>(null)
     const buttonStyleVars = useMemo(() => ({
-        '--agent-advanced-btn-bg': theme.colors.background.elevated,
-        '--agent-advanced-btn-hover': theme.colors.background.hover,
-        '--agent-advanced-btn-text': theme.colors.text.secondary,
-        '--agent-advanced-btn-text-hover': theme.colors.text.primary,
-        '--agent-advanced-btn-border': theme.colors.border.subtle,
+        '--agent-advanced-btn-bg': 'var(--color-bg-elevated)',
+        '--agent-advanced-btn-hover': 'var(--color-bg-hover)',
+        '--agent-advanced-btn-text': 'var(--color-text-secondary)',
+        '--agent-advanced-btn-text-hover': 'var(--color-text-primary)',
+        '--agent-advanced-btn-border': 'var(--color-border-subtle)',
     }) as CSSProperties, [])
 
     const buttonClasses = 'inline-flex items-center justify-center h-8 px-3 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[color:var(--agent-advanced-btn-bg)] text-[color:var(--agent-advanced-btn-text)] border-[color:var(--agent-advanced-btn-border)] hover:bg-[color:var(--agent-advanced-btn-hover)] hover:text-[color:var(--agent-advanced-btn-text-hover)] focus:outline-none focus:ring-1 focus:ring-[color:var(--agent-advanced-btn-border)] focus:ring-offset-0'
@@ -102,8 +101,8 @@ export function AgentDefaultsSection({
         <div className="space-y-3" data-testid="agent-defaults-section">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm text-slate-300">Advanced agent settings</p>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-sm text-secondary">Advanced agent settings</p>
+                    <p className="text-xs text-tertiary mt-1">
                         {agentType === 'terminal'
                             ? `Configure environment variables for ${agentDisplayName}.`
                             : `Configure optional arguments and environment variables for ${agentDisplayName}.`
@@ -126,18 +125,18 @@ export function AgentDefaultsSection({
                 <div className="space-y-3">
                     {agentType !== 'terminal' && (
                         <div>
-                            <label className="block text-sm text-slate-300 mb-1">Default custom arguments</label>
+                            <label className="block text-sm text-secondary mb-1">Default custom arguments</label>
                             <textarea
                                 ref={cliArgsRef}
                                 data-testid="agent-cli-args-input"
                                 value={cliArgs}
                                 onChange={event => onCliArgsChange(event.target.value)}
-                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm"
+                                className="w-full bg-elevated text-primary rounded px-3 py-2 border border-subtle font-mono text-sm"
                                 placeholder="e.g. --max-tokens 8000 --sampling-temp 0.2"
                                 rows={2}
                                 disabled={loading}
                             />
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-tertiary mt-1">
                                 These arguments are appended whenever {agentDisplayName} starts.
                             </p>
                         </div>
@@ -145,8 +144,8 @@ export function AgentDefaultsSection({
                     <div>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <label className="block text-sm text-slate-300">Environment variables</label>
-                                <p className="text-xs text-slate-400 mt-1" data-testid="env-summary">
+                                <label className="block text-sm text-secondary">Environment variables</label>
+                                <p className="text-xs text-tertiary mt-1" data-testid="env-summary">
                                     {summaryText}
                                 </p>
                             </div>
@@ -178,18 +177,18 @@ export function AgentDefaultsSection({
                             <div
                                 className="rounded border mt-3"
                                 style={{
-                                    borderColor: theme.colors.border.subtle,
-                                    backgroundColor: theme.colors.background.elevated,
+                                    borderColor: 'var(--color-border-subtle)',
+                                    backgroundColor: 'var(--color-bg-elevated)',
                                 }}
                             >
                                 <div
-                                    className="max-h-48 overflow-y-auto custom-scrollbar divide-y divide-slate-800"
+                                    className="max-h-48 overflow-y-auto custom-scrollbar divide-y divide-elevated"
                                     data-testid="env-vars-scroll"
                                 >
                                     {loading ? (
-                                        <div className="p-3 text-xs text-slate-400">Loading agent defaults…</div>
+                                        <div className="p-3 text-xs text-tertiary">Loading agent defaults…</div>
                                     ) : envVars.length === 0 ? (
-                                        <div className="p-3 text-xs text-slate-400">
+                                        <div className="p-3 text-xs text-tertiary">
                                             No environment variables configured.
                                         </div>
                                     ) : (
@@ -204,7 +203,7 @@ export function AgentDefaultsSection({
                                                     value={item.key}
                                                     onChange={event => onEnvVarChange(index, 'key', event.target.value)}
                                                     placeholder="KEY"
-                                                    className="col-span-4 bg-slate-800 text-slate-100 rounded px-2 py-1 border border-slate-700 text-xs"
+                                                    className="col-span-4 bg-elevated text-primary rounded px-2 py-1 border border-subtle text-xs"
                                                     disabled={loading}
                                                 />
                                                 <input
@@ -212,7 +211,7 @@ export function AgentDefaultsSection({
                                                     value={item.value}
                                                     onChange={event => onEnvVarChange(index, 'value', event.target.value)}
                                                     placeholder="Value"
-                                                    className="col-span-7 bg-slate-800 text-slate-100 rounded px-2 py-1 border border-slate-700 text-xs"
+                                                    className="col-span-7 bg-elevated text-primary rounded px-2 py-1 border border-subtle text-xs"
                                                     disabled={loading}
                                                 />
                                                 <button
@@ -232,7 +231,7 @@ export function AgentDefaultsSection({
                                 </div>
                             </div>
                         )}
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-tertiary mt-1">
                             {agentType === 'terminal'
                                 ? `Environment variables are available in the ${agentDisplayName} shell.`
                                 : `Environment variables are injected into the ${agentDisplayName} process before it starts.`

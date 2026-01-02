@@ -10,7 +10,6 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ReviewCommentThread } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
 import type { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 import { OpenInSplitButton, type OpenApp, type OpenInAppRequest } from '../OpenInSplitButton'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
@@ -108,7 +107,7 @@ function HorizontalScrollRegion({ children, bodyRef, onActivate }: HorizontalScr
         <div
           className="pointer-events-none absolute left-0 top-0 bottom-0 w-8"
           style={{
-            background: `linear-gradient(90deg, ${theme.colors.overlay.dark} 0%, transparent 100%)`
+            background: `linear-gradient(90deg, ${'var(--color-overlay-dark)'} 0%, transparent 100%)`
           }}
         />
       )}
@@ -116,7 +115,7 @@ function HorizontalScrollRegion({ children, bodyRef, onActivate }: HorizontalScr
         <div
           className="pointer-events-none absolute right-0 top-0 bottom-0 w-8"
           style={{
-            background: `linear-gradient(270deg, ${theme.colors.overlay.dark} 0%, transparent 100%)`
+            background: `linear-gradient(270deg, ${'var(--color-overlay-dark)'} 0%, transparent 100%)`
           }}
         />
       )}
@@ -441,8 +440,8 @@ export function DiffViewer({
         style={{
           top: contextMenu.position.y,
           left: contextMenu.position.x,
-          backgroundColor: theme.colors.background.secondary,
-          border: `1px solid ${theme.colors.border.subtle}`
+          backgroundColor: 'var(--color-bg-secondary)',
+          border: `1px solid ${'var(--color-border-subtle)'}`
         }}
         onClick={(event) => event.stopPropagation()}
         onMouseDown={(event) => event.stopPropagation()}
@@ -453,11 +452,11 @@ export function DiffViewer({
             role="menuitem"
             className="w-full text-left px-4 py-2 text-sm"
             style={{
-              color: theme.colors.text.secondary,
+              color: 'var(--color-text-secondary)',
               backgroundColor: 'transparent'
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.backgroundColor = theme.colors.background.hover
+              event.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
             }}
             onMouseLeave={(event) => {
               event.currentTarget.style.backgroundColor = 'transparent'
@@ -486,10 +485,10 @@ export function DiffViewer({
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-8">
-          <div className="text-6xl mb-4 text-slate-600">⚠️</div>
-          <div className="text-lg font-medium text-slate-400 mb-2">Cannot Display Diff</div>
-          <div className="text-sm text-slate-500">{fileError}</div>
-          <div className="text-xs text-slate-600 mt-4">
+          <div className="text-6xl mb-4 text-muted">⚠️</div>
+          <div className="text-lg font-medium text-tertiary mb-2">Cannot Display Diff</div>
+          <div className="text-sm text-muted">{fileError}</div>
+          <div className="text-xs text-muted mt-4">
             This file type cannot be compared in the diff viewer.
           </div>
         </div>
@@ -504,13 +503,13 @@ export function DiffViewer({
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-8">
-          <div className="text-6xl mb-4 text-slate-500">📄</div>
-          <div className="text-lg font-medium text-slate-300 mb-2">Binary file</div>
-          <div className="text-sm text-slate-400 mb-4">
+          <div className="text-6xl mb-4 text-muted">📄</div>
+          <div className="text-lg font-medium text-secondary mb-2">Binary file</div>
+          <div className="text-sm text-tertiary mb-4">
             {(selectedFile ? allFileDiffs.get(selectedFile)?.unsupportedReason : undefined) ||
               "This file cannot be displayed in the diff viewer"}
           </div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-muted">
             Binary files are not shown to prevent performance issues.
           </div>
         </div>
@@ -622,18 +621,18 @@ export function DiffViewer({
   return (
     <>
       {branchInfo && (
-        <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-700 bg-slate-950">
+        <div className="px-4 py-2 text-xs text-tertiary border-b border-subtle bg-primary">
           {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
         </div>
       )}
 
       {/* Skeleton placeholder for initial frame to avoid flash of empty content */}
       {allFileDiffs.size === 0 && files.length > 0 && (
-        <div className="p-4 text-slate-600">Preparing preview…</div>
+        <div className="p-4 text-muted">Preparing preview…</div>
       )}
 
       <div
-        className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm bg-slate-900/30"
+        className="flex-1 overflow-auto min-h-0 w-full font-mono text-sm bg-secondary/30"
         ref={scrollContainerRef}
         data-testid="diff-scroll-container"
       >
@@ -652,21 +651,21 @@ export function DiffViewer({
                   if (el) fileRefs.current.set(file.path, el)
                 }}
                 data-file-path={file.path}
-                className="border-b border-slate-800 last:border-b-0"
+                className="border-b border-default last:border-b-0"
               >
                 {/* File header */}
                 <div
                   className={clsx(
-                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
-                    isCurrentFile && 'bg-slate-900'
+                    'sticky top-0 z-10 bg-primary border-b border-subtle px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-secondary'
                   )}
                   onContextMenu={(event) => handleFileContextMenu(event, file.path)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {getFileIcon(file.change_type, file.path)}
                     <div className="min-w-0">
-                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="font-medium text-sm text-primary truncate">{file.path}</div>
+                      <div className="text-xs text-tertiary">
                         {file.change_type === 'added' && 'New file'}
                         {file.change_type === 'deleted' && 'Deleted file'}
                         {file.change_type === 'modified' && 'Modified'}
@@ -680,7 +679,7 @@ export function DiffViewer({
                     {commentCount > 0 && (
                       <div
                         className="flex items-center gap-1 text-xs font-medium"
-                        style={{ color: theme.colors.accent.blue.light }}
+                        style={{ color: 'var(--color-accent-blue-light)' }}
                       >
                       <VscComment />
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
@@ -690,7 +689,7 @@ export function DiffViewer({
                     <button
                       title="Discard changes for this file"
                       aria-label={`Discard ${file.path}`}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      className="p-1 rounded hover:bg-elevated text-secondary"
                       onClick={(e) => {
                         e.stopPropagation()
                         setPendingDiscardFile(file.path)
@@ -711,7 +710,7 @@ export function DiffViewer({
 
                  {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
-                  <div className="px-4 py-8 text-center text-slate-500">
+                  <div className="px-4 py-8 text-center text-muted">
                     <AnimatedText text="loading" size="sm" />
                   </div>
                 ) : (() => {
@@ -752,12 +751,12 @@ export function DiffViewer({
 
                   if (fileDiff.isBinary) {
                     return (
-                      <div className="px-4 py-10 text-center text-slate-400">
-                        <div className="text-lg font-medium text-slate-200">Binary file</div>
-                        <div className="text-sm text-slate-400">
+                      <div className="px-4 py-10 text-center text-tertiary">
+                        <div className="text-lg font-medium text-primary">Binary file</div>
+                        <div className="text-sm text-tertiary">
                           {fileDiff.unsupportedReason || 'This file cannot be displayed in the diff viewer'}
                         </div>
-                        <div className="text-xs text-slate-500 mt-3">
+                        <div className="text-xs text-muted mt-3">
                           Binary files stay in the list so you can keep scrolling through other changes.
                         </div>
                       </div>
@@ -809,7 +808,7 @@ export function DiffViewer({
                     }
                   }
                 }}
-                className="border-b border-slate-800 last:border-b-0"
+                className="border-b border-default last:border-b-0"
                 style={{
                   contentVisibility: 'auto',
                   contain: 'layout style paint',
@@ -818,16 +817,16 @@ export function DiffViewer({
                 {/* File header */}
                 <div
                   className={clsx(
-                    'sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4',
-                    isCurrentFile && 'bg-slate-900'
+                    'sticky top-0 z-10 bg-primary border-b border-subtle px-4 py-3 flex items-center justify-between gap-4',
+                    isCurrentFile && 'bg-secondary'
                   )}
                   onContextMenu={(event) => handleFileContextMenu(event, file.path)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     {getFileIcon(file.change_type, file.path)}
                     <div className="min-w-0">
-                      <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="font-medium text-sm text-primary truncate">{file.path}</div>
+                      <div className="text-xs text-tertiary">
                         {file.change_type === 'added' && 'New file'}
                         {file.change_type === 'deleted' && 'Deleted file'}
                         {file.change_type === 'modified' && 'Modified'}
@@ -841,7 +840,7 @@ export function DiffViewer({
                   {commentCount > 0 && (
                     <div
                       className="flex items-center gap-1 text-xs font-medium"
-                      style={{ color: theme.colors.accent.blue.light }}
+                      style={{ color: 'var(--color-accent-blue-light)' }}
                     >
                       <VscComment />
                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
@@ -851,7 +850,7 @@ export function DiffViewer({
                     <button
                       title="Discard changes for this file"
                       aria-label={`Discard ${file.path}`}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-300"
+                      className="p-1 rounded hover:bg-elevated text-secondary"
                       onClick={(e) => {
                         e.stopPropagation()
                         setPendingDiscardFile(file.path)
@@ -873,13 +872,13 @@ export function DiffViewer({
                  {/* File diff content with virtualization */}
                 {!fileDiff ? (
                   <div
-                    className="px-4 py-8 text-center text-slate-500"
+                    className="px-4 py-8 text-center text-muted"
                     style={{ minHeight: placeholderHeight }}
                   >
                     {isLoading ? (
                       <AnimatedText text="loading" size="sm" />
                     ) : (
-                      <div className="text-slate-600">
+                      <div className="text-muted">
                         <div className="h-20" />
                       </div>
                     )}
@@ -922,12 +921,12 @@ export function DiffViewer({
 
                   if (fileDiff.isBinary) {
                     return (
-                      <div className="px-4 py-10 text-center text-slate-400">
-                        <div className="text-lg font-medium text-slate-200">Binary file</div>
-                        <div className="text-sm text-slate-400">
+                      <div className="px-4 py-10 text-center text-tertiary">
+                        <div className="text-lg font-medium text-primary">Binary file</div>
+                        <div className="text-sm text-tertiary">
                           {fileDiff.unsupportedReason || 'This file cannot be displayed in the diff viewer'}
                         </div>
-                        <div className="text-xs text-slate-500 mt-3">
+                        <div className="text-xs text-muted mt-3">
                           Binary files stay in the list so you can keep scrolling through other changes.
                         </div>
                       </div>
@@ -950,12 +949,12 @@ export function DiffViewer({
                   )
                 })() : (
                   <div
-                    className="px-4 py-8 text-sm text-slate-600"
+                    className="px-4 py-8 text-sm text-muted"
                     style={{ minHeight: placeholderHeight }}
                   >
                     <div
                       data-testid="diff-placeholder"
-                      className="flex items-center justify-center rounded border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500"
+                      className="flex items-center justify-center rounded border border-dashed border-subtle bg-secondary/40 text-xs text-muted"
                       style={{ height: Math.max(storedHeight ?? 320, 160) }}
                     >
                       Diff hidden to keep scrolling smooth

@@ -133,18 +133,25 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div 
-        className="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-md w-full mx-4"
+      <div
+        className="rounded-lg p-6 max-w-md w-full mx-4 border"
+        style={{
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-default)'
+        }}
         onKeyDown={handleKeyDown}
       >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <VscNewFolder className="text-cyan-400 text-2xl" />
-            <h2 className="text-xl font-semibold text-slate-200">New Project</h2>
+            <VscNewFolder className="text-2xl" style={{ color: 'var(--color-accent-cyan)' }} />
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>New Project</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
             disabled={isCreating}
           >
             <VscClose className="text-xl" />
@@ -152,14 +159,18 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/50 border border-red-800 rounded text-red-300 text-sm">
+          <div className="mb-4 p-3 rounded text-sm border" style={{
+            backgroundColor: 'var(--color-accent-red-bg)',
+            borderColor: 'var(--color-accent-red-border)',
+            color: 'var(--color-accent-red)'
+          }}>
             {error}
           </div>
         )}
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               Project Name
             </label>
             <input
@@ -167,7 +178,20 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="my-awesome-project"
-              className="w-full px-3 py-2 bg-slate-950/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
+              className="w-full px-3 py-2 rounded-lg border focus:outline-none focus:ring-1"
+              style={{
+                backgroundColor: 'var(--color-bg-primary)',
+                borderColor: 'var(--color-border-default)',
+                color: 'var(--color-text-primary)'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-accent-cyan)'
+                e.currentTarget.style.boxShadow = `0 0 0 1px var(--color-accent-cyan)`
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border-default)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
               autoFocus
               autoCapitalize="off"
               autoCorrect="off"
@@ -177,7 +201,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>
               Parent Directory
             </label>
             <div className="flex gap-2">
@@ -186,12 +210,24 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
                 value={parentPath}
                 readOnly
                 placeholder="Select parent directory..."
-                className="flex-1 px-3 py-2 bg-slate-950/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500"
+                className="flex-1 px-3 py-2 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--color-bg-primary)',
+                  borderColor: 'var(--color-border-default)',
+                  color: 'var(--color-text-primary)'
+                }}
                 disabled={isCreating}
               />
               <button
                 onClick={() => { void handleSelectDirectory() }}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg flex items-center gap-2 transition-colors"
+                className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors border"
+                style={{
+                  backgroundColor: 'var(--color-bg-elevated)',
+                  borderColor: 'var(--color-border-default)',
+                  color: 'var(--color-text-secondary)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)' }}
                 disabled={isCreating}
               >
                 <VscFolderOpened className="text-lg" />
@@ -200,10 +236,14 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
             </div>
           </div>
 
-          <div className="bg-slate-950/30 border border-slate-800 rounded-lg p-3 text-sm text-slate-400">
+          <div className="rounded-lg p-3 text-sm border" style={{
+            backgroundColor: 'var(--color-bg-primary)',
+            borderColor: 'var(--color-border-default)',
+            color: 'var(--color-text-secondary)'
+          }}>
             <p>This will create a new folder and initialize a Git repository.</p>
             {projectName && parentPath && (
-              <p className="mt-2 text-cyan-300 font-mono text-xs">
+              <p className="mt-2 font-mono text-xs" style={{ color: 'var(--color-accent-cyan)' }}>
                 {parentPath}/{projectName}
               </p>
             )}
@@ -213,7 +253,14 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
-            className="flex-1 py-2 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-colors"
+            className="flex-1 py-2 px-4 rounded-lg transition-colors border"
+            style={{
+              backgroundColor: 'var(--color-bg-elevated)',
+              borderColor: 'var(--color-border-default)',
+              color: 'var(--color-text-secondary)'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)' }}
             disabled={isCreating}
           >
             Cancel
@@ -221,7 +268,18 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
           <button
             onClick={() => { void handleCreate() }}
             disabled={isCreating || !projectName.trim() || !parentPath}
-            className="flex-1 py-2 px-4 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 text-cyan-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border"
+            style={{
+              backgroundColor: 'var(--color-accent-cyan-bg)',
+              borderColor: 'var(--color-accent-cyan-border)',
+              color: 'var(--color-accent-cyan)'
+            }}
+            onMouseEnter={(e) => {
+              if (!isCreating && projectName.trim() && parentPath) {
+                e.currentTarget.style.backgroundColor = 'var(--color-accent-cyan-bg-hover)'
+              }
+            }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--color-accent-cyan-bg)' }}
           >
 {isCreating ? (
               <AnimatedText text="loading" size="xs" />

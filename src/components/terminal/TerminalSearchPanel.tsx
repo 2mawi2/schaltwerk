@@ -30,7 +30,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
       <div
         ref={ref}
         data-terminal-search="true"
-        className="absolute top-2 right-2 flex items-center bg-slate-800 border border-slate-700 rounded px-2 py-1 z-10 shadow-lg"
+        className="absolute top-2 right-2 flex items-center bg-elevated border border-subtle rounded px-2 py-1 z-10 shadow-lg"
       >
         <input
           type="text"
@@ -38,12 +38,12 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
           onChange={(event) => onSearchTermChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search..."
-          className="bg-transparent text-sm text-slate-200 outline-none w-40 placeholder:text-slate-500"
+          className="bg-transparent text-sm text-primary outline-none w-40 placeholder:text-tertiary"
           autoFocus
         />
         <button
           onClick={onFindPrevious}
-          className="text-slate-400 hover:text-slate-200 ml-1"
+          className="text-secondary hover:text-primary ml-1"
           title="Previous match (Shift+Enter)"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -52,7 +52,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
         </button>
         <button
           onClick={onFindNext}
-          className="text-slate-400 hover:text-slate-200 ml-1"
+          className="text-secondary hover:text-primary ml-1"
           title="Next match (Enter)"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -61,7 +61,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
         </button>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-200 ml-2"
+          className="text-secondary hover:text-primary ml-2"
           title="Close search (Escape)"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

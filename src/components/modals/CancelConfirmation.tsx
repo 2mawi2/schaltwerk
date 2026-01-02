@@ -27,14 +27,14 @@ export function CancelConfirmation({
   if (!open) return null
 
   const body = (
-    <p className="text-zinc-300">
+    <p className="text-secondary">
       This will move the session to the archive.
       {hasUncommittedChanges ? (
-        <span className="block mt-2 text-amber-500 font-medium">
+        <span className="block mt-2 text-warning font-medium">
           ⚠️ Warning: This session has uncommitted changes that will be lost!
         </span>
       ) : (
-        <span className="block mt-2 text-zinc-400">
+        <span className="block mt-2 text-tertiary">
           All changes in this session have been committed.
         </span>
       )}
