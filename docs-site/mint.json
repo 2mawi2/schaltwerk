@@ -59,6 +59,7 @@
         "guides/terminal-configuration",
         "guides/remote-access",
         "guides/sandboxing",
+        "guides/keyboard-navigation",
         "guides/keyboard-shortcuts",
         "guides/troubleshooting",
         "guides/use-cases"

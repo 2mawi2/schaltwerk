@@ -95,6 +95,8 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.SelectPrevTab, label: 'Previous agent tab' },
       { action: KeyboardShortcutAction.SelectNextTab, label: 'Next agent tab' },
       { action: KeyboardShortcutAction.AddAgentTab, label: 'Add agent tab' },
+      { action: KeyboardShortcutAction.SelectPrevBottomTab, label: 'Previous shell tab' },
+      { action: KeyboardShortcutAction.SelectNextBottomTab, label: 'Next shell tab' },
     ],
   },
 ]

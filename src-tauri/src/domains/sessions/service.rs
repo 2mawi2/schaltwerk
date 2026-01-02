@@ -140,6 +140,9 @@ pub struct SessionCreationParams<'a> {
     pub epic_id: Option<&'a str>,
     pub agent_type: Option<&'a str>,
     pub skip_permissions: Option<bool>,
+    /// When set, fetch the PR's changes and create the session from those changes.
+    /// This is used for fork PRs where the branch doesn't exist locally.
+    pub pr_number: Option<i64>,
 }
 
 pub struct AgentLaunchParams<'a> {
@@ -388,8 +391,15 @@ mod service_unified_tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_unified_registry_produces_same_commands_as_old_match() {
         let (manager, temp_dir) = create_test_session_manager();
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        let override_key = "SCHALTWERK_CLAUDE_HOME_OVERRIDE";
+        let prev_override = std::env::var(override_key).ok();
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
+        EnvAdapter::set_var(override_key, &home_dir.path().to_string_lossy());
         let _registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
@@ -429,11 +439,26 @@ mod service_unified_tests {
                 agent_type
             );
         }
+
+        if let Some(prev) = prev_home {
+            EnvAdapter::set_var("HOME", &prev);
+        } else {
+            EnvAdapter::remove_var("HOME");
+        }
+        if let Some(prev) = prev_override {
+            EnvAdapter::set_var(override_key, &prev);
+        } else {
+            EnvAdapter::remove_var(override_key);
+        }
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_codex_sandbox_mode_handling_preserved() {
         let (manager, temp_dir) = create_test_session_manager();
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        EnvAdapter::set_var("HOME", &home_dir.path().to_string_lossy());
 
         // Test with skip_permissions = true
         let mut session = create_test_session(&temp_dir, "codex", "danger");
@@ -478,6 +503,12 @@ mod service_unified_tests {
         assert!(result.is_ok());
         let command = result.unwrap();
         assert!(command.shell_command.contains("--sandbox workspace-write"));
+
+        if let Some(prev) = prev_home {
+            EnvAdapter::set_var("HOME", &prev);
+        } else {
+            EnvAdapter::remove_var("HOME");
+        }
     }
 
     #[test]
@@ -1470,6 +1501,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("claude"),
             skip_permissions: Some(true),
+            pr_number: None,
         };
 
         let session = manager
@@ -1545,6 +1577,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("opencode"),
             skip_permissions: Some(false),
+            pr_number: None,
         };
 
         let session = manager
@@ -1606,6 +1639,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager
@@ -1671,6 +1705,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager
@@ -1725,6 +1760,7 @@ mod service_unified_tests {
             epic_id: None,
             agent_type: Some("gemini"),
             skip_permissions: Some(true),
+            pr_number: None,
         };
 
         let session = manager
@@ -2174,6 +2210,7 @@ impl SessionManager {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
         self.create_session_with_agent(params)
     }
@@ -2205,7 +2242,7 @@ impl SessionManager {
             let _ = self.db_manager.get_epic_by_id(epic_id)?;
         }
 
-        if params.use_existing_branch {
+        if params.use_existing_branch && params.pr_number.is_none() {
             let custom_branch = params.custom_branch.ok_or_else(|| {
                 anyhow!("use_existing_branch requires custom_branch to be specified")
             })?;
@@ -2308,6 +2345,7 @@ impl SessionManager {
             use_existing_branch: params.use_existing_branch,
             sync_with_origin: params.sync_with_origin,
             should_copy_claude_locals,
+            pr_number: params.pr_number,
         };
 
         let bootstrap_result = match bootstrapper.bootstrap_worktree(bootstrap_config) {

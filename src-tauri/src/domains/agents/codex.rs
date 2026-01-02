@@ -824,17 +824,19 @@ fn build_snapshot(
     ))
 }
 
+pub fn is_invalid_codex_session_id(id: &str) -> bool {
+    let trimmed = id.trim();
+    trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("exec")
+        || trimmed.eq_ignore_ascii_case("resume")
+}
+
 pub fn extract_session_id_from_path(session_file: &Path) -> Option<String> {
     log::trace!(
         "🔍 Extracting session id from Codex log: {}",
         session_file.display()
     );
     let content = fs::read_to_string(session_file).ok()?;
-
-    let is_non_session_id_candidate = |id: &str| {
-        let trimmed = id.trim();
-        trimmed.is_empty() || trimmed.eq_ignore_ascii_case("exec") || trimmed.eq_ignore_ascii_case("resume")
-    };
 
     let mut fallback: Option<String> = None;
 
@@ -871,7 +873,7 @@ pub fn extract_session_id_from_path(session_file: &Path) -> Option<String> {
                 .or_else(|| json.get("id").and_then(|v| v.as_str()));
 
             if let Some(id) = candidate {
-                if is_non_session_id_candidate(id) {
+                if is_invalid_codex_session_id(id) {
                     log::trace!(
                         "⚠️ Ignoring non-session Codex id token on line {}: {}",
                         line_num + 1,
@@ -976,6 +978,11 @@ pub fn build_codex_command_with_config(
             log::warn!(
                 "⚠️ Codex command builder: Provided empty session identifier; starting fresh"
             );
+        } else if is_invalid_codex_session_id(trimmed) {
+            log::warn!(
+                "⚠️ Codex command builder: Rejecting invalid session id '{trimmed}'; using interactive resume"
+            );
+            cmd.push_str(" resume");
         } else {
             log::debug!("📄 Codex command builder: Resuming explicit session id: {trimmed}");
             cmd.push_str(" resume ");
@@ -1386,6 +1393,78 @@ mod tests {
         )
         .unwrap();
         assert_eq!(extract_session_id_from_path(temp_file.path()), None);
+    }
+
+    #[test]
+    fn test_is_invalid_codex_session_id() {
+        assert!(is_invalid_codex_session_id("exec"));
+        assert!(is_invalid_codex_session_id("EXEC"));
+        assert!(is_invalid_codex_session_id("Exec"));
+        assert!(is_invalid_codex_session_id("resume"));
+        assert!(is_invalid_codex_session_id("RESUME"));
+        assert!(is_invalid_codex_session_id(""));
+        assert!(is_invalid_codex_session_id("   "));
+        assert!(is_invalid_codex_session_id("  exec  "));
+        assert!(!is_invalid_codex_session_id("abc-123"));
+        assert!(!is_invalid_codex_session_id("2a593eaf-00b5-476a-bb16-f49c5dfb60c4"));
+        assert!(!is_invalid_codex_session_id("__continue__"));
+        assert!(!is_invalid_codex_session_id("__resume__"));
+    }
+
+    #[test]
+    fn test_extract_session_id_returns_none_when_only_exec() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"command","payload":{{"id":"exec"}}}}"#
+        )
+        .unwrap();
+        assert_eq!(
+            extract_session_id_from_path(temp_file.path()),
+            None,
+            "Should return None when only 'exec' is found as id"
+        );
+    }
+
+    #[test]
+    fn test_command_builder_rejects_exec_as_session_id() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("exec"),
+            None,
+            "workspace-write",
+            Some(&config),
+        );
+        assert_eq!(
+            cmd,
+            "cd /path/to/worktree && codex --sandbox workspace-write resume",
+            "Should fall back to interactive resume when 'exec' is passed as session id"
+        );
+    }
+
+    #[test]
+    fn test_command_builder_rejects_resume_as_session_id() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("resume"),
+            None,
+            "danger-full-access",
+            Some(&config),
+        );
+        assert_eq!(
+            cmd,
+            "cd /path/to/worktree && codex --sandbox danger-full-access resume",
+            "Should fall back to interactive resume when 'resume' is passed as session id"
+        );
     }
 
     #[test]

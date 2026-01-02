@@ -553,10 +553,6 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         try {
             setCreating(true)
 
-            const prHeadBranch = promptSource === 'github_pull_request' && githubPrSelection
-                ? githubPrSelection.details.headRefName
-                : undefined
-
             const useMultiAgentTypes = !createAsDraft && multiAgentMode && normalizedAgentTypes.length > 0
             const agentTypesPayload = useMultiAgentTypes ? normalizedAgentTypes : undefined
             const effectiveVersionCount = createAsDraft
@@ -568,8 +564,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 ? (normalizedAgentTypes[0] ?? agentType)
                 : agentType
 
-            const effectiveUseExistingBranch = !!prHeadBranch || useExistingBranch
-            const effectiveCustomBranch = prHeadBranch || (useExistingBranch ? baseBranch : customBranch.trim()) || undefined
+            const effectiveUseExistingBranch = useExistingBranch
+            const effectiveCustomBranch = useExistingBranch
+                ? baseBranch
+                : customBranch.trim() || undefined
 
             const prInfo = promptSource === 'github_pull_request' && githubPrSelection
                 ? { prNumber: githubPrSelection.details.number, prUrl: githubPrSelection.details.url }
@@ -581,7 +579,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 baseBranch: createAsDraft ? '' : baseBranch,
                 customBranch: effectiveCustomBranch,
                 useExistingBranch: effectiveUseExistingBranch,
-                syncWithOrigin: !!prHeadBranch,
+                syncWithOrigin: useExistingBranch,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,
@@ -1360,6 +1358,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	                            value={selectedEpic}
 	                            onChange={setEpicId}
 	                            variant="field"
+	                            showDeleteButton
 	                        />
 	                    </div>
 	                    </div>

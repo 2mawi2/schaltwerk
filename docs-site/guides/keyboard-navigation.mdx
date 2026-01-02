@@ -1,0 +1,81 @@
+---
+title: Keyboard Navigation
+description: 'Navigate Schaltwerk entirely from the keyboard'
+---
+
+Schaltwerk is designed for keyboard-first workflows. You can manage multiple agents across multiple sessions without lifting your fingers from the keyboard.
+
+![Keyboard navigation overview showing shortcuts for projects, filters, sessions, and terminal tabs](/images/keyboard-navigation.png)
+
+## Navigation Overview
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+Shift+←→` | Switch between project tabs |
+| `Cmd+←→` | Switch between filters (All/Specs/Running/Reviewed) |
+| `Cmd+↑↓` | Cycle through sessions in current filter |
+| `Cmd+1-9` | Jump directly to a session (1 = orchestrator) |
+| `Cmd+[ ]` | Switch terminal tabs (agent or shell, based on focus) |
+| `Cmd+T` | Focus top terminal (agent) |
+| `Cmd+/` | Focus bottom terminal (shell) |
+| `Cmd+G` | Open diff viewer |
+
+## Terminal Focus
+
+Schaltwerk uses a two-pane terminal layout:
+
+- **Top pane**: Agent terminal — where Claude, Codex, or other agents run
+- **Bottom pane**: Shell terminal — your personal shell for running tests, git commands, etc.
+
+**Switching focus:**
+1. `Cmd+T` focuses the top (agent) terminal
+2. `Cmd+/` focuses the bottom (shell) terminal
+3. `Cmd+[ ]` switches tabs within the focused pane
+
+When focused on the top pane, `Cmd+[` and `Cmd+]` cycle through agent tabs. When focused on the bottom pane, they cycle through shell tabs.
+
+## Multi-Session Workflow
+
+Run multiple agents in parallel and review their work:
+
+```
+1. Cmd+Shift+N  →  Create spec for task A
+2. Cmd+N        →  Start session with Claude
+3. Cmd+Shift+N  →  Create spec for task B
+4. Cmd+N        →  Start session with Codex
+5. Cmd+↑↓      →  Cycle between sessions to monitor progress
+6. Cmd+G        →  Review changes in each session
+7. Cmd+Shift+M  →  Merge completed work
+```
+
+## Quick Review Workflow
+
+Review all running sessions without touching the mouse:
+
+```
+1. Cmd+→        →  Switch to Running filter
+2. Cmd+↓        →  Select first session
+3. Cmd+G        →  Open diff viewer
+4. Cmd+Enter    →  Finish review (or add comments)
+5. Cmd+↓        →  Next session
+6. Repeat
+```
+
+## Multi-Project Workflow
+
+Working on frontend and backend simultaneously:
+
+```
+1. Cmd+Shift+→  →  Switch to backend project
+2. Cmd+2        →  Jump to session 2
+3. Cmd+T        →  Check agent progress
+4. Cmd+Shift+←  →  Switch back to frontend
+```
+
+## Customization
+
+All shortcuts can be remapped in **Settings → Keyboard Shortcuts**. Click **Record** to capture a new key combination.
+
+<Warning>
+Some shortcuts may conflict with macOS system shortcuts. Check **System Settings → Keyboard → Keyboard Shortcuts** if they don't work as expected.
+</Warning>

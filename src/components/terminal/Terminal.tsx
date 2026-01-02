@@ -12,7 +12,7 @@ import { Terminal as XTerm, type IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
-import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE, computeProjectOrchestratorId } from '../../common/agentSpawn'
+import { startOrchestratorTop, startSessionTop, AGENT_START_TIMEOUT_MESSAGE } from '../../common/agentSpawn'
 import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { isTopTerminalId, sessionTerminalBase } from '../../common/terminalIdentity'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
@@ -91,8 +91,8 @@ const classifyWheelEvent = (event: WheelEvent, previous: boolean): boolean => {
 }
 
 // Export function to clear started tracking for specific terminals
-export function clearTerminalStartedTracking(terminalIds: string[], projectPath?: string | null) {
-    clearTerminalStartState(terminalIds, projectPath)
+export function clearTerminalStartedTracking(terminalIds: string[]) {
+    clearTerminalStartState(terminalIds)
 }
 
 export interface TerminalProps {
@@ -226,8 +226,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const resolvedTheme = useAtomValue(resolvedThemeAtom)
     const resolvedThemeRef = useRef(resolvedTheme)
     resolvedThemeRef.current = resolvedTheme
-    const projectOrchestratorId = useMemo(() => computeProjectOrchestratorId(projectPath ?? null), [projectPath])
-    const sessionStartScope = projectOrchestratorId ?? undefined
     const previewWatcherRef = useRef<LocalPreviewWatcher | null>(null)
     const previewLogStateRef = useRef<{ disabled: boolean; missing: boolean; ready: boolean }>({ disabled: false, missing: false, ready: false })
     const openFileFromTerminal = useCallback(async (text: string) => {
@@ -492,7 +490,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 throw err;
             });
         shiftEnterPrefixRef.current = prefixWrite;
-    }, [terminalId, sessionStartScope]);
+    }, [terminalId]);
 
     const finalizeClaudeShiftEnter = useCallback((char: string): boolean => {
         if (char !== '\r' && char !== '\n') return false;
@@ -803,7 +801,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setRestartInFlight(true);
         setAgentLoading(true);
         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
-        clearTerminalStartedTracking([terminalId], isCommander ? undefined : sessionStartScope);
+        clearTerminalStartedTracking([terminalId]);
 
              try {
                  // Provide initial size to avoid early overflow (apply guard)
@@ -824,7 +822,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                  await startOrchestratorTop({ terminalId, measured });
              } else if (sessionName) {
-                 await startSessionTop({ sessionName, topId: terminalId, measured, agentType, projectOrchestratorId });
+                 await startSessionTop({ sessionName, topId: terminalId, measured, agentType });
              }
              setAgentStopped(false);
          } catch (e) {
@@ -835,7 +833,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
              setAgentLoading(false);
              setRestartInFlight(false);
          }
-     }, [agentType, isAgentTopTerminal, isCommander, projectOrchestratorId, sessionName, sessionStartScope, terminalId]);
+     }, [agentType, isAgentTopTerminal, isCommander, sessionName, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -946,7 +944,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
                     logger.debug(`[Terminal] Received terminal-agent-started event for ${id}`);
 
-                    markTerminalStarted(id, payload?.session_name ? sessionStartScope : undefined);
+                    markTerminalStarted(id);
 
                     if (id === terminalId) {
                         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
@@ -989,13 +987,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                       const timeSinceSigint = sigintTime ? now - sigintTime : Infinity;
                       const RECENT_SIGINT_WINDOW_MS = 2000; // 2 seconds
                       
-                  if (terminalEverStartedRef.current && sigintTime && timeSinceSigint < RECENT_SIGINT_WINDOW_MS) {
+                      if (terminalEverStartedRef.current && sigintTime && timeSinceSigint < RECENT_SIGINT_WINDOW_MS) {
                           // Respect the user's ^C: mark stopped and persist
                           setAgentLoading(false);
                           setAgentStopped(true);
                           sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
                           // Allow future manual restarts
-                          clearTerminalStartedTracking([terminalId], isCommander ? undefined : sessionStartScope);
+                          clearTerminalStartedTracking([terminalId]);
                           logger.info(`[Terminal ${terminalId}] Agent stopped by user (SIGINT detected ${timeSinceSigint}ms ago)`);
                       } else {
                           logger.debug(`[Terminal ${terminalId}] Terminal closed but no recent SIGINT or not started yet (sigint: ${sigintTime}, timeSince: ${timeSinceSigint}ms, started: ${terminalEverStartedRef.current})`);
@@ -1012,7 +1010,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
               logger.debug(`[Terminal ${terminalId}] Failed to cleanup TerminalClosed listener:`, e);
             }
           };
-      }, [isAgentTopTerminal, isCommander, sessionStartScope, terminalId]);
+      }, [isAgentTopTerminal, terminalId]);
 
     // Workaround: force-fit and send PTY resize when session search runs for OpenCode
     useEffect(() => {

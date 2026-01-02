@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
-import { VscTag } from 'react-icons/vsc'
+import { VscTag, VscClose } from 'react-icons/vsc'
 import type { Epic } from '../../types/session'
 import { Dropdown, type DropdownItem } from '../inputs/Dropdown'
 import { theme } from '../../common/theme'
 import { getEpicAccentScheme } from '../../utils/epicColors'
 import { useEpics } from '../../hooks/useEpics'
 import { EpicModal } from '../modals/EpicModal'
+import { ConfirmModal } from '../modals/ConfirmModal'
 import { logger } from '../../utils/logger'
 
 interface EpicSelectProps {
@@ -15,15 +16,25 @@ interface EpicSelectProps {
     variant?: 'pill' | 'field' | 'compact' | 'icon'
     className?: string
     stopPropagation?: boolean
+    showDeleteButton?: boolean
 }
 
-export function EpicSelect({ value, disabled = false, onChange, variant = 'pill', className = '', stopPropagation = false }: EpicSelectProps) {
-    const { epics, ensureLoaded, createEpic } = useEpics()
+export function EpicSelect({ value, disabled = false, onChange, variant = 'pill', className = '', stopPropagation = false, showDeleteButton = false }: EpicSelectProps) {
+    const { epics, ensureLoaded, createEpic, deleteEpic } = useEpics()
     const [open, setOpen] = useState(false)
     const [createOpen, setCreateOpen] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState<Epic | null>(null)
+    const [deleteLoading, setDeleteLoading] = useState(false)
 
     const selectedId = value?.id ?? null
     const selectedScheme = getEpicAccentScheme(value?.color)
+
+    const handleDeleteClick = useCallback((e: React.MouseEvent, epic: Epic) => {
+        e.stopPropagation()
+        e.preventDefault()
+        setDeleteTarget(epic)
+        setOpen(false)
+    }, [])
 
     const items = useMemo<DropdownItem[]>(() => {
         const hasSelected = selectedId ? epics.some(e => e.id === selectedId) : true
@@ -34,9 +45,22 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
             return {
                 key: epic.id,
                 label: (
-                    <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
-                        <span className="truncate">{epic.name}</span>
+                    <span className="flex items-center gap-2 w-full group/epic-item">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }} />
+                        <span className="truncate flex-1">{epic.name}</span>
+                        {showDeleteButton && (
+                            <span
+                                role="button"
+                                tabIndex={-1}
+                                onClick={(e) => handleDeleteClick(e, epic)}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="opacity-0 group-hover/epic-item:opacity-100 p-0.5 rounded hover:opacity-80 transition-opacity flex-shrink-0"
+                                style={{ color: 'var(--color-text-primary)' }}
+                                title={`Delete epic "${epic.name}"`}
+                            >
+                                <VscClose className="w-3.5 h-3.5" />
+                            </span>
+                        )}
                     </span>
                 ),
             }
@@ -49,7 +73,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
             { key: 'separator-2', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             { key: 'create', label: '+ Create new epic' },
         ]
-    }, [epics, selectedId, value])
+    }, [epics, selectedId, value, showDeleteButton, handleDeleteClick])
 
     const handleOpenChange = useCallback((next: boolean) => {
         setOpen(next)
@@ -151,6 +175,45 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                     setCreateOpen(false)
                 }}
                 onSubmit={handleCreateEpic}
+            />
+
+            <ConfirmModal
+                open={Boolean(deleteTarget)}
+                title={`Delete epic "${deleteTarget?.name ?? ''}"?`}
+                body={
+                    <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.body }}>
+                        All sessions and specs in this epic will be moved to <strong>Ungrouped</strong>.
+                    </div>
+                }
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                loading={deleteLoading}
+                onCancel={() => {
+                    if (deleteLoading) {
+                        return
+                    }
+                    setDeleteTarget(null)
+                }}
+                onConfirm={() => {
+                    if (!deleteTarget || deleteLoading) {
+                        return
+                    }
+                    void (async () => {
+                        setDeleteLoading(true)
+                        try {
+                            if (value?.id === deleteTarget.id) {
+                                await onChange(null)
+                            }
+                            await deleteEpic(deleteTarget.id)
+                            setDeleteTarget(null)
+                        } catch (err) {
+                            logger.error('[EpicSelect] Failed to delete epic:', err)
+                        } finally {
+                            setDeleteLoading(false)
+                        }
+                    })()
+                }}
             />
         </>
     )

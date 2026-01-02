@@ -10,6 +10,7 @@ import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { EventPayloadMap, GitOperationPayload, OpenPrModalPayload } from '../../common/events'
 import { useSelection } from '../../hooks/useSelection'
+import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { useSessions } from '../../hooks/useSessions'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
 import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
@@ -131,7 +132,7 @@ const groupVersionGroupsByEpic = (sessionGroups: SessionVersionGroupType[]): Epi
 }
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest, onToggleSidebar }: SidebarProps) {
-    const { selection, setSelection, terminals } = useSelection()
+    const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
@@ -1992,14 +1993,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     setSwitchModelSessionId(null)
                 }}
                 onSwitch={async ({ agentType, skipPermissions }) => {
-                    // Determine which session/orchestrator to switch model for
                     const targetSelection = switchModelSessionId
                         ? { kind: 'session' as const, payload: switchModelSessionId }
                         : selection
 
-                    await switchModel(agentType, skipPermissions, targetSelection, terminals)
+                    await switchModel(agentType, skipPermissions, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking, switchOrchestratorModal.initialAgentType)
 
-                    // Reload sessions to show updated agent type
                     await reloadSessionsAndRefreshIdle()
 
                     setSwitchOrchestratorModal({ open: false })

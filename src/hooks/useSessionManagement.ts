@@ -1,13 +1,10 @@
 import { useState, useCallback } from 'react'
-import { useAtomValue } from 'jotai'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
 import { markTerminalStarting, clearTerminalStartState } from '../common/terminalStartState'
 import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
-import { projectPathAtom } from '../store/atoms/project'
-import { computeProjectOrchestratorId } from '../common/agentSpawn'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -27,14 +24,16 @@ export interface SessionManagementHookReturn {
         agentType: string,
         skipPermissions: boolean,
         selection: SessionSelection,
-        terminals: TerminalIds
+        terminals: TerminalIds,
+        clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
+        clearTerminalStartedTracking: (terminalIds: string[]) => void,
+        currentAgentType?: string
     ) => Promise<void>
 }
 
 export function useSessionManagement(): SessionManagementHookReturn {
     const [resettingSelection, setResettingSelection] = useState<SessionSelection | null>(null)
     const isResetting = resettingSelection !== null
-    const projectPath = useAtomValue(projectPathAtom)
 
     const resetOrchestratorTerminal = useCallback(async (terminalId: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreResetOrchestrator, { terminalId })
@@ -118,7 +117,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const resetSessionTerminals = useCallback(async (
-        sessionName: string, 
+        sessionName: string,
         terminalId: string
     ): Promise<void> => {
         const exists = await terminalExistsBackend(terminalId)
@@ -133,7 +132,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [closeTerminalIfExists, waitForTerminalClosed, restartAgentInSession, waitForAgentStarted])
 
     const resetSession = useCallback(async (
-        selection: SessionSelection, 
+        selection: SessionSelection,
         terminals: TerminalIds
     ): Promise<void> => {
         if (isResetting) return
@@ -142,7 +141,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             setResettingSelection(selection.kind === 'session' && selection.payload
                 ? { kind: 'session', payload: selection.payload }
                 : { kind: selection.kind })
-            
+
             let resetDetail: TerminalResetDetail = { kind: 'orchestrator' }
 
             if (selection.kind === 'orchestrator') {
@@ -155,16 +154,16 @@ export function useSessionManagement(): SessionManagementHookReturn {
                 await resetSessionTerminals(selection.payload, terminals.top)
                 resetDetail = { kind: 'session', sessionId: selection.payload }
             }
-            
+
             notifyTerminalsReset(resetDetail)
-            
+
         } finally {
             setResettingSelection(null)
         }
     }, [isResetting, resetOrchestratorTerminal, resetSessionTerminals, notifyTerminalsReset, waitForAgentStarted, waitForTerminalClosed])
 
     const updateAgentTypeForSession = useCallback(async (
-        sessionName: string, 
+        sessionName: string,
         agentType: string
     ): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreSetSessionAgentType, { sessionName, agentType })
@@ -175,7 +174,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const updateAgentType = useCallback(async (
-        selection: SessionSelection, 
+        selection: SessionSelection,
         agentType: string
     ): Promise<void> => {
         if (selection.kind === 'session' && selection.payload) {
@@ -196,22 +195,34 @@ export function useSessionManagement(): SessionManagementHookReturn {
         }
     }, [])
 
+    const clearTerminalState = useCallback(async (
+        terminalId: string,
+        clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
+        clearTerminalStartedTracking: (terminalIds: string[]) => void
+    ): Promise<void> => {
+        await closeTerminalIfExists(terminalId)
+        await clearTerminalTracking([terminalId])
+        clearTerminalStartedTracking([terminalId])
+        await waitForTerminalClosed(terminalId)
+    }, [closeTerminalIfExists, waitForTerminalClosed])
+
     const startOrchestratorWithNewModel = useCallback(async (terminalId: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId })
     }, [])
 
-    const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
+    const startSessionWithNewModel = useCallback(async (sessionName: string, forceRestart = false): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
             params: {
                 sessionName,
-                forceRestart: true,
+                forceRestart,
             },
         })
     }, [])
 
     const restartWithNewModel = useCallback(async (
-        selection: SessionSelection, 
-        terminalId: string
+        selection: SessionSelection,
+        terminalId: string,
+        forceRestart = false
     ): Promise<void> => {
         if (selection.kind === 'orchestrator') {
             const startedP = waitForAgentStarted(terminalId)
@@ -219,7 +230,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             await startedP
         } else if (selection.kind === 'session' && selection.payload) {
             const startedP = waitForAgentStarted(terminalId)
-            await startSessionWithNewModel(selection.payload)
+            await startSessionWithNewModel(selection.payload, forceRestart)
             await startedP
         }
     }, [startOrchestratorWithNewModel, startSessionWithNewModel, waitForAgentStarted])
@@ -228,41 +239,32 @@ export function useSessionManagement(): SessionManagementHookReturn {
         agentType: string,
         skipPermissions: boolean,
         selection: SessionSelection,
-        terminals: TerminalIds
+        terminals: TerminalIds,
+        clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
+        clearTerminalStartedTracking: (terminalIds: string[]) => void,
+        currentAgentType?: string
     ): Promise<void> => {
         await setSkipPermissionsForSelection(selection, skipPermissions)
         await updateAgentType(selection, agentType)
-        
+
         const claudeTerminalId = terminals.top
-        const sessionStartScope = computeProjectOrchestratorId(projectPath ?? null) ?? undefined
-        const terminalStartScope = selection.kind === 'session' ? sessionStartScope : undefined
-
-        // Set the guard FIRST before any async operations to prevent auto-start effects
-        // from firing during the model switch. We only clear on error.
-        if (terminalStartScope) {
-            markTerminalStarting(claudeTerminalId, terminalStartScope)
-        } else {
-            markTerminalStarting(claudeTerminalId)
-        }
-
-        // During model switch, we must NOT clear the selection atom's terminal tracking
-        // (terminalWorkingDirectory, terminalToSelectionKey) because that would cause the
-        // terminal to be recreated when switching sessions and coming back.
-        // We only need to close the backend terminal and wait for it to close.
         const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: claudeTerminalId })
         if (exists) {
-            await closeTerminalIfExists(claudeTerminalId)
-            await waitForTerminalClosed(claudeTerminalId)
+            await clearTerminalState(claudeTerminalId, clearTerminalTracking, clearTerminalStartedTracking)
+        } else {
+            // Still clear front-end tracking even if terminal doesn't exist
+            await clearTerminalTracking([claudeTerminalId])
+            clearTerminalStartedTracking([claudeTerminalId])
         }
+        // Mark this terminal as background-started so the auto-start effect in the
+        // Terminal component doesn't immediately re-spawn the old agent while the
+        // model-switch restart is in flight.
+        markTerminalStarting(claudeTerminalId)
         try {
-            await restartWithNewModel(selection, claudeTerminalId)
-        } catch (error) {
-            if (terminalStartScope) {
-                clearTerminalStartState([claudeTerminalId], terminalStartScope)
-            } else {
-                clearTerminalStartState([claudeTerminalId])
-            }
-            throw error
+            const isDifferentAgentType = currentAgentType !== undefined && currentAgentType !== agentType
+            await restartWithNewModel(selection, claudeTerminalId, isDifferentAgentType)
+        } finally {
+            clearTerminalStartState([claudeTerminalId])
         }
 
         const resetDetail: TerminalResetDetail = selection.kind === 'session' && selection.payload
@@ -270,7 +272,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             : { kind: 'orchestrator' }
 
         notifyTerminalsReset(resetDetail)
-    }, [projectPath, setSkipPermissionsForSelection, updateAgentType, closeTerminalIfExists, waitForTerminalClosed, restartWithNewModel, notifyTerminalsReset])
+    }, [setSkipPermissionsForSelection, updateAgentType, clearTerminalState, restartWithNewModel, notifyTerminalsReset])
 
     return {
         isResetting,

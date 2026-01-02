@@ -1235,6 +1235,40 @@ export function UnifiedDiffView({
   ],
 );
 
+  const prevFilePathForScrollRef = useRef<string | null>(filePath);
+  useLayoutEffect(() => {
+    if (viewMode !== "sidebar" || !isOpen || !filePath) {
+      prevFilePathForScrollRef.current = filePath;
+      return;
+    }
+    const prevPath = prevFilePathForScrollRef.current;
+    prevFilePathForScrollRef.current = filePath;
+
+    if (prevPath === filePath) {
+      return;
+    }
+
+    setSelectedFile(filePath);
+    setVisibleFilePath(filePath);
+
+    const container = scrollContainerRef.current;
+    const fileElement = fileRefs.current.get(filePath);
+    if (!container || !fileElement) {
+      return;
+    }
+
+    suppressAutoSelectRef.current = true;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = fileElement.getBoundingClientRect();
+    const delta = elementRect.top - containerRect.top;
+    if (Math.abs(delta) >= 1) {
+      container.scrollTop += delta;
+    }
+    requestAnimationFrame(() => {
+      suppressAutoSelectRef.current = false;
+    });
+  }, [filePath, viewMode, isOpen]);
+
   useEffect(() => {
     if (!isOpen || isLargeDiffMode) {
       setIsVirtualizationLocked(false);
@@ -3693,6 +3727,11 @@ function CommentForm({
   platform: Platform;
 }) {
   const [text, setText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   const handleSubmit = () => {
     if (text.trim()) {
@@ -3704,12 +3743,12 @@ function CommentForm({
   return (
     <>
       <textarea
+        ref={textareaRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Write your comment..."
         className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm focus:outline-none focus:border-cyan-400 resize-none"
         rows={4}
-        autoFocus
         onKeyDown={(e) => {
           const nativeEvent = e.nativeEvent as KeyboardEvent;
           if (

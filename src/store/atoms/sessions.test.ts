@@ -119,7 +119,6 @@ import { startSessionTop } from '../../common/agentSpawn'
 import { singleflight as singleflightMock } from '../../utils/singleflight'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { clearTerminalStartState } from '../../common/terminalStartState'
-import { scopedSessionKey } from '../../common/scopeKeys'
 
 const createSession = (overrides: Partial<EnrichedSession['info']>): EnrichedSession => ({
     info: {
@@ -559,17 +558,16 @@ describe('sessions atoms', () => {
         const now = Date.now()
         vi.setSystemTime(now)
 
-        store.set(projectPathAtom, '/project')
         store.set(enqueuePendingStartupActionAtom, { sessionId: 'alpha', agentType: 'codex' })
-        expect(store.get(pendingStartupsAtom).get(scopedSessionKey('/project', 'alpha'))).toMatchObject({ agentType: 'codex' })
+        expect(store.get(pendingStartupsAtom).get('alpha')).toMatchObject({ agentType: 'codex' })
 
         store.set(clearPendingStartupActionAtom, 'alpha')
-        expect(store.get(pendingStartupsAtom).has(scopedSessionKey('/project', 'alpha'))).toBe(false)
+        expect(store.get(pendingStartupsAtom).has('alpha')).toBe(false)
 
         store.set(enqueuePendingStartupActionAtom, { sessionId: 'beta', agentType: 'claude', ttlMs: 100 })
         vi.setSystemTime(now + 200)
         store.set(cleanupExpiredPendingStartupsActionAtom)
-        expect(store.get(pendingStartupsAtom).has(scopedSessionKey('/project', 'beta'))).toBe(false)
+        expect(store.get(pendingStartupsAtom).has('beta')).toBe(false)
     })
 
     it('initializes event listeners and responds to refresh events', async () => {
@@ -1306,6 +1304,32 @@ describe('sessions atoms', () => {
 
         const expectedTopId = stableSessionTerminalId('reusable-session', 'top')
         const expectedBottomId = stableSessionTerminalId('reusable-session', 'bottom')
-        expect(clearTerminalStartState).toHaveBeenCalledWith([expectedTopId, expectedBottomId], 'orchestrator-test')
+        expect(clearTerminalStartState).toHaveBeenCalledWith([expectedTopId, expectedBottomId])
+    })
+
+    it('auto-starts reviewed sessions just like running sessions', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return [
+                    createSession({ session_id: 'reviewed-session', status: 'active', session_state: SessionState.Reviewed }),
+                ]
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        store.set(projectPathAtom, '/project')
+        await store.set(initializeSessionsEventsActionAtom)
+        await store.set(refreshSessionsActionAtom)
+
+        expect(store.get(allSessionsAtom)).toHaveLength(1)
+        expect(store.get(allSessionsAtom)[0]?.info.session_state).toBe(SessionState.Reviewed)
+
+        await vi.waitFor(() => {
+            expect(startSessionTop).toHaveBeenCalledWith(expect.objectContaining({ sessionName: 'reviewed-session' }))
+        })
     })
 })

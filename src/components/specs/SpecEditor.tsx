@@ -67,9 +67,10 @@ interface Props {
   sessionName: string
   onStart?: () => void
   disableFocusShortcut?: boolean
+  onReviewModeChange?: (isReviewing: boolean) => void
 }
 
-export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false }: Props) {
+export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false, onReviewModeChange }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -188,14 +189,13 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
   }, [viewMode])
 
-  const focusCommentTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
-    if (textarea) {
-      commentTextareaRef.current = textarea
-      queueMicrotask(() => {
-        textarea.focus()
+  useEffect(() => {
+    if (showCommentForm) {
+      requestAnimationFrame(() => {
+        commentTextareaRef.current?.focus()
       })
     }
-  }, [])
+  }, [showCommentForm])
 
   const handleContentChange = (newContent: string) => {
     setCurrentContent(newContent)
@@ -268,16 +268,18 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     lineSelection.clearSelection()
     setShowCommentForm(false)
     setViewMode('review')
+    onReviewModeChange?.(true)
     logger.info('[SpecEditor] Entered review mode')
-  }, [lineSelection, setViewMode])
+  }, [lineSelection, setViewMode, onReviewModeChange])
 
   const handleExitReviewMode = useCallback(() => {
     setReviewComments([])
     lineSelection.clearSelection()
     setShowCommentForm(false)
     setViewMode('preview')
+    onReviewModeChange?.(false)
     logger.info('[SpecEditor] Exited review mode')
-  }, [lineSelection, setViewMode])
+  }, [lineSelection, setViewMode, onReviewModeChange])
 
   const handleLineClick = useCallback((lineNum: number, specId: string, event?: React.MouseEvent) => {
     setIsDraggingSelection(true)
@@ -290,10 +292,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
     }
   }, [isDraggingSelection, lineSelection, sessionName])
 
-  const handleLineMouseUp = useCallback(() => {
+  const handleLineMouseUp = useCallback((event: MouseEvent) => {
     setIsDraggingSelection(false)
     if (lineSelection.selection) {
-      setCommentFormPosition({ x: 0, y: 100 })
+      setCommentFormPosition({ x: event.clientX, y: event.clientY })
       setShowCommentForm(true)
     }
   }, [lineSelection.selection])
@@ -448,6 +450,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
           <EpicSelect
             value={selectedEpic}
             onChange={(epicId) => setItemEpic(sessionName, epicId)}
+            showDeleteButton
           />
           {!disableFocusShortcut && (
             <span
@@ -579,8 +582,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
         <div style={{ display: viewMode === 'preview' ? 'block' : 'none' }} className="h-full">
           <MarkdownRenderer content={currentContent} className="h-full" />
         </div>
-        <div style={{ display: viewMode === 'review' ? 'flex' : 'none' }} className="h-full flex-col relative">
-          <div className="flex-1 min-h-0 overflow-hidden">
+        <div style={{ display: viewMode === 'review' ? 'flex' : 'none', flexDirection: 'column' }} className="h-full relative">
+          <div className="flex-1 min-h-0 overflow-auto">
             <SpecReviewEditor
               content={currentContent}
               specId={sessionName}
@@ -620,7 +623,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false 
                   </div>
                 </div>
                 <textarea
-                  ref={focusCommentTextarea}
+                  ref={commentTextareaRef}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Write your comment..."

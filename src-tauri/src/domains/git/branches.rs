@@ -293,11 +293,21 @@ fn materialize_from_remote(repo: &Repository, local: &str, remote: &str) -> Resu
 /// - Fast-forward local if behind remote (safe)
 /// - Skip sync with warning if local is ahead (preserves local commits)
 /// - Skip sync with warning if branches have diverged (preserves local commits)
+/// - Skip sync if the branch is currently checked out (would desync working directory)
 ///
 /// This function NEVER performs force updates or resets that could lose commits.
 /// For local development branches where users may have unpushed work, do NOT call this.
 pub fn safe_sync_branch_with_origin(repo_path: &Path, branch_name: &str) -> Result<()> {
     log::info!("Safely syncing branch '{branch_name}' with origin (fast-forward only)");
+
+    if let Ok(current) = get_current_branch(repo_path)
+        && current == branch_name
+    {
+        log::info!(
+            "Skipping sync for '{branch_name}' - branch is currently checked out in main repo"
+        );
+        return Ok(());
+    }
 
     std::process::Command::new("git")
         .args(["fetch", "origin", branch_name])

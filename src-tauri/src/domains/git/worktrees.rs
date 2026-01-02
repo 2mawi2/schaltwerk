@@ -262,6 +262,76 @@ pub fn create_worktree_from_base(
     Ok(())
 }
 
+pub fn create_worktree_from_pr(
+    repo_path: &Path,
+    pr_number: i64,
+    branch_name: &str,
+    worktree_path: &Path,
+) -> Result<()> {
+    log::info!(
+        "Creating worktree from PR #{} as branch '{}' at {}",
+        pr_number,
+        branch_name,
+        worktree_path.display()
+    );
+
+    if let Some(parent) = worktree_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let output = std::process::Command::new("git")
+        .args(["fetch", "origin", &format!("pull/{pr_number}/head")])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| anyhow!("Failed to execute git fetch: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("Failed to fetch PR #{pr_number}: {}", stderr.trim()));
+    }
+
+    log::info!("Successfully fetched PR #{pr_number}");
+
+    let repo = Repository::open(repo_path)?;
+
+    if let Ok(mut branch) = repo.find_branch(branch_name, BranchType::Local) {
+        log::info!("Deleting existing branch: {branch_name}");
+        branch.delete()?;
+    }
+
+    let fetch_head = repo
+        .find_reference("FETCH_HEAD")?
+        .peel_to_commit()
+        .map_err(|e| anyhow!("Failed to resolve FETCH_HEAD: {e}"))?;
+
+    repo.branch(branch_name, &fetch_head, false)
+        .map_err(|e| anyhow!("Failed to create branch '{branch_name}': {e}"))?;
+
+    let branch = repo
+        .find_branch(branch_name, BranchType::Local)
+        .map_err(|e| anyhow!("Branch '{branch_name}' not found after creation: {e}"))?;
+    let branch_ref = branch.into_reference();
+
+    let mut opts = WorktreeAddOptions::new();
+    opts.reference(Some(&branch_ref));
+
+    let _worktree = repo.worktree(
+        worktree_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(branch_name),
+        worktree_path,
+        Some(&opts),
+    )?;
+
+    log::info!(
+        "Successfully created worktree from PR #{} at: {}",
+        pr_number,
+        worktree_path.display()
+    );
+    Ok(())
+}
+
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
     let _lock = WORKTREE_MUTEX
         .lock()

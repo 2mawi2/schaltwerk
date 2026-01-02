@@ -68,6 +68,7 @@ pub mod control_sequences;
 pub mod idle_detection;
 pub mod lifecycle;
 pub mod local;
+pub mod login_shell_env;
 pub mod manager;
 pub mod nvm;
 pub mod shell_invocation;

@@ -11,8 +11,9 @@ pub use super::branches::{
 #[cfg(test)]
 pub use super::repository::{get_commit_hash, get_current_branch};
 pub use super::worktrees::{
-    create_worktree_for_existing_branch, create_worktree_from_base, get_worktree_for_branch,
-    list_worktrees, prune_worktrees, remove_worktree, update_worktree_branch,
+    create_worktree_for_existing_branch, create_worktree_from_base, create_worktree_from_pr,
+    get_worktree_for_branch, list_worktrees, prune_worktrees, remove_worktree,
+    update_worktree_branch,
 };
 
 pub use super::history::{
@@ -23,7 +24,10 @@ pub use super::operations::{
     commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_branch_name,
     is_valid_session_name,
 };
-pub use super::stats::{calculate_git_stats_fast, get_changed_files};
+pub use super::stats::{
+    calculate_git_stats_fast, get_changed_files, get_changed_files_with_mode,
+    has_remote_tracking_branch, DiffCompareMode,
+};
 #[cfg(test)]
 pub use super::worktrees::is_worktree_registered;
 

@@ -38,6 +38,7 @@ export const TauriCommands = {
   GetDevErrorToastsEnabled: 'get_dev_error_toasts_enabled',
   GetBaseBranchName: 'get_base_branch_name',
   GetChangedFilesFromMain: 'get_changed_files_from_main',
+  HasRemoteTrackingBranch: 'has_remote_tracking_branch',
   SetSessionDiffBaseBranch: 'set_session_diff_base_branch',
   GetCommitComparisonInfo: 'get_commit_comparison_info',
   GetCurrentBranchName: 'get_current_branch_name',
@@ -200,4 +201,5 @@ export const TauriCommands = {
    ClipboardWriteText: 'clipboard_write_text',
   ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
+  RestartApp: 'restart_app',
 } as const

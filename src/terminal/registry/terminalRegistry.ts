@@ -453,22 +453,24 @@ class TerminalInstanceRegistry {
     // This allows checking if all buffered data has been processed.
     const writeId = ++record.latestWriteId;
 
-    const bufBefore = record.xterm.raw.buffer?.active;
-    const baseYBefore = bufBefore?.baseY;
-    const viewportYBefore = bufBefore?.viewportY;
+    const terminalDebug = typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1';
+    const baseYBefore = terminalDebug ? record.xterm.raw.buffer?.active?.baseY : undefined;
+    const viewportYBefore = terminalDebug ? record.xterm.raw.buffer?.active?.viewportY : undefined;
 
     try {
       const rawWithWriteSync = record.xterm.raw as unknown as { writeSync?: (data: string) => void };
       if (record.xterm.isTuiMode() && hasFullScreenRedrawControl && typeof rawWithWriteSync.writeSync === 'function') {
-        if (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1') {
+        if (terminalDebug) {
           logger.debug(`[Registry ${record.id}] Using writeSync for full-frame TUI batch (chars=${payload.length})`);
         }
         rawWithWriteSync.writeSync(payload);
         record.latestParseId = writeId;
 
-        const bufAfter = record.xterm.raw.buffer?.active;
-        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        if (terminalDebug) {
+          const bufAfter = record.xterm.raw.buffer?.active;
+          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+          }
         }
 
         if (hadClear) {
@@ -484,12 +486,13 @@ class TerminalInstanceRegistry {
       }
 
       record.xterm.raw.write(payload, () => {
-        // Mark this write as fully parsed by xterm
         record.latestParseId = writeId;
 
-        const bufAfter = record.xterm.raw.buffer?.active;
-        if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-          logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+        if (terminalDebug) {
+          const bufAfter = record.xterm.raw.buffer?.active;
+          if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+          }
         }
 
         if (hadClear) {
@@ -537,32 +540,6 @@ class TerminalInstanceRegistry {
         record.bracketedPasteEnabled = enableIdx > disableIdx;
       }
 
-      const syncEnableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_ENABLE_SEQ);
-      const syncDisableIdx = combinedControl.lastIndexOf(SYNC_OUTPUT_DISABLE_SEQ);
-      if (syncEnableIdx !== -1 || syncDisableIdx !== -1) {
-        logger.debug(
-          `[Registry ${record.id}] Synchronized output mode toggle detected: enableIdx=${syncEnableIdx}, disableIdx=${syncDisableIdx}`,
-        );
-      }
-
-      const alt1049EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1049);
-      const alt1049DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1049);
-      const alt47EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_47);
-      const alt47DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_47);
-      const alt1047EnableIdx = combinedControl.lastIndexOf(ALT_SCREEN_ENABLE_1047);
-      const alt1047DisableIdx = combinedControl.lastIndexOf(ALT_SCREEN_DISABLE_1047);
-      if (
-        alt1049EnableIdx !== -1 ||
-        alt1049DisableIdx !== -1 ||
-        alt47EnableIdx !== -1 ||
-        alt47DisableIdx !== -1 ||
-        alt1047EnableIdx !== -1 ||
-        alt1047DisableIdx !== -1
-      ) {
-        logger.debug(
-          `[Registry ${record.id}] Alternate screen toggle detected: 1049(e=${alt1049EnableIdx},d=${alt1049DisableIdx}) 47(e=${alt47EnableIdx},d=${alt47DisableIdx}) 1047(e=${alt1047EnableIdx},d=${alt1047DisableIdx})`,
-        );
-      }
       record.controlSequenceTail = combinedControl.slice(
         Math.max(0, combinedControl.length - CONTROL_SEQUENCE_TAIL_MAX),
       );

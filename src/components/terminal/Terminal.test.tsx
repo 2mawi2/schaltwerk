@@ -319,7 +319,6 @@ vi.mock('../../common/terminalStartState', () => ({
 vi.mock('../../common/agentSpawn', () => ({
   startOrchestratorTop: vi.fn(async () => {}),
   startSessionTop: vi.fn(async () => {}),
-  computeProjectOrchestratorId: vi.fn((projectPath?: string | null) => (projectPath ? 'orchestrator-test-top' : null)),
   AGENT_START_TIMEOUT_MESSAGE: 'timeout',
 }))
 

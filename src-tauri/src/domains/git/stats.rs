@@ -3,12 +3,21 @@ use crate::domains::sessions::entity::{ChangedFile, GitStats};
 use anyhow::Result;
 use chrono::Utc;
 use git2::{Diff, DiffFindOptions, DiffFormat, DiffOptions, Oid, Repository, StatusOptions};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiffCompareMode {
+    #[default]
+    MergeBase,
+    UnpushedOnly,
+}
 
 const LARGE_SESSION_THRESHOLD: usize = 500;
 const VERY_LARGE_SESSION_THRESHOLD: usize = 2000;
@@ -582,26 +591,46 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 }
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
-    // Show all changes introduced by this worktree: committed + uncommitted
-    // Baseline = merge-base(HEAD, parent_branch); Target = workdir with index
-    // Use `open` to ensure we operate on the specific worktree, not the parent repo.
+    get_changed_files_with_mode(worktree_path, parent_branch, DiffCompareMode::MergeBase, None)
+}
+
+pub fn get_changed_files_with_mode(
+    worktree_path: &Path,
+    parent_branch: &str,
+    mode: DiffCompareMode,
+    session_branch: Option<&str>,
+) -> Result<Vec<ChangedFile>> {
     let repo = Repository::open(worktree_path)?;
-
-    // Resolve HEAD and parent_branch commits
     let head_oid = repo.head().ok().and_then(|h| h.target());
-    let base_ref = repo.revparse_single(parent_branch).ok();
-    let base_commit = base_ref.and_then(|obj| obj.peel_to_commit().ok());
 
-    // Determine baseline tree from merge-base(HEAD, parent)
-    let baseline_tree = match (head_oid, base_commit.as_ref()) {
-        (Some(h), Some(parent)) => {
-            if let Ok(mb) = repo.merge_base(h, parent.id()) {
-                repo.find_commit(mb).ok().and_then(|c| c.tree().ok())
-            } else {
-                parent.tree().ok()
+    let baseline_tree = match mode {
+        DiffCompareMode::MergeBase => {
+            let base_ref = repo.revparse_single(parent_branch).ok();
+            let base_commit = base_ref.and_then(|obj| obj.peel_to_commit().ok());
+            match (head_oid, base_commit.as_ref()) {
+                (Some(h), Some(parent)) => {
+                    if let Ok(mb) = repo.merge_base(h, parent.id()) {
+                        repo.find_commit(mb).ok().and_then(|c| c.tree().ok())
+                    } else {
+                        parent.tree().ok()
+                    }
+                }
+                _ => None,
             }
         }
-        _ => None,
+        DiffCompareMode::UnpushedOnly => {
+            let branch_name: Option<String> = session_branch.map(String::from).or_else(|| {
+                repo.head().ok().and_then(|h| h.shorthand().map(String::from))
+            });
+
+            branch_name.and_then(|branch| {
+                let remote_ref = format!("refs/remotes/origin/{branch}");
+                repo.find_reference(&remote_ref)
+                    .ok()
+                    .and_then(|r| r.peel_to_commit().ok())
+                    .and_then(|c| c.tree().ok())
+            })
+        }
     };
 
     if let Some(base_tree) = baseline_tree {
@@ -619,6 +648,14 @@ pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Ve
     } else {
         Ok(Vec::new())
     }
+}
+
+pub fn has_remote_tracking_branch(worktree_path: &Path, branch_name: &str) -> bool {
+    let Ok(repo) = Repository::open(worktree_path) else {
+        return false;
+    };
+    let remote_ref = format!("refs/remotes/origin/{branch_name}");
+    repo.find_reference(&remote_ref).is_ok()
 }
 
 #[cfg(test)]
@@ -872,5 +909,151 @@ mod tests {
         assert_eq!(binary.deletions, 0);
         assert_eq!(binary.changes, 0);
         assert_eq!(binary.is_binary, Some(true));
+    }
+
+    #[test]
+    fn unpushed_only_mode_shows_changes_since_last_push() {
+        let repo = init_repo();
+        let p = repo.path();
+
+        // Create feature branch
+        StdCommand::new("git")
+            .args(["checkout", "-b", "schaltwerk/test-feature"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Make first commit on feature (this will be "pushed")
+        fs::write(p.join("pushed_file.txt"), "pushed content\n").unwrap();
+        StdCommand::new("git")
+            .args(["add", "pushed_file.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add pushed file"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Simulate pushing by creating origin/schaltwerk/test-feature ref pointing to current HEAD
+        let head_output = StdCommand::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        let head_sha = String::from_utf8_lossy(&head_output.stdout).trim().to_string();
+
+        // Create the remote tracking ref manually
+        let refs_dir = p.join(".git/refs/remotes/origin/schaltwerk");
+        fs::create_dir_all(&refs_dir).unwrap();
+        fs::write(refs_dir.join("test-feature"), format!("{}\n", head_sha)).unwrap();
+
+        // Now make local changes that haven't been "pushed"
+        fs::write(p.join("unpushed_file.txt"), "unpushed content\n").unwrap();
+        StdCommand::new("git")
+            .args(["add", "unpushed_file.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add unpushed file"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Also add an uncommitted change
+        fs::write(p.join("uncommitted.txt"), "uncommitted\n").unwrap();
+
+        // Test MergeBase mode - should show ALL changes from main (pushed + unpushed + uncommitted)
+        let merge_base_files = get_changed_files_with_mode(
+            p,
+            "main",
+            DiffCompareMode::MergeBase,
+            Some("schaltwerk/test-feature"),
+        )
+        .unwrap();
+        let merge_base_paths: std::collections::HashSet<_> =
+            merge_base_files.iter().map(|f| f.path.as_str()).collect();
+
+        assert!(
+            merge_base_paths.contains("pushed_file.txt"),
+            "MergeBase should include pushed file"
+        );
+        assert!(
+            merge_base_paths.contains("unpushed_file.txt"),
+            "MergeBase should include unpushed committed file"
+        );
+        assert!(
+            merge_base_paths.contains("uncommitted.txt"),
+            "MergeBase should include uncommitted file"
+        );
+
+        // Test UnpushedOnly mode - should show ONLY changes since the "push"
+        let unpushed_files = get_changed_files_with_mode(
+            p,
+            "main",
+            DiffCompareMode::UnpushedOnly,
+            Some("schaltwerk/test-feature"),
+        )
+        .unwrap();
+        let unpushed_paths: std::collections::HashSet<_> =
+            unpushed_files.iter().map(|f| f.path.as_str()).collect();
+
+        assert!(
+            !unpushed_paths.contains("pushed_file.txt"),
+            "UnpushedOnly should NOT include already-pushed file"
+        );
+        assert!(
+            unpushed_paths.contains("unpushed_file.txt"),
+            "UnpushedOnly should include unpushed committed file"
+        );
+        assert!(
+            unpushed_paths.contains("uncommitted.txt"),
+            "UnpushedOnly should include uncommitted file"
+        );
+    }
+
+    #[test]
+    fn has_remote_tracking_branch_detection() {
+        let repo = init_repo();
+        let p = repo.path();
+
+        // Create feature branch
+        StdCommand::new("git")
+            .args(["checkout", "-b", "schaltwerk/has-remote"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+
+        // Initially no remote tracking branch
+        assert!(
+            !has_remote_tracking_branch(p, "schaltwerk/has-remote"),
+            "Should not have remote tracking branch initially"
+        );
+
+        // Create the remote tracking ref
+        let head_output = StdCommand::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        let head_sha = String::from_utf8_lossy(&head_output.stdout).trim().to_string();
+
+        let refs_dir = p.join(".git/refs/remotes/origin/schaltwerk");
+        fs::create_dir_all(&refs_dir).unwrap();
+        fs::write(refs_dir.join("has-remote"), format!("{}\n", head_sha)).unwrap();
+
+        // Now should have remote tracking branch
+        assert!(
+            has_remote_tracking_branch(p, "schaltwerk/has-remote"),
+            "Should have remote tracking branch after creating ref"
+        );
+
+        // Non-existent branch should return false
+        assert!(
+            !has_remote_tracking_branch(p, "schaltwerk/does-not-exist"),
+            "Should not have remote tracking branch for non-existent branch"
+        );
     }
 }

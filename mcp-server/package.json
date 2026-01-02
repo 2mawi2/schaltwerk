@@ -9,12 +9,12 @@
     "schaltwerk-mcp-server": "./build/schaltwerk-mcp-server.js"
   },
   "scripts": {
-    "build": "tsc && chmod +x build/schaltwerk-mcp-server.js",
-    "dev": "tsc --watch",
+    "build": "mkdir -p node_modules/.cache && tsc && chmod +x build/schaltwerk-mcp-server.js",
+    "dev": "mkdir -p node_modules/.cache && tsc --watch",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "mkdir -p node_modules/.cache && eslint src/**/*.ts --cache --cache-location node_modules/.cache/eslint",
+    "lint:fix": "mkdir -p node_modules/.cache && eslint src/**/*.ts --cache --cache-location node_modules/.cache/eslint --fix",
     "clean": "rm -rf build node_modules package-lock.json"
   },
   "dependencies": {

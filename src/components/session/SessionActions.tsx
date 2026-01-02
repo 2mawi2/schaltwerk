@@ -140,6 +140,7 @@ export function SessionActions({
               disabled={epicDisabled}
               stopPropagation
               variant="icon"
+              showDeleteButton
             />
           )}
           {onRefineSpec && (
@@ -181,6 +182,7 @@ export function SessionActions({
               disabled={epicDisabled}
               stopPropagation
               variant="icon"
+              showDeleteButton
             />
           )}
           <IconButton
@@ -271,6 +273,7 @@ export function SessionActions({
               disabled={epicDisabled}
               stopPropagation
               variant="icon"
+              showDeleteButton
             />
           )}
           {prNumber && (

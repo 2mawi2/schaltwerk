@@ -255,9 +255,15 @@ run:
 
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
-        echo "Using sccache for Rust compilation caching"
-        export RUSTC_WRAPPER=sccache
-        export SCCACHE_DIR=$HOME/.cache/sccache
+        if sccache rustc -vV >/dev/null 2>&1; then
+            echo "Using sccache for Rust compilation caching"
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR=$HOME/.cache/sccache
+        else
+            echo "sccache found but unusable; continuing without it"
+            export RUSTC_WRAPPER=
+            export CARGO_BUILD_RUSTC_WRAPPER=
+        fi
     fi
     
     # Export the port for Vite
@@ -452,15 +458,21 @@ test:
         exit 1
     fi
 
-    step "Lint: TypeScript"
-    {{pm}} run lint && ok "ESLint passed"
-    {{pm}} run lint:ts && ok "TypeScript passed"
+    if command -v sccache &> /dev/null; then
+        step "Rust: sccache"
+        if sccache rustc -vV >/dev/null 2>&1; then
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR=$HOME/.cache/sccache
+            ok "sccache enabled"
+        else
+            echo "sccache found but unusable; continuing without it"
+            export RUSTC_WRAPPER=
+            export CARGO_BUILD_RUSTC_WRAPPER=
+        fi
+    fi
 
-    step "Lint: MCP Server"
-    {{pm}} run lint:mcp && ok "MCP lint passed"
-
-    step "Lint: Rust"
-    {{pm}} run lint:rust && ok "Clippy passed"
+    step "Lint"
+    {{pm}} run lint:all && ok "All lints passed"
 
     step "Dependencies"
     {{pm}} run deps:rust && ok "Cargo shear passed"

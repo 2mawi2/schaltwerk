@@ -3,6 +3,7 @@ import { useAgentBinarySnapshot } from '../../hooks/useAgentBinarySnapshot'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { useSelection } from '../../hooks/useSelection'
+import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { theme } from '../../common/theme'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import { AGENT_TYPES, AgentType } from '../../types/session'
@@ -27,7 +28,7 @@ export function AgentBinaryStatus() {
   const { loading, error, statusByAgent, allMissing, refresh } = useAgentBinarySnapshot()
   const { getOrchestratorAgentType } = useClaudeSession()
   const { switchModel } = useSessionManagement()
-  const { terminals } = useSelection()
+  const { terminals, clearTerminalTracking } = useSelection()
   const [selectedDefault, setSelectedDefault] = useState<AgentType>('claude')
 
   useEffect(() => {
@@ -40,12 +41,16 @@ export function AgentBinaryStatus() {
 
   const handleSelectAgent = async (agent: AgentType) => {
     if (agent === 'terminal') return
+    const previousAgent = selectedDefault
     setSelectedDefault(agent)
     await switchModel(
       agent,
       false,
       { kind: 'orchestrator' },
-      terminals
+      terminals,
+      clearTerminalTracking,
+      clearTerminalStartedTracking,
+      previousAgent
     )
   }
 

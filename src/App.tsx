@@ -422,8 +422,14 @@ function AppContent() {
             toast.pushToast({
               tone: 'success',
               title: `Schaltwerk updated to ${versionLabel}`,
-              description: 'Restart Schaltwerk to finish applying the update.',
-              durationMs: 6000,
+              description: 'Restart to finish applying the update.',
+              durationMs: 10000,
+              action: {
+                label: 'Restart',
+                onClick: () => {
+                  void invoke(TauriCommands.RestartApp)
+                },
+              },
             })
             return
           }
@@ -1552,6 +1558,7 @@ function AppContent() {
               epicId: data.epicId ?? null,
               agentType: agentTypeForVersion,
               skipPermissions: data.skipPermissions,
+              prNumber: data.prNumber || null,
             })
 
             const actualSessionName = createdSession?.name ?? versionName

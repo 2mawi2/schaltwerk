@@ -17,6 +17,7 @@ interface Props {
   onStart?: (specId: string) => void
   showPicker: boolean
   onPickerClose: () => void
+  onReviewModeChange?: (isReviewing: boolean) => void
 }
 
 export function SpecWorkspacePanel({
@@ -28,7 +29,8 @@ export function SpecWorkspacePanel({
   onOpenPicker,
   onStart,
   showPicker,
-  onPickerClose
+  onPickerClose,
+  onReviewModeChange
 }: Props) {
   const [unsavedTabs] = useState<Set<string>>(new Set())
 
@@ -107,6 +109,7 @@ export function SpecWorkspacePanel({
             sessionName={activeTab!}
             onStart={() => onStart?.(activeTab!)}
             disableFocusShortcut={true}
+            onReviewModeChange={onReviewModeChange}
           />
         ) : (
           <div

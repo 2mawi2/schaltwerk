@@ -161,6 +161,12 @@ jobs:
       - name: Setup sccache cache
         uses: Mozilla-Actions/sccache-action@v0.0.9
 
+      - name: Enable sccache GHA cache backend
+        if: ${{ !env.ACT }}
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -186,12 +192,12 @@ jobs:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
-      - uses: taiki-e/install-action@ff581034fb69296c525e51afd68cb9823bfbe4ed
+      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@ff581034fb69296c525e51afd68cb9823bfbe4ed
+      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
         with:
           tool: nextest
           version: 0.9.108

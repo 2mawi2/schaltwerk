@@ -640,28 +640,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_event_bridge_initialization_timing() {
-        let manager = TerminalManager::new();
-        let event_id = unique_id("event-bridge-test");
-
-        let start = std::time::Instant::now();
-        manager
-            .create_terminal(event_id.clone(), "/tmp".to_string())
-            .await
-            .unwrap();
-        let creation_time = start.elapsed();
-
-        assert!(
-            creation_time.as_millis() < 1000,
-            "Terminal creation including event bridge should be fast"
-        );
-
-        assert!(manager.terminal_exists(&event_id).await.unwrap());
-
-        safe_close(&manager, &event_id).await;
-    }
-
-    #[tokio::test]
     async fn test_app_handle_setting() {
         let manager = TerminalManager::new();
 

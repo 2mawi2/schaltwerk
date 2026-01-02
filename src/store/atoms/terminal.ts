@@ -134,6 +134,13 @@ export const setActiveTabActionAtom = atom(
         ...current,
         activeTabIndex: current.tabs[0].index,
       })
+    } else if (tabIndex === 0) {
+      // When atom has no tabs yet but UI shows default tab at index 0,
+      // allow switching to it (e.g., when switching from Run tab to terminal tab)
+      set(tabsAtom, {
+        ...current,
+        activeTabIndex: 0,
+      })
     }
   }
 )

@@ -219,7 +219,9 @@ describe('useSessionManagement', () => {
                     'gemini',
                     true,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -232,9 +234,8 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
-            // Selection atom tracking should NOT be cleared during model switch
-            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
-            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
+            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
         })
 
         it('should switch model for session', async () => {
@@ -265,7 +266,9 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -279,12 +282,97 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                 params: {
                     sessionName: 'test-session',
+                    forceRestart: false
+                }
+            })
+            expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
+            expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])
+        })
+
+        it('should resume session when switching to same agent type', async () => {
+            const { result } = renderHook(() => useSessionManagement())
+
+            const selection = { kind: 'session' as const, payload: 'test-session' }
+
+            mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
+                .mockResolvedValueOnce(true) // terminal_exists
+                .mockImplementationOnce(async () => { // close_terminal
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    return undefined
+                })
+                .mockImplementationOnce(async () => { // schaltwerk_core_start_session_agent_with_restart
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    return undefined
+                })
+
+            await act(async () => {
+                await result.current!.switchModel(
+                    'claude',
+                    false,
+                    selection,
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking,
+                    'claude'
+                )
+            })
+
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
+                params: {
+                    sessionName: 'test-session',
+                    forceRestart: false
+                }
+            })
+            expect(dispatchSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: String(UiEvent.TerminalReset),
+                    detail: { kind: 'session', sessionId: 'test-session' },
+                })
+            )
+        })
+
+        it('should force restart when switching to different agent type', async () => {
+            const { result } = renderHook(() => useSessionManagement())
+
+            const selection = { kind: 'session' as const, payload: 'test-session' }
+
+            mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
+                .mockResolvedValueOnce(true) // terminal_exists
+                .mockImplementationOnce(async () => { // close_terminal
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    return undefined
+                })
+                .mockImplementationOnce(async () => { // schaltwerk_core_start_session_agent_with_restart
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    return undefined
+                })
+
+            await act(async () => {
+                await result.current!.switchModel(
+                    'gemini',
+                    false,
+                    selection,
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking,
+                    'claude'
+                )
+            })
+
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
+                params: {
+                    sessionName: 'test-session',
                     forceRestart: true
                 }
             })
-            // Selection atom tracking should NOT be cleared during model switch
-            expect(mockClearTerminalTracking).not.toHaveBeenCalled()
-            expect(mockClearTerminalStartedTracking).not.toHaveBeenCalled()
         })
 
         it('marks terminal starting while switching models to avoid duplicate launches', async () => {
@@ -316,12 +404,14 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
             expect(markSpy).toHaveBeenCalledWith('test-terminal-top')
-            expect(clearSpy).not.toHaveBeenCalled()
+            expect(clearSpy).toHaveBeenCalledWith(['test-terminal-top'])
 
             markSpy.mockRestore()
             clearSpy.mockRestore()
@@ -344,7 +434,9 @@ describe('useSessionManagement', () => {
                     'claude',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -367,7 +459,9 @@ describe('useSessionManagement', () => {
                     'opencode',
                     false,
                     selection,
-                    mockTerminals
+                    mockTerminals,
+                    mockClearTerminalTracking,
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -410,7 +504,9 @@ describe('useSessionManagement', () => {
                         'claude',
                         false,
                         selection,
-                        mockTerminals
+                        mockTerminals,
+                        mockClearTerminalTracking,
+                        mockClearTerminalStartedTracking
                     )
                 ).rejects.toThrow('Switch error')
             })
@@ -573,7 +669,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Agent type update failed')
                 })
@@ -595,7 +693,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Terminal check failed')
                 })
@@ -618,7 +718,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Close terminal failed')
                 })
@@ -643,7 +745,9 @@ describe('useSessionManagement', () => {
                             'claude',
                             false,
                             selection,
-                            mockTerminals
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
                         )
                     ).rejects.toThrow('Orchestrator restart failed')
                 })

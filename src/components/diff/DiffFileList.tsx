@@ -22,6 +22,8 @@ import { FileTree } from './FileTree'
 import type { FileNode, FolderNode, TreeNode } from '../../utils/folderTree'
 import { TERMINAL_FILE_DRAG_TYPE, type TerminalFileDragPayload } from '../../common/dragTypes'
 import { BranchSelectorPopover } from './BranchSelectorPopover'
+import { CompareModeToggle } from './CompareModeToggle'
+import { diffCompareModeAtomFamily } from '../../store/atoms/diffCompareMode'
 import {
   buildCopyContextChangedFilesSelectionKey,
   buildCopyContextBundleSelectionKey,
@@ -67,6 +69,58 @@ const isPromiseLike = <T,>(value: unknown): value is PromiseLike<T> => {
   return Boolean(value) && typeof (value as PromiseLike<T>).then === 'function'
 }
 
+type BranchInfo = {
+  baseBranch: string
+  baseCommit: string
+  headCommit: string
+}
+
+type EmptyStateParams = {
+  isCommander: boolean
+  sessionName: string | null
+  compareMode: 'merge_base' | 'unpushed_only'
+  branchInfo: BranchInfo | null
+}
+
+const getHeaderTitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+  if (isCommander && !sessionName) {
+    return 'Uncommitted Changes'
+  }
+  if (compareMode === 'unpushed_only') {
+    return 'Local changes (since last push)'
+  }
+  if (branchInfo?.baseCommit) {
+    return `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+  }
+  return `Changes from ${branchInfo?.baseBranch || 'base'}`
+}
+
+const getEmptyStateTitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+  if (isCommander && !sessionName) {
+    return 'No uncommitted changes'
+  }
+  if (compareMode === 'unpushed_only') {
+    return 'No local changes'
+  }
+  if (branchInfo?.baseCommit) {
+    return `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+  }
+  return `No changes from ${branchInfo?.baseBranch || 'base'}`
+}
+
+const getEmptyStateSubtitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+  if (isCommander && !sessionName) {
+    return 'Your working directory is clean'
+  }
+  if (compareMode === 'unpushed_only') {
+    return 'All changes have been pushed to remote'
+  }
+  if (branchInfo?.baseCommit === branchInfo?.headCommit) {
+    return `You are at the base commit (${branchInfo?.baseCommit})`
+  }
+  return `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
+}
+
 const collectFilePathsFromTreeNode = (node: TreeNode, result: string[]) => {
   if (node.type === 'file') {
     result.push(node.path)
@@ -100,7 +154,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   } | null>(null)
   const [hasLoadedInitialResult, setHasLoadedInitialResult] = useState(false)
 
-  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null) ?? null
+  const compareMode = useAtomValue(diffCompareModeAtomFamily(sessionName ?? 'no-session'))
   const [isResetting, setIsResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
@@ -254,11 +309,11 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   }, [allFilePaths, normalizeSelectedForCopyContext, setCopyContextSelection, showCopyContextControls])
   
   // Use refs to track current values without triggering effect recreations
-  const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander })
-  currentPropsRef.current = { sessionNameOverride, selection, isCommander }
+  const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander, compareMode })
+  currentPropsRef.current = { sessionNameOverride, selection, isCommander, compareMode }
   
   // Store the load function in a ref so it doesn't change between renders
-  const loadChangedFilesRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const loadChangedFilesRef = useRef<(modeOverride?: 'merge_base' | 'unpushed_only') => Promise<void>>(() => Promise.resolve())
   const cancelledSessionsRef = useRef<Set<string>>(new Set())
   
   const getSessionKey = (session: string | null | undefined, commander: boolean | undefined) => {
@@ -267,7 +322,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     return `session:${session}`
   }
 
-  loadChangedFilesRef.current = () => {
+  loadChangedFilesRef.current = (modeOverride?: 'merge_base' | 'unpushed_only') => {
     const loadPromise = (async () => {
       const { sessionNameOverride: overrideSnapshot, selection: selectionSnapshot, isCommander: commanderSnapshot } = currentPropsRef.current
       const targetSession = overrideSnapshot ?? (selectionSnapshot.kind === 'session' ? selectionSnapshot.payload : null)
@@ -351,8 +406,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           return
         }
         
+        const effectiveCompareMode = modeOverride ?? currentPropsRef.current.compareMode
         const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit], sessionData] = await Promise.all([
-          invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName: currentSession }),
+          invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, {
+            sessionName: currentSession,
+            compareMode: effectiveCompareMode,
+          }),
           invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: currentSession }),
           invoke<string>(TauriCommands.GetBaseBranchName, { sessionName: currentSession }),
           invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: currentSession }),
@@ -360,8 +419,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         ])
         
         // Check if results actually changed to avoid unnecessary re-renders
-        // Include session name in signature to ensure different sessions don't share cached results
-        const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}-${baseBranch}`
+        // Include session name and compare mode in signature to ensure different sessions/modes don't share cached results
+        const resultSignature = `session-${currentSession}-${effectiveCompareMode}-${changedFiles.length}-${changedFiles.map(serializeChangedFileSignature).join(',')}-${currentBranch}-${baseBranch}`
 
         const cachedPayload = {
           files: changedFiles,
@@ -443,8 +502,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   }
   
   // Stable function that calls the ref
-  const loadChangedFiles = useCallback(async () => {
-    await loadChangedFilesRef.current?.()
+  const loadChangedFiles = useCallback(async (modeOverride?: 'merge_base' | 'unpushed_only') => {
+    await loadChangedFilesRef.current?.(modeOverride)
   }, [])
 
   // Path resolver used by top bar now; no local button anymore
@@ -602,12 +661,19 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
       try {
         eventUnlisten = await listenEvent(SchaltEvent.FileChanges, (event) => {
           // CRITICAL: Only update if this event is for the currently selected session
-          const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentCommander } = currentPropsRef.current
+          const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentCommander, compareMode: currentCompareMode } = currentPropsRef.current
           const currentlySelectedSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
           const commanderSelected = currentCommander && currentSelection.kind === 'orchestrator'
           const isSessionMatch = Boolean(currentlySelectedSession) && event.session_name === currentlySelectedSession
           const isCommanderMatch = commanderSelected && event.session_name === ORCHESTRATOR_SESSION_NAME
           if (!isSessionMatch && !isCommanderMatch) {
+            return
+          }
+
+          // If user has unpushed_only mode selected, we need to re-fetch with that mode
+          // because the backend file watcher always sends files computed with merge_base mode
+          if (currentCompareMode === 'unpushed_only' && !isCommanderMatch) {
+            void loadChangedFiles('unpushed_only')
             return
           }
 
@@ -924,11 +990,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         <div className="flex items-center justify-between pr-12">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {isCommander && !sessionName 
-                ? 'Uncommitted Changes' 
-                : branchInfo?.baseCommit 
-                  ? `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
-                  : `Changes from ${branchInfo?.baseBranch || 'base'}`}
+              {getHeaderTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
             </span>
             {branchInfo && !isCommander && sessionName && (
               <>
@@ -950,6 +1012,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             )}
           </div>
           <div className="flex items-center gap-3">
+            {branchInfo && !isCommander && sessionName && (
+              <CompareModeToggle
+                sessionName={sessionName}
+                onModeChange={(newMode) => void loadChangedFiles(newMode)}
+              />
+            )}
             {branchInfo && files.length > 0 && (
               <div className="text-xs text-slate-500">
                 {files.length} files changed
@@ -1055,19 +1123,10 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           <div className="text-center">
             <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
             <div className="mb-1">
-              {isCommander && !sessionName 
-                ? 'No uncommitted changes' 
-                : branchInfo?.baseCommit
-                  ? `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
-                  : `No changes from ${branchInfo?.baseBranch || 'base'}`}
+              {getEmptyStateTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
             </div>
             <div className="text-xs">
-              {isCommander && !sessionName 
-                ? 'Your working directory is clean'
-                : branchInfo?.baseCommit === branchInfo?.headCommit
-                  ? `You are at the base commit (${branchInfo?.baseCommit})` 
-                  : `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
-              }
+              {getEmptyStateSubtitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
             </div>
           </div>
         </div>
