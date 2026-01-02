@@ -103,7 +103,7 @@ export const lightTheme: ThemeDefinition = {
       blue: lightAccent.blue.DEFAULT,
       magenta: lightAccent.purple.DEFAULT,
       cyan: lightAccent.cyan.DEFAULT,
-      white: '#eaeef2',
+      white: '#57606a',
       brightBlack: '#656d76',
       brightRed: lightAccent.red.light,
       brightGreen: lightAccent.green.light,
@@ -111,7 +111,7 @@ export const lightTheme: ThemeDefinition = {
       brightBlue: lightAccent.blue.light,
       brightMagenta: lightAccent.purple.light,
       brightCyan: lightAccent.cyan.light,
-      brightWhite: '#ffffff',
+      brightWhite: '#24292f',
     },
   },
 }

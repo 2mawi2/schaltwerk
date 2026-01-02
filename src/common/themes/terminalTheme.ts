@@ -9,6 +9,7 @@ export function buildTerminalTheme(themeId: ResolvedTheme): ITheme {
     foreground: colors.foreground,
     cursor: colors.cursor,
     cursorAccent: colors.background,
+    selectionBackground: colors.selection,
     black: colors.black,
     red: colors.red,
     green: colors.green,

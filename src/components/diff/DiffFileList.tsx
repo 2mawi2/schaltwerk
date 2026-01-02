@@ -5,7 +5,6 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../hooks/useSelection'
 import { useOpenInEditor } from '../../hooks/useOpenInEditor'
 import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard, VscGoToFile } from 'react-icons/vsc'
-import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
@@ -832,7 +831,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   
   const getFileIcon = (changeType: string, filePath: string) => {
     if (isBinaryFileByExtension(filePath)) {
-      return <VscFileBinary className="text-slate-400" />
+      return <VscFileBinary style={{ color: 'var(--color-text-secondary)' }} />
     }
     
     switch (changeType) {
@@ -893,14 +892,10 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     return (
       <div
         key={node.path}
-        className={clsx(
-          'group flex items-start gap-3 rounded cursor-pointer',
-          'hover:bg-slate-800/50',
-          selectedFile === node.file.path && 'bg-slate-800/30'
-        )}
+        className="group flex items-start gap-3 rounded cursor-pointer file-list-item"
+        data-selected={selectedFile === node.file.path ? 'true' : undefined}
         style={{ paddingLeft: `${depth * 12 + 12}px`, paddingTop: '4px', paddingBottom: '4px' }}
         onClick={() => handleFileClick(node.file)}
-        data-selected={selectedFile === node.file.path}
         data-file-path={node.file.path}
         draggable
         onDragStart={handleFileDragStart(node.file.path)}
@@ -940,7 +935,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           <button
             title="Open file in editor"
             aria-label={`Open ${node.file.path}`}
-            className="p-1 rounded hover:bg-slate-800"
+            className="p-1 rounded"
             style={{ color: 'var(--color-text-secondary)' }}
             onClick={(e) => {
               e.stopPropagation()
@@ -958,7 +953,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           <button
             title="Discard changes for this file"
             aria-label={`Discard ${node.file.path}`}
-            className="p-1 rounded hover:bg-slate-800 text-slate-300"
+            className="p-1 rounded"
+            style={{ color: 'var(--color-text-secondary)' }}
             onClick={(e) => {
               e.stopPropagation()
               setPendingDiscardFile(node.file.path)
@@ -986,7 +982,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
   return (
     <>
     <div className="h-full flex flex-col bg-panel">
-      <div className="px-3 py-2 border-b border-slate-800 relative">
+      <div className="px-3 py-2 relative" style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
         <div className="flex items-center justify-between pr-12">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
@@ -994,7 +990,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             </span>
             {branchInfo && !isCommander && sessionName && (
               <>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                   ({branchInfo.headCommit} → {branchInfo.baseCommit})
                 </span>
                 <BranchSelectorPopover
@@ -1006,7 +1002,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               </>
             )}
             {branchInfo && isCommander && (
-              <span className="text-xs text-slate-500">
+              <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                 (on {branchInfo.currentBranch})
               </span>
             )}
@@ -1019,7 +1015,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
               />
             )}
             {branchInfo && files.length > 0 && (
-              <div className="text-xs text-slate-500">
+              <div className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                 {files.length} files changed
               </div>
             )}
@@ -1052,7 +1048,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
                     aria-label="Reset session"
                     onClick={files.length > 0 ? confirmReset : undefined}
                     disabled={files.length === 0}
-                    className={`p-1 rounded ${files.length > 0 ? 'hover:bg-slate-800' : 'opacity-50 cursor-not-allowed'}`}
+                    className={`p-1 rounded ${files.length > 0 ? '' : 'opacity-50 cursor-not-allowed'}`}
                   >
                     <VscDiscard className="text-lg" />
                   </button>
@@ -1065,7 +1061,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
       
       {sessionName === null && !isCommander ? (
         <div className="flex-1 flex items-center justify-center p-4">
-          <div className="text-center text-slate-500">
+          <div className="text-center" style={{ color: 'var(--color-text-tertiary)' }}>
             <div className="text-sm">No session selected</div>
             <div className="text-xs mt-1">Select a session to view changes</div>
           </div>
@@ -1119,7 +1115,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-500">
+        <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--color-text-tertiary)' }}>
           <div className="text-center">
             <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
             <div className="mb-1">

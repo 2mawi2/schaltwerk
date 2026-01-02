@@ -542,10 +542,10 @@
   --color-text-primary-rgb: 31 35 40;
   --color-text-secondary: #656d76;
   --color-text-secondary-rgb: 101 109 118;
-  --color-text-tertiary: #8b949e;
-  --color-text-tertiary-rgb: 139 148 158;
-  --color-text-muted: #8b949e;
-  --color-text-muted-rgb: 139 148 158;
+  --color-text-tertiary: #6e7781;
+  --color-text-tertiary-rgb: 110 119 129;
+  --color-text-muted: #6e7781;
+  --color-text-muted-rgb: 110 119 129;
   --color-text-inverse: #ffffff;
   --color-text-inverse-rgb: 255 255 255;
 
@@ -931,8 +931,8 @@
   --color-tab-inactive-text: #656d76;
   --color-tab-inactive-hover-bg: rgba(209, 217, 224, 0.6);
   --color-tab-inactive-hover-text: #1f2328;
-  --color-tab-active-bg: rgba(9, 105, 218, 0.1);
-  --color-tab-active-text: #1f2328;
+  --color-tab-active-bg: rgba(9, 105, 218, 0.12);
+  --color-tab-active-text: #0550ae;
   --color-tab-active-indicator: #0969da;
   --color-tab-close-bg: transparent;
   --color-tab-close-hover-bg: rgba(140, 149, 159, 0.3);
@@ -943,34 +943,34 @@
   --color-tab-running-indicator: #0969da;
   --color-tab-running-glow: rgba(9, 105, 218, 0.25);
 
-  /* Tab Focus Colors (cyan accent for light theme - matches dark mode) */
-  --color-tab-focus-inactive-text: #0891b2;
-  --color-tab-focus-inactive-hover-bg: rgba(8, 145, 178, 0.12);
-  --color-tab-focus-inactive-hover-text: #0e7490;
-  --color-tab-focus-active-bg: rgba(8, 145, 178, 0.15);
-  --color-tab-focus-active-text: #0e7490;
+  /* Tab Focus Colors (blue accent for light theme - matches selection system) */
+  --color-tab-focus-inactive-text: #0969da;
+  --color-tab-focus-inactive-hover-bg: rgba(9, 105, 218, 0.08);
+  --color-tab-focus-inactive-hover-text: #0550ae;
+  --color-tab-focus-active-bg: rgba(9, 105, 218, 0.15);
+  --color-tab-focus-active-text: #0550ae;
 
-  /* Icon Button Colors (light mode - semi-transparent with border) */
-  --icon-button-default-bg: rgba(209, 217, 224, 0.5);
-  --icon-button-default-hover-bg: rgba(209, 217, 224, 0.8);
-  --icon-button-default-text: #57606a;
-  --icon-button-default-border: rgba(140, 149, 159, 0.4);
-  --icon-button-default-hover-border: rgba(140, 149, 159, 0.6);
-  --icon-button-success-bg: rgba(22, 163, 74, 0.15);
-  --icon-button-success-hover-bg: rgba(22, 163, 74, 0.25);
-  --icon-button-success-text: #1a7f37;
-  --icon-button-success-border: rgba(22, 163, 74, 0.35);
-  --icon-button-success-hover-border: rgba(22, 163, 74, 0.5);
-  --icon-button-danger-bg: rgba(220, 38, 38, 0.12);
-  --icon-button-danger-hover-bg: rgba(220, 38, 38, 0.2);
-  --icon-button-danger-text: #cf222e;
-  --icon-button-danger-border: rgba(220, 38, 38, 0.35);
-  --icon-button-danger-hover-border: rgba(220, 38, 38, 0.5);
-  --icon-button-warning-bg: rgba(217, 119, 6, 0.15);
-  --icon-button-warning-hover-bg: rgba(217, 119, 6, 0.25);
-  --icon-button-warning-text: #9a6700;
-  --icon-button-warning-border: rgba(217, 119, 6, 0.35);
-  --icon-button-warning-hover-border: rgba(217, 119, 6, 0.5);
+  /* Icon Button Colors (light mode - higher opacity for better readability) */
+  --icon-button-default-bg: rgba(209, 217, 224, 0.7);
+  --icon-button-default-hover-bg: rgba(209, 217, 224, 0.9);
+  --icon-button-default-text: #424a53;
+  --icon-button-default-border: rgba(140, 149, 159, 0.5);
+  --icon-button-default-hover-border: rgba(140, 149, 159, 0.7);
+  --icon-button-success-bg: rgba(22, 163, 74, 0.25);
+  --icon-button-success-hover-bg: rgba(22, 163, 74, 0.35);
+  --icon-button-success-text: #116329;
+  --icon-button-success-border: rgba(22, 163, 74, 0.5);
+  --icon-button-success-hover-border: rgba(22, 163, 74, 0.65);
+  --icon-button-danger-bg: rgba(220, 38, 38, 0.2);
+  --icon-button-danger-hover-bg: rgba(220, 38, 38, 0.3);
+  --icon-button-danger-text: #a40e26;
+  --icon-button-danger-border: rgba(220, 38, 38, 0.5);
+  --icon-button-danger-hover-border: rgba(220, 38, 38, 0.65);
+  --icon-button-warning-bg: rgba(217, 119, 6, 0.25);
+  --icon-button-warning-hover-bg: rgba(217, 119, 6, 0.35);
+  --icon-button-warning-text: #7d4e00;
+  --icon-button-warning-border: rgba(217, 119, 6, 0.5);
+  --icon-button-warning-hover-border: rgba(217, 119, 6, 0.65);
 }
 
 /* ==========================================================================
@@ -1341,4 +1341,55 @@
 
 [data-theme="light"] .hover\:text-blue-300:hover {
   color: #0550ae !important;
+}
+
+/* ==========================================================================
+   Diff Viewer Light Theme - Row Backgrounds & Indicators
+   ========================================================================== */
+
+/* Added line backgrounds - stronger green for better visibility */
+[data-theme="light"] .bg-green-900\/30 {
+  background-color: rgba(22, 163, 74, 0.18) !important;
+}
+
+[data-theme="light"] .bg-green-900\/40,
+[data-theme="light"] .hover\:bg-green-900\/40:hover {
+  background-color: rgba(22, 163, 74, 0.28) !important;
+}
+
+/* Removed line backgrounds - stronger red for better visibility */
+[data-theme="light"] .bg-red-900\/30 {
+  background-color: rgba(220, 38, 38, 0.15) !important;
+}
+
+[data-theme="light"] .bg-red-900\/40,
+[data-theme="light"] .hover\:bg-red-900\/40:hover {
+  background-color: rgba(220, 38, 38, 0.22) !important;
+}
+
+/* +/- indicator text colors - darker for light backgrounds */
+[data-theme="light"] .text-green-400 {
+  color: #16a34a !important;
+}
+
+[data-theme="light"] .text-red-400 {
+  color: #dc2626 !important;
+}
+
+/* Left border indicators - darker for light backgrounds */
+[data-theme="light"] .bg-green-400 {
+  background-color: #16a34a !important;
+}
+
+[data-theme="light"] .bg-red-400 {
+  background-color: #dc2626 !important;
+}
+
+/* File list item hover and selected states */
+.file-list-item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.file-list-item[data-selected="true"] {
+  background-color: var(--color-bg-active);
 }
