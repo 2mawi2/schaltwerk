@@ -67,12 +67,15 @@ export function ThemeSettings() {
               {option.experimental && (
                 <span
                   style={{
-                    fontSize: theme.fontSize.caption,
+                    fontSize: '10px',
                     color: 'var(--color-accent-amber)',
                     fontWeight: 500,
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    backgroundColor: 'var(--color-accent-amber-bg)',
                   }}
                 >
-                  β
+                  Experimental
                 </span>
               )}
             </button>
