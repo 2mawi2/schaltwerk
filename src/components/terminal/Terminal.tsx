@@ -19,7 +19,6 @@ import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
-import { projectPathAtom } from '../../store/atoms/project'
 import { resolvedThemeAtom } from '../../store/atoms/theme'
 import { LocalPreviewWatcher } from '../../features/preview/localPreview'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
@@ -222,7 +221,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [terminalId, logScrollSnapshot]);
     const getPreviewState = useAtomValue(previewStateAtom)
     const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
-    const projectPath = useAtomValue(projectPathAtom)
     const resolvedTheme = useAtomValue(resolvedThemeAtom)
     const resolvedThemeRef = useRef(resolvedTheme)
     resolvedThemeRef.current = resolvedTheme
