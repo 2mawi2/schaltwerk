@@ -61,8 +61,46 @@ export function handleMarkdownPaste(event: ClipboardEvent, toast: OptionalToastA
   return true
 }
 
-const editorColors = theme.colors.editor
-const syntaxColors = theme.colors.syntax
+const editorColors = {
+  background: 'var(--color-editor-background)',
+  text: 'var(--color-editor-text)',
+  caret: 'var(--color-editor-caret)',
+  gutterText: 'var(--color-editor-gutter-text)',
+  gutterActiveText: 'var(--color-editor-gutter-active-text)',
+  activeLine: 'var(--color-editor-active-line)',
+  inlineCodeBg: 'var(--color-editor-inline-code-bg)',
+  codeBlockBg: 'var(--color-editor-code-block-bg)',
+  blockquoteBorder: 'var(--color-editor-blockquote-border)',
+  lineRule: 'var(--color-editor-line-rule)',
+  strikethrough: 'var(--color-editor-strikethrough)',
+  selection: 'var(--color-editor-selection)',
+  focusedSelection: 'var(--color-editor-selection-focused)',
+  selectionAlt: 'var(--color-editor-selection-alt)',
+}
+
+const syntaxColors = {
+  default: 'var(--color-syntax-default)',
+  comment: 'var(--color-syntax-comment)',
+  variable: 'var(--color-syntax-variable)',
+  number: 'var(--color-syntax-number)',
+  type: 'var(--color-syntax-type)',
+  keyword: 'var(--color-syntax-keyword)',
+  string: 'var(--color-syntax-string)',
+  function: 'var(--color-syntax-function)',
+  operator: 'var(--color-syntax-operator)',
+  punctuation: 'var(--color-syntax-punctuation)',
+  tag: 'var(--color-syntax-tag)',
+  attribute: 'var(--color-syntax-attribute)',
+  selector: 'var(--color-syntax-selector)',
+  property: 'var(--color-syntax-property)',
+  bracket: 'var(--color-syntax-bracket)',
+  constant: 'var(--color-syntax-constant)',
+  decorator: 'var(--color-syntax-decorator)',
+  regex: 'var(--color-syntax-regex)',
+  escape: 'var(--color-syntax-escape)',
+  emphasis: 'var(--color-syntax-emphasis)',
+  highlight: 'var(--color-syntax-highlight)',
+}
 
 const customTheme = EditorView.theme({
   '&': {
@@ -133,6 +171,10 @@ const customTheme = EditorView.theme({
   },
   '.cm-panels-bottom': {
     backgroundColor: editorColors.background,
+  },
+  '.cm-placeholder': {
+    color: 'var(--color-text-muted)',
+    borderBottomColor: 'var(--color-editor-placeholder-border)',
   },
 }, { dark: true })
 

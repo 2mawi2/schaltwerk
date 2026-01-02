@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import clsx from 'clsx'
-import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { validateDisplayName } from '../../utils/sanitizeName'
 
@@ -124,7 +123,7 @@ export function InlineEditableText({
           )}
           style={{
             ...textStyle,
-            color: theme.colors.text.primary,
+            color: 'var(--color-text-primary)',
           }}
           onClick={(e) => e.stopPropagation()}
         />
@@ -132,7 +131,7 @@ export function InlineEditableText({
           <span
             className="h-3 w-3 border-2 border-solid rounded-full animate-spin flex-shrink-0"
             style={{
-              borderColor: theme.colors.accent.blue.border,
+              borderColor: 'var(--color-accent-blue-border)',
               borderTopColor: 'transparent',
             }}
           />

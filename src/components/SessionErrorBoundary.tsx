@@ -22,21 +22,21 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: theme.colors.background.secondary,
-          color: theme.colors.text.primary,
+          backgroundColor: 'var(--color-bg-secondary)',
+          color: 'var(--color-text-primary)',
           padding: '2rem',
           boxSizing: 'border-box'
         }}
       >
         <VscFolderOpened 
           size={48} 
-          color={theme.colors.accent.amber.light}
+          color="var(--color-accent-amber-light)"
           style={{ marginBottom: '1rem' }}
         />
         
         <h3 style={{ 
           fontSize: theme.fontSize.heading,
-          color: theme.colors.text.primary,
+          color: 'var(--color-text-primary)',
           marginBottom: '0.5rem',
           textAlign: 'center'
         }}>
@@ -46,7 +46,7 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
         {sessionName && (
           <p style={{ 
             fontSize: theme.fontSize.caption,
-            color: theme.colors.text.tertiary,
+            color: 'var(--color-text-tertiary)',
             marginBottom: '1rem',
             textAlign: 'center'
           }}>
@@ -56,7 +56,7 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
         
         <p style={{ 
           fontSize: theme.fontSize.body,
-          color: theme.colors.text.secondary,
+          color: 'var(--color-text-secondary)',
           marginBottom: '1.5rem',
           textAlign: 'center',
           maxWidth: '400px'
@@ -72,7 +72,7 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
           <summary style={{ 
             cursor: 'pointer',
             fontSize: theme.fontSize.caption,
-            color: theme.colors.text.muted
+            color: 'var(--color-text-muted)'
           }}>
             Error details
           </summary>
@@ -80,7 +80,7 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
             fontSize: theme.fontSize.caption,
             marginTop: '0.5rem',
             padding: '0.5rem',
-            backgroundColor: theme.colors.background.primary,
+            backgroundColor: 'var(--color-bg-primary)',
             borderRadius: '0.25rem',
             overflow: 'auto',
             whiteSpace: 'pre-wrap',
@@ -100,18 +100,18 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
               gap: '0.5rem',
               padding: '0.5rem 1rem',
               fontSize: theme.fontSize.button,
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.inverse,
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-inverse)',
               border: 'none',
               borderRadius: '0.25rem',
               cursor: 'pointer',
               transition: 'background-color 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+              e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+              e.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
             }}
           >
             <VscRefresh size={16} />
@@ -124,14 +124,14 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
               padding: '0.5rem 1rem',
               fontSize: theme.fontSize.button,
               backgroundColor: 'transparent',
-              color: theme.colors.text.secondary,
-              border: `1px solid ${theme.colors.border.default}`,
+              color: 'var(--color-text-secondary)',
+              border: '1px solid var(--color-border-default)',
               borderRadius: '0.25rem',
               cursor: 'pointer',
               transition: 'background-color 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = theme.colors.background.hover
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent'

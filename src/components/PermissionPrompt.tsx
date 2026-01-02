@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useFolderPermission } from '../hooks/usePermissions'
-import { theme } from '../common/theme'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 
@@ -195,11 +194,11 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
     return (
       <div
         className="fixed inset-0 flex items-center justify-center z-50"
-        style={{ backgroundColor: theme.colors.overlay.backdrop }}
+        style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
       >
         <div
           className="p-6 rounded-lg shadow-xl max-w-md mx-4"
-          style={{ backgroundColor: theme.colors.surface.modal }}
+          style={{ backgroundColor: 'var(--color-surface-modal)' }}
         >
           <h2 className="text-xl font-semibold mb-4 text-white">Folder Access Required</h2>
           
@@ -246,26 +245,26 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           <div
             className="mt-6 p-4 rounded-lg space-y-2"
             style={{
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: '1px solid var(--color-border-subtle)',
             }}
           >
             <h3
               className="text-sm font-semibold"
-              style={{ color: theme.colors.text.primary }}
+              style={{ color: 'var(--color-text-primary)' }}
             >
               Having trouble granting access?
             </h3>
             <p
               className="text-sm leading-relaxed"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
             >
               Enable Documents access for {diagnostics?.appDisplayName ?? 'Schaltwerk'} in System Settings &gt; Privacy &amp; Security &gt; Files and Folders, then return here and click Try Again.
             </p>
             {installLabel && (
               <p
                 className="text-sm"
-                style={{ color: theme.colors.text.secondary }}
+                style={{ color: 'var(--color-text-secondary)' }}
               >
                 Detected install: {installLabel}
               </p>
@@ -273,7 +272,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {installGuidance && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.text.muted }}
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 {installGuidance}
               </p>
@@ -281,7 +280,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {diagnostics && (
               <p
                 className="text-xs break-all"
-                style={{ color: theme.colors.text.muted }}
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 Current executable: {diagnostics.executablePath}
               </p>
@@ -289,7 +288,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {diagnosticsError && (
               <p
                 className="text-xs"
-                style={{ color: theme.colors.status.warning }}
+                style={{ color: 'var(--color-status-warning)' }}
               >
                 {diagnosticsError}
               </p>
@@ -301,9 +300,9 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{
-                  backgroundColor: theme.colors.accent.blue.bg,
-                  border: `1px solid ${theme.colors.accent.blue.border}`,
-                  color: theme.colors.accent.blue.DEFAULT,
+                  backgroundColor: 'var(--color-accent-blue-bg)',
+                  border: '1px solid var(--color-accent-blue-border)',
+                  color: 'var(--color-accent-blue)',
                   opacity: supportBusy && supportBusy !== 'open-settings' ? 0.6 : 1,
                 }}
               >
@@ -314,9 +313,9 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 disabled={supportBusy !== null}
                 className="flex-1 px-4 py-2 rounded transition-colors"
                 style={{
-                  backgroundColor: theme.colors.accent.violet.bg,
-                  border: `1px solid ${theme.colors.accent.violet.border}`,
-                  color: theme.colors.accent.violet.DEFAULT,
+                  backgroundColor: 'var(--color-accent-violet-bg)',
+                  border: '1px solid var(--color-accent-violet-border)',
+                  color: 'var(--color-accent-violet)',
                   opacity: supportBusy && supportBusy !== 'reset-permission' ? 0.6 : 1,
                 }}
               >
@@ -327,7 +326,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {supportMessage && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.status.success }}
+                style={{ color: 'var(--color-status-success)' }}
               >
                 {supportMessage}
               </p>
@@ -335,7 +334,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
             {supportError && (
               <p
                 className="text-xs leading-relaxed"
-                style={{ color: theme.colors.status.error }}
+                style={{ color: 'var(--color-status-error)' }}
               >
                 {supportError}
               </p>

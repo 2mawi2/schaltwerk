@@ -48,7 +48,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
     const colorItems = useMemo<DropdownItem[]>(() => {
         const items: DropdownItem[] = [
             { key: 'none', label: 'None' },
-            { key: 'separator', label: <div style={{ height: 1, backgroundColor: theme.colors.border.subtle }} />, disabled: true },
+            { key: 'separator', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             ...EPIC_COLOR_KEYS.map((key) => {
                 const scheme = getEpicAccentScheme(key)
                 return {
@@ -57,7 +57,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                         <span className="flex items-center gap-2">
                             <span
                                 className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: scheme?.DEFAULT ?? theme.colors.text.muted }}
+                                style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }}
                             />
                             <span>{labelForEpicColor(key)}</span>
                         </span>
@@ -109,9 +109,9 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                 onClick={onClose}
                 className="px-3 h-9 rounded border"
                 style={{
-                    backgroundColor: theme.colors.background.elevated,
-                    color: theme.colors.text.primary,
-                    borderColor: theme.colors.border.subtle,
+                    backgroundColor: 'var(--color-bg-elevated)',
+                    color: 'var(--color-text-primary)',
+                    borderColor: 'var(--color-border-subtle)',
                 }}
             >
                 Cancel
@@ -122,7 +122,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                 disabled={saving}
                 className="px-3 h-9 rounded text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 style={{
-                    backgroundColor: theme.colors.accent.blue.DEFAULT,
+                    backgroundColor: 'var(--color-accent-blue)',
                 }}
             >
                 {submitLabel}
@@ -150,22 +150,22 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                 }}
             >
                 <div className="flex flex-col gap-1">
-                    <label style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.caption }}>Name</label>
+                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>Name</label>
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full px-3 py-2 rounded border"
                         style={{
-                            backgroundColor: theme.colors.background.secondary,
-                            color: theme.colors.text.primary,
-                            borderColor: error ? theme.colors.accent.red.border : theme.colors.border.subtle,
+                            backgroundColor: 'var(--color-bg-secondary)',
+                            color: 'var(--color-text-primary)',
+                            borderColor: error ? 'var(--color-accent-red-border)' : 'var(--color-border-subtle)',
                         }}
                         placeholder="billing-v2"
                     />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.caption }}>Color (optional)</label>
+                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>Color (optional)</label>
                     <Dropdown
                         open={colorMenuOpen}
                         onOpenChange={setColorMenuOpen}
@@ -180,19 +180,19 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                                 onClick={toggle}
                                 className="w-full px-3 py-2 rounded border flex items-center justify-between"
                                 style={{
-                                    backgroundColor: theme.colors.background.secondary,
-                                    color: theme.colors.text.primary,
-                                    borderColor: theme.colors.border.subtle,
+                                    backgroundColor: 'var(--color-bg-secondary)',
+                                    color: 'var(--color-text-primary)',
+                                    borderColor: 'var(--color-border-subtle)',
                                 }}
                             >
                                 <span className="flex items-center gap-2">
                                     <span
                                         className="w-2 h-2 rounded-full"
-                                        style={{ backgroundColor: selectedScheme?.DEFAULT ?? theme.colors.text.muted }}
+                                        style={{ backgroundColor: selectedScheme?.DEFAULT ?? 'var(--color-text-muted)' }}
                                     />
                                     <span>{colorLabel}</span>
                                 </span>
-                                <span style={{ color: theme.colors.text.muted }}>▾</span>
+                                <span style={{ color: 'var(--color-text-muted)' }}>▾</span>
                             </button>
                         )}
                     </Dropdown>
@@ -202,9 +202,9 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                     <div
                         className="rounded px-3 py-2 border"
                         style={{
-                            backgroundColor: theme.colors.accent.red.bg,
-                            borderColor: theme.colors.accent.red.border,
-                            color: theme.colors.accent.red.light,
+                            backgroundColor: 'var(--color-accent-red-bg)',
+                            borderColor: 'var(--color-accent-red-border)',
+                            color: 'var(--color-accent-red-light)',
                             fontSize: theme.fontSize.caption,
                         }}
                     >

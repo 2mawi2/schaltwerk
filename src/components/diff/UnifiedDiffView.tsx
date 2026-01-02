@@ -59,7 +59,6 @@ import { ReviewCommentThread, ReviewComment } from "../../types/review";
 import { listenEvent, SchaltEvent } from "../../common/eventSystem";
 import { ORCHESTRATOR_SESSION_NAME } from "../../constants/sessions";
 import { createGuardedLoader } from "./guardedLoader";
-import { theme } from "../../common/theme";
 import { ResizableModal } from "../shared/ResizableModal";
 import { computeRenderOrder } from "./virtualization";
 import type { HistoryDiffContext, LineInfo } from "../../types/diff";
@@ -3379,24 +3378,24 @@ export function UnifiedDiffView({
             aria-label="Resize file list"
             onMouseDown={beginSidebarResize}
             className="flex items-center justify-center"
-            style={{
-              width: "6px",
-              cursor: "col-resize",
-              backgroundColor: isResizingSidebar
-                ? theme.colors.accent.blue.DEFAULT
-                : theme.colors.border.subtle,
-            }}
-          >
-            <div
               style={{
-                width: "2px",
-                height: "40px",
-                borderRadius: "9999px",
-                backgroundColor: theme.colors.border.strong,
-                opacity: 0.6,
+                width: "6px",
+                cursor: "col-resize",
+                backgroundColor: isResizingSidebar
+                ? "var(--color-accent-blue)"
+                : "var(--color-border-subtle)",
               }}
-            />
-          </div>
+            >
+              <div
+                style={{
+                  width: "2px",
+                  height: "40px",
+                  borderRadius: "9999px",
+                  backgroundColor: "var(--color-border-strong)",
+                  opacity: 0.6,
+                }}
+              />
+            </div>
           <div
             className={`flex-1 flex flex-col overflow-hidden relative bg-slate-900/30 ${className || ""}`}
           >
@@ -3543,8 +3542,8 @@ export function UnifiedDiffView({
                   width: "6px",
                   cursor: "col-resize",
                   backgroundColor: isResizingSidebar
-                    ? theme.colors.accent.blue.DEFAULT
-                    : theme.colors.border.subtle,
+                    ? "var(--color-accent-blue)"
+                    : "var(--color-border-subtle)",
                 }}
               >
                 <div
@@ -3552,7 +3551,7 @@ export function UnifiedDiffView({
                     width: "2px",
                     height: "40px",
                     borderRadius: "9999px",
-                    backgroundColor: theme.colors.border.strong,
+                    backgroundColor: "var(--color-border-strong)",
                     opacity: 0.6,
                   }}
                 />

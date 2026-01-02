@@ -2,7 +2,6 @@ import { memo } from 'react'
 import clsx from 'clsx'
 import { VscAdd } from 'react-icons/vsc'
 import type { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 
 interface SplitDiffLineRowProps {
   left: LineInfo
@@ -111,14 +110,14 @@ function SplitDiffLineRowComponent({
     onCodeContextMenu({ event, lineNumber: newLineNumber, side: 'new', content: rightContent })
   }
 
-  const leftBg = left.type === 'removed' ? theme.colors.diff.removedBg : undefined
-  const rightBg = right.type === 'added' ? theme.colors.diff.addedBg : undefined
+  const leftBg = left.type === 'removed' ? 'var(--color-diff-removed-bg)' : undefined
+  const rightBg = right.type === 'added' ? 'var(--color-diff-added-bg)' : undefined
 
-  const leftBorder = left.type === 'removed' ? theme.colors.accent.red.border : undefined
-  const rightBorder = right.type === 'added' ? theme.colors.accent.green.border : undefined
+  const leftBorder = left.type === 'removed' ? 'var(--color-accent-red-border)' : undefined
+  const rightBorder = right.type === 'added' ? 'var(--color-accent-green-border)' : undefined
 
   const rowStyle: React.CSSProperties | undefined = showFocusIndicator
-    ? { boxShadow: `inset 0 0 0 1px ${theme.colors.border.focus}` }
+    ? { boxShadow: 'inset 0 0 0 1px var(--color-border-focus)' }
     : undefined
 
   return (
@@ -146,8 +145,8 @@ function SplitDiffLineRowComponent({
               (showFocusIndicator || isOldSelected || isNewSelected) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             )}
             style={{
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.primary,
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-primary)',
             }}
             aria-label={`Select line ${primary.lineNum}`}
             title="Click to select line, drag to select range, or press Enter to comment"
@@ -160,14 +159,14 @@ function SplitDiffLineRowComponent({
       <td
         className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono"
         onContextMenu={handleOldLineContextMenu}
-        style={isOldSelected ? { backgroundColor: theme.colors.selection.bg } : undefined}
+        style={isOldSelected ? { backgroundColor: 'var(--color-selection-bg)' } : undefined}
         data-split-side="old"
       >
         {oldLineNumber ?? ''}
       </td>
       <td
         className="w-6 text-center select-none font-mono font-bold"
-        style={{ color: left.type === 'removed' ? theme.colors.diff.removedText : undefined }}
+        style={{ color: left.type === 'removed' ? 'var(--color-diff-removed-text)' : undefined }}
         data-split-side="old"
       >
         {left.type === 'removed' ? '-' : ''}
@@ -176,7 +175,7 @@ function SplitDiffLineRowComponent({
         className="px-2 py-0.5 font-mono text-sm relative align-top"
         onContextMenu={handleOldCodeContextMenu}
         style={{
-          backgroundColor: isOldSelected ? theme.colors.selection.bg : leftBg,
+          backgroundColor: isOldSelected ? 'var(--color-selection-bg)' : leftBg,
           borderLeft: leftBorder ? `3px solid ${leftBorder}` : undefined,
         }}
         data-split-side="old"
@@ -197,7 +196,7 @@ function SplitDiffLineRowComponent({
       <td
         className="w-px"
         style={{
-          backgroundColor: theme.colors.border.subtle,
+          backgroundColor: 'var(--color-border-subtle)',
         }}
       />
 
@@ -205,14 +204,14 @@ function SplitDiffLineRowComponent({
       <td
         className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono"
         onContextMenu={handleNewLineContextMenu}
-        style={isNewSelected ? { backgroundColor: theme.colors.selection.bg } : undefined}
+        style={isNewSelected ? { backgroundColor: 'var(--color-selection-bg)' } : undefined}
         data-split-side="new"
       >
         {newLineNumber ?? ''}
       </td>
       <td
         className="w-6 text-center select-none font-mono font-bold"
-        style={{ color: right.type === 'added' ? theme.colors.diff.addedText : undefined }}
+        style={{ color: right.type === 'added' ? 'var(--color-diff-added-text)' : undefined }}
         data-split-side="new"
       >
         {right.type === 'added' ? '+' : ''}
@@ -221,7 +220,7 @@ function SplitDiffLineRowComponent({
         className="px-2 py-0.5 font-mono text-sm relative align-top"
         onContextMenu={handleNewCodeContextMenu}
         style={{
-          backgroundColor: isNewSelected ? theme.colors.selection.bg : rightBg,
+          backgroundColor: isNewSelected ? 'var(--color-selection-bg)' : rightBg,
           borderLeft: rightBorder ? `3px solid ${rightBorder}` : undefined,
         }}
         data-split-side="new"

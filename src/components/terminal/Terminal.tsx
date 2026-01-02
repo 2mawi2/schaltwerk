@@ -19,11 +19,13 @@ import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai'
 import { previewStateAtom, setPreviewUrlActionAtom } from '../../store/atoms/preview'
+import { resolvedThemeAtom } from '../../store/atoms/theme'
 import { LocalPreviewWatcher } from '../../features/preview/localPreview'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { useTerminalConfig } from '../../hooks/useTerminalConfig';
-import { theme } from '../../common/theme';
+import { buildTerminalTheme } from '../../common/themes/terminalTheme'
+import type { ResolvedTheme } from '../../common/themes/types'
 import { isTuiAgent } from '../../types/session';
 import '@xterm/xterm/css/xterm.css';
 import './xtermOverrides.css';
@@ -219,6 +221,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [terminalId, logScrollSnapshot]);
     const getPreviewState = useAtomValue(previewStateAtom)
     const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
+    const resolvedTheme = useAtomValue(resolvedThemeAtom)
+    const resolvedThemeRef = useRef(resolvedTheme)
+    resolvedThemeRef.current = resolvedTheme
     const previewWatcherRef = useRef<LocalPreviewWatcher | null>(null)
     const previewLogStateRef = useRef<{ disabled: boolean; missing: boolean; ready: boolean }>({ disabled: false, missing: false, ready: false })
     const openFileFromTerminal = useCallback(async (text: string) => {
@@ -323,6 +328,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
 
     const terminal = useRef<XTerm | null>(null);
+    const applyTerminalTheme = useCallback((resolved: ResolvedTheme) => {
+        if (!terminal.current) return;
+        terminal.current.options.theme = buildTerminalTheme(resolved);
+        xtermWrapperRef.current?.refresh();
+    }, []);
     const onDataDisposableRef = useRef<IDisposable | null>(null);
     const onScrollDisposableRef = useRef<IDisposable | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -406,6 +416,18 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         return active === id;
     }, []);
+
+    useEffect(() => {
+        if (!hydrated) return;
+        applyTerminalTheme(resolvedTheme);
+    }, [resolvedTheme, applyTerminalTheme, hydrated]);
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.ThemeChanged, detail => {
+            applyTerminalTheme(detail.resolved);
+        });
+        return cleanup;
+    }, [applyTerminalTheme]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -1208,6 +1230,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         const currentConfig = terminalConfigRef.current;
+        const initialTheme = buildTerminalTheme(resolvedThemeRef.current);
 
         const initialUiMode = isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard';
         logger.debug(`[Terminal ${terminalId}] Creating terminal: agentTypeRef.current=${agentTypeRef.current}, initialUiMode=${initialUiMode}`);
@@ -1216,6 +1239,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             config: currentConfig,
             uiMode: initialUiMode,
             onLinkClick: (uri: string) => handleLinkClickRef.current?.(uri) ?? false,
+            theme: initialTheme,
         }));
 
         // Always start with hydrated=false and let onRender set it to true
@@ -1238,6 +1262,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             instance.setFileLinkHandler(fileLinkHandlerRef.current);
         }
         terminal.current = instance.raw;
+        terminal.current.options.theme = initialTheme;
+        xtermWrapperRef.current?.refresh();
         fitAddon.current = instance.fitAddon;
         searchAddon.current = instance.searchAddon;
         
@@ -2134,13 +2160,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                               onClick={(e) => { e.stopPropagation(); void restartAgent(); }}
                               className="text-sm px-3 py-1 rounded text-white font-medium"
                               style={{
-                                  backgroundColor: theme.colors.accent.blue.dark,
+                                  backgroundColor: 'var(--color-accent-blue-dark)',
                               }}
                               onMouseEnter={(e) => {
-                                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT;
+                                  e.currentTarget.style.backgroundColor = 'var(--color-accent-blue)';
                               }}
                               onMouseLeave={(e) => {
-                                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark;
+                                  e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)';
                               }}
                           >
                              Restart

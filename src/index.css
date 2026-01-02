@@ -4,11 +4,11 @@
 
 /* Terminal font sizes are defined in theme.css */
 
-/* Prefer dark UI for native system widgets like scrollbars */
+/* Prefer UI color scheme based on active theme for native system widgets like scrollbars */
 html,
 body,
 #root {
-  color-scheme: dark;
+  color-scheme: var(--color-scheme, dark);
   font-size: var(--ui-font-size);
   line-height: var(--line-height-body);
   font-family: var(--font-family-sans);
@@ -245,9 +245,9 @@ body.is-split-dragging [class*="transition-"] {
   background-color: rgba(var(--color-gray-400-rgb), 0.55);
 }
 
-/* Hint to browsers (Safari/macOS) to prefer dark overlay scrollbars */
+/* Hint to browsers (Safari/macOS) to prefer overlay scrollbars based on theme */
 .xterm-viewport {
-  color-scheme: dark;
+  color-scheme: var(--color-scheme, dark);
   scrollbar-gutter: stable both-edges;
   overflow-anchor: none;
 }
@@ -310,6 +310,11 @@ body.is-split-dragging [class*="transition-"] {
 
 .markdown-editor-scroll::-webkit-scrollbar-corner {
   background: var(--color-scrollbar-track);
+}
+
+/* CodeMirror placeholder styling - force override */
+.cm-placeholder {
+  border-bottom-color: var(--color-editor-placeholder-border) !important;
 }
 
 html,

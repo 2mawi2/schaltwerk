@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { theme } from '../../common/theme';
 
 interface IconButtonProps {
   icon: React.ReactNode;
@@ -68,23 +67,51 @@ export function IconButton({
     }
   };
 
-  // Match existing button styles from the app
-  const getButtonClasses = () => {
-    if (disabled) {
-      return 'opacity-50 cursor-not-allowed';
-    }
-
+  const getButtonTokens = () => {
     switch (variant) {
       case 'success':
-        return 'bg-green-800/60 hover:bg-green-700/60 text-green-300';
+        return {
+          bg: 'var(--icon-button-success-bg)',
+          hoverBg: 'var(--icon-button-success-hover-bg)',
+          text: 'var(--icon-button-success-text)',
+          border: 'var(--icon-button-success-border)',
+          hoverBorder: 'var(--icon-button-success-hover-border)',
+        };
       case 'danger':
-        return 'bg-red-800/60 hover:bg-red-700/60 text-red-300';
+        return {
+          bg: 'var(--icon-button-danger-bg)',
+          hoverBg: 'var(--icon-button-danger-hover-bg)',
+          text: 'var(--icon-button-danger-text)',
+          border: 'var(--icon-button-danger-border)',
+          hoverBorder: 'var(--icon-button-danger-hover-border)',
+        };
       case 'warning':
-        return 'bg-yellow-800/60 hover:bg-yellow-700/60 text-yellow-300';
+        return {
+          bg: 'var(--icon-button-warning-bg)',
+          hoverBg: 'var(--icon-button-warning-hover-bg)',
+          text: 'var(--icon-button-warning-text)',
+          border: 'var(--icon-button-warning-border)',
+          hoverBorder: 'var(--icon-button-warning-hover-border)',
+        };
       default:
-        return 'bg-slate-700/60 hover:bg-slate-600/60 text-slate-300';
+        return {
+          bg: 'var(--icon-button-default-bg)',
+          hoverBg: 'var(--icon-button-default-hover-bg)',
+          text: 'var(--icon-button-default-text)',
+          border: 'var(--icon-button-default-border)',
+          hoverBorder: 'var(--icon-button-default-hover-border)',
+        };
     }
   };
+
+  const tokens = getButtonTokens();
+  const buttonStyle = {
+    '--icon-button-bg': tokens.bg,
+    '--icon-button-hover-bg': tokens.hoverBg,
+    '--icon-button-text': tokens.text,
+    '--icon-button-border': tokens.border,
+    '--icon-button-hover-border': tokens.hoverBorder,
+  } as React.CSSProperties;
 
   const portalTarget = typeof document === 'undefined' ? null : document.body;
 
@@ -100,13 +127,16 @@ export function IconButton({
         aria-pressed={ariaPressed}
         className={clsx(
           'inline-flex items-center justify-center',
-          'px-1.5 py-1 rounded',
+          'px-1.5 py-1 rounded border',
           'transition-colors duration-150', // Smooth color transitions only
           'text-[12px]', // Medium text size for better visibility
-          getButtonClasses(),
+          'bg-[var(--icon-button-bg)] text-[var(--icon-button-text)] border-[var(--icon-button-border)]',
+          !disabled && 'hover:bg-[var(--icon-button-hover-bg)] hover:border-[var(--icon-button-hover-border)]',
+          disabled && 'opacity-50 cursor-not-allowed',
           !disabled && 'cursor-pointer',
           className
         )}
+        style={buttonStyle}
         title={tooltip ? undefined : ariaLabel}
       >
         <span className="w-4 h-4 flex items-center justify-center">
@@ -125,9 +155,9 @@ export function IconButton({
               top: `${tooltipPosition.top}px`,
               left: `${tooltipPosition.left}px`,
               transform: 'translateX(-50%)',
-              backgroundColor: theme.colors.background.elevated,
-              color: theme.colors.text.primary,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border-subtle)',
               animation: 'fadeIn 150ms ease-out',
             }}
           >

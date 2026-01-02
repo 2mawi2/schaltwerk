@@ -11,8 +11,6 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
-import { theme } from '../common/theme'
-import { withOpacity } from '../common/colorUtils'
 import { GithubMenuButton } from './github/GithubMenuButton'
 import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
@@ -131,7 +129,7 @@ export function TopBar({
       ref={topBarRef}
       className="fixed top-0 left-0 right-0 h-[32px] bg-bg-tertiary z-50 select-none"
       style={{ 
-        borderBottom: `1px solid ${withOpacity(theme.colors.background.elevated, 0.5)}`
+        borderBottom: '1px solid rgba(var(--color-bg-elevated-rgb), 0.5)'
       } as React.CSSProperties}
       data-tauri-drag-region
     >

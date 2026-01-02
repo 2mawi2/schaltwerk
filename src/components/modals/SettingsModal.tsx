@@ -12,6 +12,7 @@ import type { HeaderActionConfig } from '../../types/actionButton'
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
+import { ThemeSettings } from '../settings/ThemeSettings'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
@@ -28,7 +29,6 @@ import { KEYBOARD_SHORTCUT_SECTIONS } from '../../keyboardShortcuts/metadata'
 import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/matcher'
 import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
-import { theme } from '../../common/theme'
 import { getAllCodexModels } from '../../common/codexModels'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
@@ -1081,7 +1081,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
                         <div className="text-body text-slate-400 mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
+                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className="text-[var(--color-accent-blue)]">team/frontend</code>). Spaces will be converted to hyphens automatically.
                         </div>
                         <input
                             type="text"
@@ -1092,7 +1092,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 setHasUnsavedChanges(true)
                             }}
                             placeholder=""
-                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                             spellCheck={false}
                         />
                     </div>
@@ -1142,18 +1142,18 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 <strong>Available variables:</strong>
                             </div>
                             <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$WORKTREE_PATH</code> - Path to the new worktree</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$REPO_PATH</code> - Path to the main repository</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$SESSION_NAME</code> - Name of the agent</li>
-                                <li><code className={theme.colors.accent.blue.DEFAULT}>$BRANCH_NAME</code> - Name of the new branch</li>
+                                <li><code className="text-[var(--color-accent-blue)]">$WORKTREE_PATH</code> - Path to the new worktree</li>
+                                <li><code className="text-[var(--color-accent-blue)]">$REPO_PATH</code> - Path to the main repository</li>
+                                <li><code className="text-[var(--color-accent-blue)]">$SESSION_NAME</code> - Name of the agent</li>
+                                <li><code className="text-[var(--color-accent-blue)]">$BRANCH_NAME</code> - Name of the new branch</li>
                             </ul>
                         </div>
 
-                        <div
-                            className="relative h-64 border border-slate-700 rounded overflow-hidden"
-                            style={{ backgroundColor: theme.colors.background.secondary }}
-                            data-testid="setup-script-editor"
-                        >
+                            <div
+                                className="relative h-64 border border-slate-700 rounded overflow-hidden"
+                            style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                                data-testid="setup-script-editor"
+                            >
                             <MarkdownEditor
                                 value={projectSettings.setupScript}
                                 onChange={(val) => setProjectSettings({ ...projectSettings, setupScript: val })}
@@ -1167,8 +1167,8 @@ fi`}
                             />
                         </div>
 
-                        <div className={`mt-4 p-3 ${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded`}>
-                            <div className={`text-caption ${theme.colors.accent.cyan.light} mb-2`}>
+                        <div className="mt-4 p-3 border rounded bg-[var(--color-accent-cyan-bg)] border-[var(--color-accent-cyan-border)]">
+                            <div className="text-caption mb-2 text-[var(--color-accent-cyan-light)]">
                                 <strong>Example use cases:</strong>
                             </div>
                             <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
@@ -1194,7 +1194,7 @@ fi`}
                                     value={runScript.command}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
                                     placeholder="e.g., bun run dev or npm run dev"
-                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                 />
                             </div>
                             <div>
@@ -1204,7 +1204,7 @@ fi`}
                                     value={runScript.workingDirectory || ''}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
                                     placeholder="Defaults to active project folder"
-                                    className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                 />
                             </div>
                             <div>
@@ -1217,23 +1217,23 @@ fi`}
                                                 value={k}
                                                 onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
                                                 placeholder="KEY"
-                                                className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                    />
-                                    <input
-                                        type="text"
-                                        value={v}
-                                        onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
-                                        placeholder="value"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
-                                    />
-                                    <button
-                                        onClick={() => handleRemoveRunEnvVar(index)}
-                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
+                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={v}
+                                                onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
+                                                placeholder="value"
+                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
+                                            />
+                                            <button
+                                                onClick={() => handleRemoveRunEnvVar(index)}
+                                                className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
                                 </div>
                             ))}
                             <button
@@ -1284,14 +1284,14 @@ fi`}
                                         value={envVar.key}
                                         onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
                                         placeholder="KEY"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                     />
                                     <input
                                         type="text"
                                         value={envVar.value}
                                         onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
                                         placeholder="value"
-                                        className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                     />
                                     <button
                                         onClick={() => handleRemoveProjectEnvVar(index)}
@@ -1344,10 +1344,10 @@ fi`}
                         </p>
                     </div>
 
-                    <div className={`${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded p-3`}>
-                        <div className={`text-caption ${theme.colors.accent.cyan.light}`}>
+                    <div className="border rounded p-3 bg-[var(--color-accent-cyan-bg)] border-[var(--color-accent-cyan-border)]">
+                        <div className="text-caption text-[var(--color-accent-cyan-light)]">
                             <strong>💡 How it works:</strong>
-                            <ul className={`mt-2 space-y-1 list-disc list-inside ${theme.colors.accent.cyan.DEFAULT}`}>
+                            <ul className="mt-2 space-y-1 list-disc list-inside text-[var(--color-accent-cyan)]">
                                 <li>Click any action button to instantly paste its prompt into Claude</li>
                                 <li>Use keyboard shortcuts F1-F6 for even faster access</li>
                                 <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
@@ -1550,7 +1550,7 @@ fi`}
                             onClick={() => setActiveAgentTab(agent)}
                              className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
                                  activeAgentTab === agent
-                                     ? `text-slate-200 border-b-2 ${theme.colors.border.focus}`
+                                     ? 'text-slate-200 border-b-2 border-[var(--color-border-focus)]'
                                      : 'text-slate-400 hover:text-slate-300'
                              }`}
                         >
@@ -1693,7 +1693,7 @@ fi`}
                                                         {binary.is_symlink && binary.symlink_target && (
                                                             <>
                                                                 <span className="text-slate-500">•</span>
-                                                                 <span className={theme.colors.accent.blue.DEFAULT}>→ {binary.symlink_target}</span>
+                                                                <span className="text-[var(--color-accent-blue)]">→ {binary.symlink_target}</span>
                                                             </>
                                                         )}
                                                     </div>
@@ -1796,7 +1796,7 @@ fi`}
                             style={{ fontVariantLigatures: 'none' }}
                         />
                         <div className="mt-2 text-caption text-slate-500">
-                             Examples: <code className={theme.colors.accent.blue.DEFAULT}>--profile test</code>, <code className={theme.colors.accent.blue.DEFAULT}>-d</code>, <code className={theme.colors.accent.blue.DEFAULT}>--model gpt-4</code>
+                            Examples: <code className="text-[var(--color-accent-blue)]">--profile test</code>, <code className="text-[var(--color-accent-blue)]">-d</code>, <code className="text-[var(--color-accent-blue)]">--model gpt-4</code>
                         </div>
                     </div>
                     )}
@@ -1972,6 +1972,7 @@ fi`}
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
+                    <ThemeSettings />
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-4">Font Sizes</h3>
                         <div className="space-y-4">
@@ -1989,7 +1990,7 @@ fi`}
                                         onChange={(e) => setTerminalFontSize(Number(e.target.value))}
                                         className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
+                                            background: `linear-gradient(to right, var(--color-accent-blue) 0%, var(--color-accent-blue) ${((terminalFontSize - 8) / 16) * 100}%, var(--color-bg-active) ${((terminalFontSize - 8) / 16) * 100}%, var(--color-bg-active) 100%)`
                                         }}
                                     />
                                     <button
@@ -2015,7 +2016,7 @@ fi`}
                                         onChange={(e) => setUiFontSize(Number(e.target.value))}
                                         className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
+                                            background: `linear-gradient(to right, var(--color-accent-blue) 0%, var(--color-accent-blue) ${((uiFontSize - 8) / 16) * 100}%, var(--color-bg-active) ${((uiFontSize - 8) / 16) * 100}%, var(--color-bg-active) 100%)`
                                         }}
                                     />
                                     <button
@@ -2121,13 +2122,13 @@ fi`}
                         <div className="flex items-center justify-between">
                             <h3 className="text-body font-medium text-slate-200">{section.title}</h3>
                         </div>
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl divide-y divide-slate-800/70">
-                            {section.items.map(item => {
+                        <div className="keyboard-shortcuts-list bg-slate-900/60 border border-slate-800 rounded-xl">
+                            {section.items.map((item, index) => {
                                 const currentValue = editableKeyboardShortcuts[item.action]?.[0] ?? ''
                                 const isRecording = shortcutRecording === item.action
 
                                 return (
-                                    <div key={item.action} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-5 py-4">
+                                    <div key={item.action} className={`flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-5 py-4 ${index > 0 ? 'border-t border-[var(--color-border-subtle)]' : ''}`}>
                                         <div>
                                             <div className="text-body text-slate-300">{item.label}</div>
                                             {item.description && (
@@ -2143,14 +2144,14 @@ fi`}
                                                 value={currentValue}
                                                 onChange={(e) => handleShortcutInputChange(item.action, e.target.value)}
                                                 placeholder="Type shortcut (e.g. Mod+Shift+S)"
-                                                 className={`w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:${theme.colors.border.focus}/80 disabled:opacity-60`}
+                                                className="w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:border-[rgba(var(--color-border-focus-rgb),0.8)] disabled:opacity-60"
                                                 disabled={isRecording}
                                             />
                                             <button
                                                 onClick={() => handleShortcutRecord(item.action)}
-                                                 className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
+                                                className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
                                                      isRecording
-                                                         ? `border-${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.bg}`
+                                                         ? 'border-[var(--color-accent-cyan-light)] text-[var(--color-accent-cyan-light)] bg-[var(--color-accent-cyan-bg)]'
                                                          : 'border-slate-600/70 text-slate-200 hover:border-slate-500 hover:bg-slate-800/50'
                                                  }`}
                                             >
@@ -2219,7 +2220,7 @@ fi`}
                                     className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-slate-500">
-                                     Examples: <code className={theme.colors.accent.blue.DEFAULT}>/usr/local/bin/nu</code>, <code className={theme.colors.accent.blue.DEFAULT}>/opt/homebrew/bin/fish</code>, <code className={theme.colors.accent.blue.DEFAULT}>/bin/zsh</code>
+                                    Examples: <code className="text-[var(--color-accent-blue)]">/usr/local/bin/nu</code>, <code className="text-[var(--color-accent-blue)]">/opt/homebrew/bin/fish</code>, <code className="text-[var(--color-accent-blue)]">/bin/zsh</code>
                                 </div>
                             </div>
                             
@@ -2247,28 +2248,28 @@ fi`}
                                 <strong className="text-slate-300">Popular Shell Configurations:</strong>
                                 <ul className="mt-3 space-y-2">
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Nushell:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Nushell:</span>
                                          <div>
                                              <div>Path: <code>/usr/local/bin/nu</code> or <code>/opt/homebrew/bin/nu</code></div>
                                              <div>Args: (leave empty, Nushell doesn't need -i)</div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Fish:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Fish:</span>
                                          <div>
                                              <div>Path: <code>/usr/local/bin/fish</code> or <code>/opt/homebrew/bin/fish</code></div>
                                              <div>Args: <code>-i</code></div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Zsh:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Zsh:</span>
                                          <div>
                                              <div>Path: <code>/bin/zsh</code> or <code>/usr/bin/zsh</code></div>
                                              <div>Args: <code>-i</code></div>
                                          </div>
                                      </li>
                                      <li className="flex items-start gap-2">
-                                         <span className={theme.colors.accent.blue.DEFAULT}>Bash:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Bash:</span>
                                         <div>
                                             <div>Path: <code>/bin/bash</code> or <code>/usr/bin/bash</code></div>
                                             <div>Args: <code>-i</code></div>
@@ -2297,7 +2298,7 @@ fi`}
                                     className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-slate-500">
-                                    Prefix command for all agent executions. Transforms <code className={theme.colors.accent.blue.DEFAULT}>claude ...</code> into <code className={theme.colors.accent.blue.DEFAULT}>[prefix] claude ...</code>
+                                    Prefix command for all agent executions. Transforms <code className="text-[var(--color-accent-blue)]">claude ...</code> into <code className="text-[var(--color-accent-blue)]">[prefix] claude ...</code>
                                 </div>
                             </div>
                         </div>
@@ -2307,13 +2308,13 @@ fi`}
                                 <strong className="text-slate-300">Use Cases:</strong>
                                 <ul className="mt-3 space-y-2">
                                     <li className="flex items-start gap-2">
-                                        <span className={theme.colors.accent.blue.DEFAULT}>Remote Access:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Remote Access:</span>
                                         <div>
-                                            Set prefix to <code>vt</code> to use <a href="https://vt.sh" target="_blank" rel="noopener noreferrer" className={`${theme.colors.accent.cyan.DEFAULT} hover:underline`}>VibeTunnel</a> for browser-based remote terminal access
+                                            Set prefix to <code>vt</code> to use <a href="https://vt.sh" target="_blank" rel="noopener noreferrer" className="hover:underline text-[var(--color-accent-cyan)]">VibeTunnel</a> for browser-based remote terminal access
                                         </div>
                                     </li>
                                     <li className="flex items-start gap-2">
-                                        <span className={theme.colors.accent.blue.DEFAULT}>Wrappers:</span>
+                                        <span className="text-[var(--color-accent-blue)]">Wrappers:</span>
                                         <div>
                                             Use custom wrappers for logging, resource limiting, or environment setup
                                         </div>
@@ -2346,7 +2347,7 @@ fi`}
                                            ...sessionPreferences,
                                            skip_confirmation_modals: e.target.checked
                                        })}
-                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                       className="w-4 h-4 text-[var(--color-accent-cyan-dark)] bg-slate-800 border-slate-600 rounded focus:ring-[var(--color-accent-cyan)] focus:ring-2"
                                  />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-slate-200">
@@ -2367,7 +2368,7 @@ fi`}
                                            ...sessionPreferences,
                                            always_show_large_diffs: e.target.checked
                                        })}
-                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                       className="w-4 h-4 text-[var(--color-accent-cyan-dark)] bg-slate-800 border-slate-600 rounded focus:ring-[var(--color-accent-cyan)] focus:ring-2"
                                  />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-slate-200">
@@ -2392,7 +2393,7 @@ fi`}
                                             ...sessionPreferences,
                                             attention_notification_mode: event.target.checked ? 'dock' : 'off'
                                         })}
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-[var(--color-accent-cyan-dark)] bg-slate-800 border-slate-600 rounded focus:ring-[var(--color-accent-cyan)] focus:ring-2"
                                     />
                                     <span className="text-body text-slate-200">Notify on idle</span>
                                 </label>
@@ -2409,7 +2410,7 @@ fi`}
                                             ...sessionPreferences,
                                             remember_idle_baseline: e.target.checked
                                         })}
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-[var(--color-accent-cyan-dark)] bg-slate-800 border-slate-600 rounded focus:ring-[var(--color-accent-cyan)] focus:ring-2"
                                     />
                                     <span className="text-body text-slate-200">Remember idle sessions when I switch away</span>
                                 </label>
@@ -2470,7 +2471,7 @@ fi`}
                                         id="auto-update-toggle"
                                         type="checkbox"
                                         aria-label="Automatically install updates"
-                                        className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                        className="w-4 h-4 text-[var(--color-accent-cyan-dark)] bg-slate-800 border-slate-600 rounded focus:ring-[var(--color-accent-cyan)] focus:ring-2"
                                         checked={autoUpdateEnabled}
                                         disabled={loadingAutoUpdate}
                                         onChange={() => { void handleAutoUpdateToggle() }}
@@ -2536,7 +2537,7 @@ fi`}
                  <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
                      notification.type === 'error' ? 'bg-red-900' :
                      notification.type === 'success' ? 'bg-green-900' : 'bg-slate-800'
-                 }`} style={notification.type === 'info' ? { backgroundColor: theme.colors.status.info } : {}}>
+                 }`} style={notification.type === 'info' ? { backgroundColor: 'var(--color-status-info)' } : {}}>
                     <div className="text-white text-body">{notification.message}</div>
                 </div>
             )}
@@ -2651,19 +2652,19 @@ fi`}
                                 disabled={saving}
                                 className="px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 style={{
-                                    backgroundColor: theme.colors.accent.blue.DEFAULT,
-                                    border: `1px solid ${theme.colors.accent.blue.border}`,
-                                    color: theme.colors.text.inverse,
+                                    backgroundColor: 'var(--color-accent-blue)',
+                                    border: '1px solid var(--color-accent-blue-border)',
+                                    color: 'var(--color-text-inverse)',
                                 }}
                                 onMouseEnter={event => {
                                     if (saving) return
-                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
                                 }}
                                 onMouseLeave={event => {
-                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
                                 }}
                                 onFocus={event => {
-                                    event.currentTarget.style.outline = `2px solid ${theme.colors.border.focus}`
+                                    event.currentTarget.style.outline = '2px solid var(--color-border-focus)'
                                     event.currentTarget.style.outlineOffset = '2px'
                                 }}
                                 onBlur={event => {

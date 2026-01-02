@@ -201,6 +201,7 @@ describe('Theme System Architecture', () => {
         if (
           relativePath === 'src/common/theme.ts' ||
           relativePath.startsWith('src/styles/') ||
+          relativePath.startsWith('src/common/themes/') ||
           isTestFile(relativePath) ||
           isException(relativePath, THEME_EXCEPTIONS)
         ) {
@@ -216,9 +217,12 @@ describe('Theme System Architecture', () => {
             /#[0-9a-fA-F]{3,8}\b|rgba?\s*\([^)]+\)|hsla?\s*\([^)]+\)/g;
           let match: RegExpExecArray | null;
           while ((match = pattern.exec(line)) !== null) {
+            const snippet = match[0].trim();
+            // Skip CSS variable patterns like rgba(var(--color-*), 0.x)
+            if (snippet.includes('var(--')) continue;
             matches.push({
               line: index + 1,
-              snippet: match[0].trim(),
+              snippet,
             });
           }
         });
@@ -251,6 +255,7 @@ describe('Theme System Architecture', () => {
         if (
           relativePath === 'src/common/theme.ts' ||
           relativePath.startsWith('src/styles/') ||
+          relativePath.startsWith('src/common/themes/') ||
           isTestFile(relativePath) ||
           isException(relativePath, THEME_EXCEPTIONS)
         ) {

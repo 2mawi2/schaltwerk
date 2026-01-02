@@ -3,10 +3,10 @@ import { renderHook, act } from '@testing-library/react'
 import { useDiffHover } from './useDiffHover'
 
 describe('useDiffHover', () => {
-  let mockOnStartComment: ReturnType<typeof vi.fn>
+  let mockOnStartComment: ReturnType<typeof vi.fn<(lineNum: number, side: 'old' | 'new', filePath: string) => void>>
 
   beforeEach(() => {
-    mockOnStartComment = vi.fn()
+    mockOnStartComment = vi.fn<(lineNum: number, side: 'old' | 'new', filePath: string) => void>()
     // Clear any existing DOM
     document.body.innerHTML = ''
   })

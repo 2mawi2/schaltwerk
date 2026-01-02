@@ -1,4 +1,3 @@
-import { theme } from '../../common/theme'
 import { VscChevronRight } from 'react-icons/vsc'
 import { DiffFilterResult, formatDiffSize } from '../../domains/diff/diffFilters'
 
@@ -27,25 +26,25 @@ export function CollapsedDiffBadge({ filterResult, onClick }: CollapsedDiffBadge
         onClick={onClick}
         className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-lg border transition-colors"
         style={{
-          backgroundColor: theme.colors.background.secondary,
-          borderColor: theme.colors.border.subtle,
-          color: theme.colors.text.secondary
+          backgroundColor: 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-subtle)',
+          color: 'var(--color-text-secondary)'
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = theme.colors.background.hover
-          e.currentTarget.style.borderColor = theme.colors.accent.blue.DEFAULT
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'
+          e.currentTarget.style.borderColor = 'var(--color-accent-blue)'
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = theme.colors.background.secondary
-          e.currentTarget.style.borderColor = theme.colors.border.subtle
+          e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'
+          e.currentTarget.style.borderColor = 'var(--color-border-subtle)'
         }}
       >
         <VscChevronRight className="text-lg" />
         <div className="flex flex-col items-center gap-1">
-          <div className="text-sm font-medium" style={{ color: theme.colors.text.primary }}>
+          <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
             {badgeText}
           </div>
-          <div className="text-xs" style={{ color: theme.colors.text.tertiary }}>
+          <div className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
             Click to expand
           </div>
         </div>

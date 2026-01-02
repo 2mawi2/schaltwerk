@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { FaGithub } from 'react-icons/fa'
 import { VscRefresh, VscWarning, VscCheck, VscInfo } from 'react-icons/vsc'
-import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { logger } from '../../utils/logger'
 
@@ -83,12 +82,32 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
 
   const tonePalette =
     statusDetails.tone === 'success'
-      ? theme.colors.accent.green
+      ? {
+        DEFAULT: 'var(--color-accent-green)',
+        light: 'var(--color-accent-green-light)',
+        bg: 'var(--color-accent-green-bg)',
+        border: 'var(--color-accent-green-border)',
+      }
       : statusDetails.tone === 'danger'
-        ? theme.colors.accent.red
+        ? {
+          DEFAULT: 'var(--color-accent-red)',
+          light: 'var(--color-accent-red-light)',
+          bg: 'var(--color-accent-red-bg)',
+          border: 'var(--color-accent-red-border)',
+        }
         : statusDetails.tone === 'warning'
-          ? theme.colors.accent.amber
-          : theme.colors.accent.blue
+          ? {
+            DEFAULT: 'var(--color-accent-amber)',
+            light: 'var(--color-accent-amber-light)',
+            bg: 'var(--color-accent-amber-bg)',
+            border: 'var(--color-accent-amber-border)',
+          }
+          : {
+            DEFAULT: 'var(--color-accent-blue)',
+            light: 'var(--color-accent-blue-light)',
+            bg: 'var(--color-accent-blue-bg)',
+            border: 'var(--color-accent-blue-border)',
+          }
 
   const ToneIcon =
     statusDetails.tone === 'success'
@@ -145,14 +164,14 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
     <div
       className="p-4 rounded-lg border"
       style={{
-        borderColor: theme.colors.border.subtle,
-        backgroundColor: theme.colors.background.elevated,
-        color: theme.colors.text.primary,
+        borderColor: 'var(--color-border-subtle)',
+        backgroundColor: 'var(--color-bg-elevated)',
+        color: 'var(--color-text-primary)',
       }}
     >
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-body font-medium" style={{ color: theme.colors.text.primary }}>
+          <div className="flex items-center gap-2 text-body font-medium" style={{ color: 'var(--color-text-primary)' }}>
             <FaGithub className="text-base" />
             <span>GitHub Integration</span>
           </div>
@@ -162,7 +181,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             style={{
               backgroundColor: tonePalette.bg,
               border: `1px solid ${tonePalette.border}`,
-              color: theme.colors.text.primary,
+              color: 'var(--color-text-primary)',
               maxWidth: '360px',
             }}
           >
@@ -172,7 +191,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
                 <div className="font-medium" style={{ color: tonePalette.light }}>
                   {statusDetails.title}
                 </div>
-                <div className="text-[11px] leading-snug" style={{ color: theme.colors.text.secondary }}>
+                <div className="text-[11px] leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
                   {statusDetails.description}
                 </div>
               </div>
@@ -185,9 +204,9 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             disabled={!installed || github.isAuthenticating}
             className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: theme.colors.accent.blue.bg,
-              border: `1px solid ${theme.colors.accent.blue.border}`,
-              color: theme.colors.accent.blue.light,
+              backgroundColor: 'var(--color-accent-blue-bg)',
+              border: '1px solid var(--color-accent-blue-border)',
+              color: 'var(--color-accent-blue-light)',
             }}
           >
             {authenticateLabel}
@@ -197,9 +216,9 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             disabled={!canConnectProject || github.isConnecting}
             className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: theme.colors.background.hover,
-              border: `1px solid ${theme.colors.border.subtle}`,
-              color: theme.colors.text.primary,
+              backgroundColor: 'var(--color-bg-hover)',
+              border: '1px solid var(--color-border-subtle)',
+              color: 'var(--color-text-primary)',
             }}
           >
             {connectLabel}
@@ -208,9 +227,9 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             onClick={() => { void handleRefresh() }}
             className="px-3 py-2 text-xs font-medium rounded-md flex items-center gap-1 transition-colors"
             style={{
-              backgroundColor: theme.colors.background.hover,
-              border: `1px solid ${theme.colors.border.subtle}`,
-              color: theme.colors.text.primary,
+              backgroundColor: 'var(--color-bg-hover)',
+              border: '1px solid var(--color-border-subtle)',
+              color: 'var(--color-text-primary)',
             }}
           >
             <VscRefresh className="text-[13px]" />
@@ -225,33 +244,33 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
           style={{
             backgroundColor:
               feedback.tone === 'success'
-                ? theme.colors.accent.green.bg
+                ? 'var(--color-accent-green-bg)'
                 : feedback.tone === 'error'
-                  ? theme.colors.accent.red.bg
-                  : theme.colors.accent.blue.bg,
+                  ? 'var(--color-accent-red-bg)'
+                  : 'var(--color-accent-blue-bg)',
             border: `1px solid ${
               feedback.tone === 'success'
-                ? theme.colors.accent.green.border
+                ? 'var(--color-accent-green-border)'
                 : feedback.tone === 'error'
-                  ? theme.colors.accent.red.border
-                  : theme.colors.accent.blue.border
+                  ? 'var(--color-accent-red-border)'
+                  : 'var(--color-accent-blue-border)'
             }`,
-            color: theme.colors.text.primary,
+            color: 'var(--color-text-primary)',
             maxWidth: '380px',
           }}
         >
           <div className="flex items-start gap-2 text-left">
             {feedback.tone === 'success' ? (
-              <VscCheck className="text-sm mt-[2px]" style={{ color: theme.colors.accent.green.DEFAULT }} />
+              <VscCheck className="text-sm mt-[2px]" style={{ color: 'var(--color-accent-green)' }} />
             ) : feedback.tone === 'error' ? (
-              <VscWarning className="text-sm mt-[2px]" style={{ color: theme.colors.accent.red.DEFAULT }} />
+              <VscWarning className="text-sm mt-[2px]" style={{ color: 'var(--color-accent-red)' }} />
             ) : (
-              <VscInfo className="text-sm mt-[2px]" style={{ color: theme.colors.accent.blue.DEFAULT }} />
+              <VscInfo className="text-sm mt-[2px]" style={{ color: 'var(--color-accent-blue)' }} />
             )}
             <div className="space-y-1">
               <div className="font-medium">{feedback.title}</div>
               {formatFeedbackLines(feedback.description).map((line, index) => (
-                <div key={`${line}-${index}`} className="text-[11px] leading-snug" style={{ color: theme.colors.text.secondary }}>
+                <div key={`${line}-${index}`} className="text-[11px] leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
                   {line}
                 </div>
               ))}
@@ -259,7 +278,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
           </div>
         </div>
       )}
-      <div className="mt-3 text-caption flex flex-wrap gap-x-6 gap-y-1" style={{ color: theme.colors.text.secondary }}>
+      <div className="mt-3 text-caption flex flex-wrap gap-x-6 gap-y-1" style={{ color: 'var(--color-text-secondary)' }}>
         <span>CLI installed: <strong>{installed ? 'Yes' : 'No'}</strong></span>
         <span>Authenticated: <strong>{authenticated ? 'Yes' : 'No'}</strong></span>
         <span>Project path: <strong>{projectPath || 'None'}</strong></span>

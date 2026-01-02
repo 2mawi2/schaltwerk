@@ -2,7 +2,6 @@ import { useRef, forwardRef, useImperativeHandle, memo } from 'react'
 import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
-import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
@@ -142,9 +141,9 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
       <div
         className="h-8 max-h-8 flex-shrink-0 flex items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
         style={{
-          backgroundColor: theme.colors.background.tertiary,
-          borderBottom: `1px solid ${theme.colors.border.subtle}`,
-          boxShadow: `inset 0 -1px 0 ${theme.colors.border.default}`,
+          backgroundColor: 'var(--color-bg-tertiary)',
+          borderBottom: '1px solid var(--color-border-subtle)',
+          boxShadow: 'inset 0 -1px 0 var(--color-border-default)',
         }}
       >
         {tabs.map((tab) => (

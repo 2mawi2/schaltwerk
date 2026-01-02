@@ -6,7 +6,6 @@ import { VscClose, VscFolderOpened, VscRepoClone } from 'react-icons/vsc'
 import { TauriCommands } from '../../common/tauriCommands'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { parseGitRemote, sanitizeFolderName } from '../../utils/gitRemote'
 
 const REMOTE_PLACEHOLDER = 'git@github.com:org/repo.git or https://github.com/org/repo.git'
@@ -208,24 +207,24 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: theme.colors.overlay.backdrop }}
+      style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
     >
       <div
         className="w-full max-w-2xl mx-4 border rounded-lg shadow-xl"
-        style={{ backgroundColor: theme.colors.background.tertiary, borderColor: theme.colors.border.default }}
+        style={{ backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-default)' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: theme.colors.border.default }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--color-border-default)' }}>
           <div className="flex items-center gap-3">
-            <VscRepoClone className="text-2xl" style={{ color: theme.colors.accent.blue.DEFAULT }} />
+            <VscRepoClone className="text-2xl" style={{ color: 'var(--color-accent-blue)' }} />
             <div>
-              <h2 className="text-xl font-semibold" style={{ color: theme.colors.text.primary }}>Clone Git Repository</h2>
-              <p className="text-sm" style={{ color: theme.colors.text.muted }}>Clone a remote repository into a new Schaltwerk project</p>
+              <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Clone Git Repository</h2>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Clone a remote repository into a new Schaltwerk project</p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-2 rounded"
-            style={{ color: theme.colors.text.muted }}
+            style={{ color: 'var(--color-text-muted)' }}
             disabled={isCloning}
           >
             <VscClose className="text-lg" />
@@ -237,9 +236,9 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             <div
               className="p-3 rounded text-sm"
               style={{
-                backgroundColor: theme.colors.accent.red.bg,
-                border: `1px solid ${theme.colors.accent.red.border}`,
-                color: theme.colors.accent.red.DEFAULT
+                backgroundColor: 'var(--color-accent-red-bg)',
+                border: '1px solid var(--color-accent-red-border)',
+                color: 'var(--color-accent-red)'
               }}
             >
               {error}
@@ -249,7 +248,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           <div className="space-y-2">
             <label
               className="text-sm font-medium"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
               htmlFor="clone-remote-url"
             >
               Remote URL
@@ -262,15 +261,15 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
               placeholder={REMOTE_PLACEHOLDER}
               className="w-full px-3 py-2 rounded-lg"
               style={{
-                backgroundColor: theme.colors.background.secondary,
-                border: `1px solid ${theme.colors.border.subtle}`,
-                color: theme.colors.text.primary
+                backgroundColor: 'var(--color-bg-secondary)',
+                border: '1px solid var(--color-border-subtle)',
+                color: 'var(--color-text-primary)'
               }}
               autoFocus
               spellCheck={false}
               disabled={isCloning}
             />
-            <p className="text-xs" style={{ color: theme.colors.text.muted }}>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               {helperText}
             </p>
           </div>
@@ -278,7 +277,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           <div className="space-y-2">
             <label
               className="text-sm font-medium"
-              style={{ color: theme.colors.text.secondary }}
+              style={{ color: 'var(--color-text-secondary)' }}
               htmlFor="clone-parent-directory"
             >
               Parent Directory
@@ -291,18 +290,18 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
                 readOnly
                 className="flex-1 px-3 py-2 rounded-lg"
                 style={{
-                  backgroundColor: theme.colors.background.secondary,
-                  border: `1px solid ${theme.colors.border.subtle}`,
-                  color: theme.colors.text.primary
+                  backgroundColor: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border-subtle)',
+                  color: 'var(--color-text-primary)'
                 }}
               />
               <button
                 onClick={() => { void handleSelectDirectory() }}
                 className="px-3 py-2 rounded-lg flex items-center gap-2"
                 style={{
-                  backgroundColor: theme.colors.background.hover,
-                  border: `1px solid ${theme.colors.border.subtle}`,
-                  color: theme.colors.text.primary
+                  backgroundColor: 'var(--color-bg-hover)',
+                  border: '1px solid var(--color-border-subtle)',
+                  color: 'var(--color-text-primary)'
                 }}
                 disabled={isCloning}
               >
@@ -315,17 +314,17 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           <div
             className="rounded-lg px-4 py-3 space-y-1"
             style={{
-              backgroundColor: theme.colors.background.secondary,
-              border: `1px solid ${theme.colors.border.subtle}`
+              backgroundColor: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-border-subtle)'
             }}
           >
-            <p className="text-xs uppercase tracking-wide" style={{ color: theme.colors.text.muted }}>
+            <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
               Destination Folder
             </p>
-            <p className="font-mono text-sm truncate" style={{ color: theme.colors.text.primary }}>
+            <p className="font-mono text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
               {targetPath || 'Select a valid remote and parent directory'}
             </p>
-            <p className="text-xs" style={{ color: theme.colors.text.muted }}>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
               The folder name is derived from the repository name. You can rename it later if needed.
             </p>
           </div>
@@ -334,8 +333,8 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             <div
               className="text-sm font-mono px-3 py-2 rounded"
               style={{
-                backgroundColor: theme.colors.background.secondary,
-                color: theme.colors.text.secondary
+                backgroundColor: 'var(--color-bg-secondary)',
+                color: 'var(--color-text-secondary)'
               }}
             >
               {progressMessage}
@@ -343,14 +342,14 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           )}
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t" style={{ borderColor: theme.colors.border.default }}>
+        <div className="flex items-center gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded-lg transition-colors"
             style={{
-              backgroundColor: theme.colors.background.hover,
-              border: `1px solid ${theme.colors.border.subtle}`,
-              color: theme.colors.text.primary
+              backgroundColor: 'var(--color-bg-hover)',
+              border: '1px solid var(--color-border-subtle)',
+              color: 'var(--color-text-primary)'
             }}
             disabled={isCloning}
           >
@@ -360,9 +359,9 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             onClick={() => { void handleClone() }}
             className="flex-1 px-4 py-2 rounded-lg flex justify-center"
             style={{
-              backgroundColor: theme.colors.accent.blue.bg,
-              border: `1px solid ${theme.colors.accent.blue.border}`,
-              color: theme.colors.accent.blue.DEFAULT,
+              backgroundColor: 'var(--color-accent-blue-bg)',
+              border: '1px solid var(--color-accent-blue-border)',
+              color: 'var(--color-accent-blue)',
               opacity: !isFormValid || isCloning ? 0.6 : 1
             }}
             disabled={!isFormValid || isCloning}

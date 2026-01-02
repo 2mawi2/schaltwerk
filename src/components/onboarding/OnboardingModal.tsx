@@ -3,8 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { ONBOARDING_STEPS } from './steps'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
     if (!highlightElement || !highlightRect) {
@@ -72,8 +70,8 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     width: rect.width + (padding * 2),
                     height: rect.height + (padding * 2),
                     zIndex: 31,
-                    borderColor: theme.colors.accent.blue.DEFAULT,
-                    boxShadow: `0 10px 15px -3px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.1)}, 0 4px 6px -2px ${withOpacity(theme.colors.accent.blue.DEFAULT, 0.05)}`,
+                    borderColor: 'var(--color-accent-blue)',
+                    boxShadow: '0 10px 15px -3px rgba(var(--color-accent-blue-rgb), 0.1), 0 4px 6px -2px rgba(var(--color-accent-blue-rgb), 0.05)',
                 }}
             />
             <div
@@ -84,7 +82,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
                     width: rect.width + (padding * 3),
                     height: rect.height + (padding * 3),
                     zIndex: 30,
-                    backgroundColor: theme.colors.accent.blue.bg,
+                    backgroundColor: 'var(--color-accent-blue-bg)',
                 }}
             />
         </>
@@ -218,7 +216,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                     <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                                 style={{ backgroundColor: theme.colors.accent.blue.dark }}>
+                                 style={{ backgroundColor: 'var(--color-accent-blue-dark)' }}>
                                 <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
@@ -245,7 +243,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                             className="h-full transition-all duration-300"
                             style={{
                                 width: `${((currentStep + 1) / ONBOARDING_STEPS.length) * 100}%`,
-                                backgroundColor: theme.colors.accent.blue.DEFAULT
+                                backgroundColor: 'var(--color-accent-blue)'
                             }}
                         />
                     </div>
@@ -277,7 +275,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                                 onClick={handleNext}
                                 className="px-4 py-1.5 text-white rounded text-sm transition-colors flex items-center gap-2"
                                 style={{
-                                    backgroundColor: theme.colors.accent.blue.dark,
+                                    backgroundColor: 'var(--color-accent-blue-dark)',
                                 }}
                             >
                                 {isLastStep ? 'Get Started' : 'Next'}

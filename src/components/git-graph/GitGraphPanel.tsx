@@ -11,7 +11,6 @@ import type {
   HistoryProviderSnapshot,
 } from './types'
 import { logger } from '../../utils/logger'
-import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
@@ -745,7 +744,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
       onMouseDown={handlePanelInteraction}
     >
       {isSearchVisible && (
-        <div className="flex-shrink-0 px-2 py-1.5 border-b" style={{ borderColor: theme.colors.border.default }}>
+        <div className="flex-shrink-0 px-2 py-1.5 border-b" style={{ borderColor: 'var(--color-border-default)' }}>
           <HistorySearchInput
             ref={searchInputRef}
             value={filter.searchText}
@@ -812,8 +811,8 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             style={{
               left: `${contextMenu.x}px`,
               top: `${contextMenu.y}px`,
-              backgroundColor: theme.colors.background.elevated,
-              border: `1px solid ${theme.colors.border.subtle}`,
+              backgroundColor: 'var(--color-bg-elevated)',
+              border: '1px solid var(--color-border-subtle)',
               minWidth: '160px'
             }}
           >
@@ -821,7 +820,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
               <button
                 type="button"
                 className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-                style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+                style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
                 onClick={() => {
                   void handleOpenCommitDiffInternal(contextMenu.commit)
                   setContextMenu(null)
@@ -833,7 +832,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             <button
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-              style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+              style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
               onClick={() => { void handleCopyCommitId() }}
             >
               Copy commit ID
@@ -841,7 +840,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
             <button
               type="button"
               className="w-full px-3 py-1 text-left text-xs hover:bg-[color:var(--hover-bg)] transition-colors"
-              style={{ '--hover-bg': theme.colors.background.secondary } as React.CSSProperties}
+              style={{ '--hover-bg': 'var(--color-bg-secondary)' } as React.CSSProperties}
               onClick={() => { void handleCopyCommitMessage() }}
             >
               Copy commit message

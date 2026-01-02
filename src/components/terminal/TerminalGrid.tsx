@@ -45,7 +45,6 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { mapSessionUiState } from '../../utils/sessionFilters'
-import { theme } from '../../common/theme'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
@@ -1385,8 +1384,8 @@ const TerminalGridComponent = () => {
             >
                 <div
                     style={{
-                        borderColor: localFocus === 'claude' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
-                        boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                        borderColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)',
+                        boxShadow: localFocus === 'claude' ? '0 10px 15px -3px rgba(var(--color-accent-blue-rgb), 0.2), 0 4px 6px -2px rgba(var(--color-accent-blue-rgb), 0.2)' : undefined,
                     }}
                     className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
                     data-onboarding="agent-terminal"
@@ -1408,9 +1407,9 @@ const TerminalGridComponent = () => {
                     ) : (
                     <div
                         style={{
-                            backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : undefined,
-                            color: localFocus === 'claude' ? theme.colors.accent.blue.light : undefined,
-                            borderBottomColor: localFocus === 'claude' ? theme.colors.accent.blue.border : undefined,
+                            backgroundColor: localFocus === 'claude' ? 'var(--color-accent-blue-bg)' : undefined,
+                            color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : undefined,
+                            borderBottomColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : undefined,
                         }}
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
                                 localFocus === 'claude'
@@ -1468,8 +1467,8 @@ const TerminalGridComponent = () => {
                         </div>
                         <span
                             style={{
-                                backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : theme.colors.background.hover,
-                                color: localFocus === 'claude' ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
+                                backgroundColor: localFocus === 'claude' ? 'var(--color-accent-blue-bg)' : 'var(--color-bg-hover)',
+                                color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
                             }}
                             className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded`}
                             title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
@@ -1479,8 +1478,8 @@ const TerminalGridComponent = () => {
                     <div
                         style={{
                             background: localFocus === 'claude' && !isDraggingSplit
-                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
-                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                                ? 'linear-gradient(to right, transparent, var(--color-accent-blue-border), transparent)'
+                                : 'linear-gradient(to right, transparent, rgba(var(--color-border-strong-rgb), 0.302), transparent)'
                         }}
                         className="h-[2px] flex-shrink-0"
                     ></div>
@@ -1530,8 +1529,8 @@ const TerminalGridComponent = () => {
                 </div>
                 <div
                     style={{
-                        borderColor: localFocus === 'terminal' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
-                        boxShadow: localFocus === 'terminal' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                        borderColor: localFocus === 'terminal' ? 'var(--color-accent-blue-border)' : 'var(--color-border-subtle)',
+                        boxShadow: localFocus === 'terminal' ? '0 10px 15px -3px rgba(var(--color-accent-blue-rgb), 0.2), 0 4px 6px -2px rgba(var(--color-accent-blue-rgb), 0.2)' : undefined,
                     }}
                     className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'shadow-lg' : ''}`}
                 >
@@ -1613,8 +1612,8 @@ const TerminalGridComponent = () => {
                     <div
                         style={{
                             background: localFocus === 'terminal' && !isDraggingSplit
-                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
-                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                                ? 'linear-gradient(to right, transparent, var(--color-accent-blue-border), transparent)'
+                                : 'linear-gradient(to right, transparent, rgba(var(--color-border-strong-rgb), 0.302), transparent)'
                         }}
                         className="h-[2px] flex-shrink-0"
                     />

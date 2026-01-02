@@ -69,10 +69,12 @@ beforeEach(() => {
 describe('XtermTerminal wrapper', () => {
   it('creates a terminal instance, loads addons, and attaches to a container', async () => {
     const { XtermTerminal } = await import('./XtermTerminal')
-    const { theme } = await import('../../common/theme')
+    const { buildTerminalTheme } = await import('../../common/themes/terminalTheme')
+    const terminalTheme = buildTerminalTheme('dark')
 
     const wrapper = new XtermTerminal({
       terminalId: 'test-id',
+      theme: terminalTheme,
       config: {
         scrollback: 12000,
         fontSize: 14,
@@ -95,11 +97,7 @@ describe('XtermTerminal wrapper', () => {
     expect(instance.options.disableStdin).toBe(false)
     expect(instance.options.minimumContrastRatio).toBe(1.3)
     expect(instance.options.smoothScrollDuration).toBeGreaterThan(0)
-    expect(instance.options.theme).toMatchObject({
-      background: theme.colors.background.secondary,
-      foreground: theme.colors.text.primary,
-      brightRed: theme.colors.accent.red.light,
-    })
+    expect(instance.options.theme).toMatchObject(terminalTheme)
     expect(instance.loadAddon).toHaveBeenCalledTimes(3)
     expect(registerMock).toHaveBeenCalledWith('fit', expect.any(Function))
     expect(registerMock).toHaveBeenCalledWith('search', expect.any(Function))

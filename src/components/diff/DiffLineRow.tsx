@@ -2,7 +2,6 @@ import { memo } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
-import { theme } from '../../common/theme'
 import { getSelectableLineIdentity } from './lineSelection'
 
 interface DiffLineRowProps {
@@ -147,8 +146,8 @@ function DiffLineRowComponent({
               showFocusIndicator || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
             )}
             style={{
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.primary,
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-primary)',
             }}
             aria-label={`Select line ${lineNum}`}
             title="Click to select line, drag to select range, or press Enter to comment"

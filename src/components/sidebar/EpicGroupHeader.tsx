@@ -32,8 +32,8 @@ export function EpicGroupHeader({
             data-testid={`epic-header-${epic.id}`}
             className="mt-3 mb-2 rounded border"
             style={{
-                backgroundColor: theme.colors.background.secondary,
-                borderColor: theme.colors.border.subtle,
+                backgroundColor: 'var(--color-bg-tertiary)',
+                borderColor: 'var(--color-border-default)',
             }}
         >
             <div className="flex items-center justify-between px-2 py-1.5">
@@ -41,7 +41,7 @@ export function EpicGroupHeader({
                     type="button"
                     onClick={onToggleCollapsed}
                     className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                    style={{ color: theme.colors.text.primary }}
+                    style={{ color: 'var(--color-text-primary)' }}
                 >
                     <span
                         className={clsx('transition-transform', collapsed ? 'rotate-0' : 'rotate-90')}
@@ -57,12 +57,12 @@ export function EpicGroupHeader({
                     </span>
                     <span
                         className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: scheme?.DEFAULT ?? theme.colors.text.muted }}
+                        style={{ backgroundColor: scheme?.DEFAULT ?? 'var(--color-text-muted)' }}
                     />
                     <span className="truncate">{epic.name}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                    <span style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}>
+                    <span style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}>
                         {countLabel}
                     </span>
                     <Dropdown
@@ -90,7 +90,7 @@ export function EpicGroupHeader({
                                 }}
                                 className="p-1 rounded hover:opacity-80"
                                 style={{
-                                    color: theme.colors.text.muted,
+                                    color: 'var(--color-text-muted)',
                                     backgroundColor: 'transparent',
                                 }}
                                 title="Epic actions"
@@ -106,4 +106,3 @@ export function EpicGroupHeader({
         </div>
     )
 }
-

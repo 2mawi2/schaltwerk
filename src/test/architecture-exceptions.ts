@@ -12,6 +12,8 @@ export const EVENT_LISTENER_EXCEPTIONS: ArchitectureException[] = [
 ];
 
 export const THEME_EXCEPTIONS: ArchitectureException[] = [
+  { file: 'src/common/toast/ToastCard.tsx', reason: 'boxShadow uses universal black rgba for shadow transparency' },
+  { file: 'src/components/home/AsciiBuilderLogo.tsx', reason: 'Dynamic color interpolation for animation effects' },
 ];
 
 export const MODULE_BOUNDARY_EXCEPTIONS: ArchitectureException[] = [
@@ -25,6 +27,7 @@ export const STATE_MANAGEMENT_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/contexts/FocusContext.tsx', reason: 'UI coordination - focus management (acceptable use)' },
   { file: 'src/contexts/ReviewContext.tsx', reason: 'UI coordination - review workflow state (acceptable use)' },
   { file: 'src/contexts/RunContext.tsx', reason: 'UI coordination - run workflow state (acceptable use)' },
+  { file: 'src/contexts/SpecReviewContext.tsx', reason: 'UI coordination - spec review comments state (acceptable use)' },
   { file: 'src/contexts/GithubIntegrationContext.tsx', reason: 'Needs evaluation - might be dependency injection' },
   { file: 'src/contexts/KeyboardShortcutsContext.tsx', reason: 'Needs evaluation - might not need reactive state' },
 ];

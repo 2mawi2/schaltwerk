@@ -20,14 +20,14 @@ const ToastIcon = ({ tone }: { tone: ToastCardProps['tone'] }) => {
   const iconColor = (() => {
     switch (tone) {
       case 'success':
-        return theme.colors.accent.green.DEFAULT
+        return 'var(--color-accent-green)'
       case 'warning':
-        return theme.colors.accent.yellow.DEFAULT
+        return 'var(--color-accent-yellow)'
       case 'info':
-        return theme.colors.accent.blue.DEFAULT
+        return 'var(--color-accent-blue)'
       case 'error':
       default:
-        return theme.colors.accent.red.DEFAULT
+        return 'var(--color-accent-red)'
     }
   })()
 
@@ -66,14 +66,14 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
   const accentColor = (() => {
     switch (tone) {
       case 'success':
-        return theme.colors.accent.green.DEFAULT
+        return 'var(--color-accent-green)'
       case 'warning':
-        return theme.colors.accent.yellow.DEFAULT
+        return 'var(--color-accent-yellow)'
       case 'info':
-        return theme.colors.accent.blue.DEFAULT
+        return 'var(--color-accent-blue)'
       case 'error':
       default:
-        return theme.colors.accent.red.DEFAULT
+        return 'var(--color-accent-red)'
     }
   })()
 
@@ -95,16 +95,16 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
     <div
       className="toast-enter pointer-events-auto overflow-hidden rounded-lg transition-all duration-300"
       style={{
-        backgroundColor: theme.colors.background.elevated,
-        border: `1px solid ${theme.colors.border.subtle}`,
+        backgroundColor: 'var(--color-bg-elevated)',
+        border: '1px solid var(--color-border-subtle)',
         borderLeftWidth: '4px',
         borderLeftColor: accentColor,
-        boxShadow: theme.shadow.lg,
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
       }}
     >
       <div
         className="flex items-start gap-3 px-4 py-3"
-        style={{ color: theme.colors.text.primary }}
+        style={{ color: 'var(--color-text-primary)' }}
       >
         <ToastIcon tone={tone} />
 
@@ -120,7 +120,7 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
               className="mt-1 leading-snug"
               style={{
                 fontSize: theme.fontSize.caption,
-                color: theme.colors.text.secondary,
+                color: 'var(--color-text-secondary)',
               }}
             >
               {description}
@@ -134,9 +134,9 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
                   onClick={() => { void action.onClick() }}
                   className="inline-flex items-center gap-1 rounded border px-2 py-1 font-medium transition-colors duration-150 hover:brightness-125"
                   style={{
-                    borderColor: theme.colors.border.subtle,
-                    backgroundColor: theme.colors.background.primary,
-                    color: theme.colors.text.primary,
+                    borderColor: 'var(--color-border-subtle)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    color: 'var(--color-text-primary)',
                     fontSize: theme.fontSize.caption,
                   }}
                 >
@@ -151,9 +151,9 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
                   title="Copy error details"
                   className="inline-flex items-center gap-1 rounded border px-2 py-1 font-medium transition-colors duration-150 hover:brightness-125"
                   style={{
-                    borderColor: theme.colors.border.subtle,
-                    backgroundColor: theme.colors.background.primary,
-                    color: copyState === 'failed' ? theme.colors.accent.red.DEFAULT : theme.colors.text.primary,
+                    borderColor: 'var(--color-border-subtle)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    color: copyState === 'failed' ? 'var(--color-accent-red)' : 'var(--color-text-primary)',
                     fontSize: theme.fontSize.caption,
                   }}
                 >
@@ -183,7 +183,7 @@ export function ToastCard({ tone, title, description, action, copyText, onDismis
           onClick={onDismiss}
           className="flex-shrink-0 rounded p-1 transition-colors duration-150 hover:brightness-125"
           style={{
-            color: theme.colors.text.tertiary,
+            color: 'var(--color-text-tertiary)',
           }}
         >
           <svg

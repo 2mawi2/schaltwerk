@@ -36,18 +36,18 @@ import { VscSend } from 'react-icons/vsc'
 const specText = {
   title: {
     ...typography.headingLarge,
-    color: theme.colors.text.primary,
+    color: 'var(--color-text-primary)',
     fontWeight: 600,
   },
   badge: {
     ...typography.caption,
     lineHeight: theme.lineHeight.compact,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   saving: {
     ...typography.caption,
     lineHeight: theme.lineHeight.compact,
-    color: theme.colors.accent.blue.light,
+    color: 'var(--color-accent-blue-light)',
   },
   toolbarButton: {
     ...typography.button,
@@ -55,11 +55,11 @@ const specText = {
   },
   toolbarMeta: {
     ...typography.caption,
-    color: theme.colors.text.tertiary,
+    color: 'var(--color-text-tertiary)',
   },
   toolbarMetaError: {
     ...typography.caption,
-    color: theme.colors.accent.red.light,
+    color: 'var(--color-accent-red-light)',
   },
 }
 
@@ -466,7 +466,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
               className="px-1.5 py-0.5 rounded"
               style={{
                 ...specText.saving,
-                backgroundColor: theme.colors.accent.blue.bg,
+                backgroundColor: 'var(--color-accent-blue-bg)',
               }}
               title="Saving..."
             >
@@ -480,8 +480,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
             style={{
               ...specText.toolbarButton,
-              backgroundColor: theme.colors.accent.blue.DEFAULT,
-              color: theme.colors.text.inverse
+              backgroundColor: 'var(--color-accent-blue)',
+              color: 'var(--color-text-inverse)'
             }}
             title={buildSpecRefineReference(sessionName, displayName)}
           >
@@ -504,11 +504,11 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 className="px-2 py-1 rounded flex items-center gap-1 hover:opacity-90"
                 style={{
                   ...specText.toolbarButton,
-                  backgroundColor: theme.colors.accent.purple.bg,
+                  backgroundColor: 'var(--color-accent-purple-bg)',
                   borderWidth: 1,
                   borderStyle: 'solid',
-                  borderColor: theme.colors.accent.purple.border,
-                  color: theme.colors.accent.purple.DEFAULT
+                  borderColor: 'var(--color-accent-purple-border)',
+                  color: 'var(--color-accent-purple)'
                 }}
                 title="Add comments to this spec"
               >
@@ -614,9 +614,9 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 onMouseDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               >
-                <div className="mb-3" style={{ color: theme.colors.text.secondary }}>
+                <div className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>
                   <div className="font-medium mb-1" style={{ fontSize: theme.fontSize.body }}>Add Review Comment</div>
-                  <div style={{ fontSize: theme.fontSize.caption, color: theme.colors.text.muted }}>
+                  <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>
                     {lineSelection.selection.startLine === lineSelection.selection.endLine
                       ? `Line ${lineSelection.selection.startLine}`
                       : `Lines ${lineSelection.selection.startLine}-${lineSelection.selection.endLine}`}
@@ -674,7 +674,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
               className="px-3 py-2 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 shrink-0"
               style={{ fontSize: theme.fontSize.caption }}
             >
-              <span style={{ color: theme.colors.text.muted }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>
                 {getConfirmationMessage(reviewComments.length)}
               </span>
               <div className="flex items-center gap-2">

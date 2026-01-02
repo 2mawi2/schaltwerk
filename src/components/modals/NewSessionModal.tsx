@@ -5,7 +5,6 @@ import { promptToSessionName } from '../../utils/promptToSessionName'
 import { titleToSessionName } from '../../utils/titleToSessionName'
 import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
-import { theme } from '../../common/theme'
 import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
@@ -1237,16 +1236,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                       onClick={toggle}
                       className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
                       style={{
-                        backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
-                        color: theme.colors.text.primary,
-                        border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                        backgroundColor: open ? 'var(--color-bg-hover)' : 'var(--color-bg-elevated)',
+                        color: 'var(--color-text-primary)',
+                        border: `1px solid ${open ? 'var(--color-border-default)' : 'var(--color-border-subtle)'}`,
                       }}
                       title={multiAgentMode ? 'Configure multiple agents' : 'Number of parallel versions'}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
-                        <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
-                        <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
-                        <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
+                        <path d="M12 2L3 6l9 4 9-4-9-4z" fill="var(--color-text-primary)" fillOpacity={0.9}/>
+                        <path d="M3 10l9 4 9-4" stroke="var(--color-text-primary)" strokeOpacity={0.5} strokeWidth={1.2}/>
+                        <path d="M3 14l9 4 9-4" stroke="var(--color-text-primary)" strokeOpacity={0.35} strokeWidth={1.2}/>
                       </svg>
                       <span style={{ lineHeight: 1 }}>
                         {multiAgentMode ? multiAgentSummaryLabel : `${versionCount}x`}
@@ -1261,7 +1260,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             <button
                 onClick={onClose}
                 className="px-3 h-9 rounded group relative hover:opacity-90 inline-flex items-center"
-                style={{ backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary, border: `1px solid ${theme.colors.border.subtle}` }}
+                style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-subtle)' }}
                 title="Cancel (Esc)"
             >
                 Cancel
@@ -1272,7 +1271,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 disabled={isStartDisabled}
                 className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
                 style={{
-                    backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
+                    backgroundColor: createAsDraft ? 'var(--color-accent-amber)' : 'var(--color-accent-blue)',
                     opacity: creating ? 0.9 : 1
                 }}
                 title={getStartButtonTitle()}
@@ -1327,12 +1326,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             </div>
                         )}
                         {originalSpecName && (
-                            <div className="flex items-center justify-between mt-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: theme.colors.background.elevated, border: `1px solid ${theme.colors.border.subtle}` }}>
+                            <div className="flex items-center justify-between mt-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-subtle)' }}>
                                 <div className="flex items-center gap-2">
-                                    <svg className="w-3 h-3 flex-shrink-0" style={{ color: theme.colors.accent.blue.DEFAULT }} fill="currentColor" viewBox="0 0 20 20">
+                                    <svg className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v1.5h16V5a2 2 0 00-2-2H4zm14 6H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM2 7h16v1H2V7z" clipRule="evenodd" />
                                     </svg>
-                                    <span style={{ color: theme.colors.text.secondary }}>From spec: <span style={{ color: theme.colors.text.primary }}>{originalSpecName}</span></span>
+                                    <span style={{ color: 'var(--color-text-secondary)' }}>From spec: <span style={{ color: 'var(--color-text-primary)' }}>{originalSpecName}</span></span>
                                 </div>
                                 {name !== originalSpecName && (
                                     <button 
@@ -1343,7 +1342,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                             wasEditedRef.current = true
                                         }}
                                         className="ml-2 px-2 py-0.5 rounded text-xs hover:opacity-80"
-                                        style={{ backgroundColor: theme.colors.accent.blue.bg, color: theme.colors.accent.blue.DEFAULT }}
+                                        style={{ backgroundColor: 'var(--color-accent-blue-bg)', color: 'var(--color-accent-blue)' }}
                                         title="Reset to original spec name"
                                     >
                                         Reset
@@ -1375,7 +1374,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     setValidationError('')
                                 }
                             }}
-                            style={{ color: theme.colors.accent.cyan.DEFAULT }}
+                            style={{ color: 'var(--color-accent-cyan)' }}
                         />
                         <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
                     </div>
@@ -1394,13 +1393,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     style={{
                                         backgroundColor:
                                             promptSource === 'custom'
-                                                ? theme.colors.background.elevated
-                                                : theme.colors.background.primary,
-                                        color: theme.colors.text.primary,
+                                                ? 'var(--color-bg-elevated)'
+                                                : 'var(--color-bg-primary)',
+                                        color: 'var(--color-text-primary)',
                                         border: `1px solid ${
                                             promptSource === 'custom'
-                                                ? theme.colors.accent.blue.DEFAULT
-                                                : theme.colors.border.subtle
+                                                ? 'var(--color-accent-blue)'
+                                                : 'var(--color-border-subtle)'
                                         }`,
                                     }}
                                 >
@@ -1424,15 +1423,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     style={{
                                         backgroundColor:
                                             promptSource === 'github_issue'
-                                                ? theme.colors.background.elevated
-                                                : theme.colors.background.primary,
+                                                ? 'var(--color-bg-elevated)'
+                                                : 'var(--color-bg-primary)',
                                         color: githubPromptReady
-                                            ? theme.colors.text.primary
-                                            : theme.colors.text.secondary,
+                                            ? 'var(--color-text-primary)'
+                                            : 'var(--color-text-secondary)',
                                         border: `1px solid ${
                                             promptSource === 'github_issue'
-                                                ? theme.colors.accent.blue.DEFAULT
-                                                : theme.colors.border.subtle
+                                                ? 'var(--color-accent-blue)'
+                                                : 'var(--color-border-subtle)'
                                         }`,
                                         opacity: githubPromptReady ? 1 : 0.6,
                                         cursor: githubPromptReady ? 'pointer' : 'not-allowed',
@@ -1458,15 +1457,15 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     style={{
                                         backgroundColor:
                                             promptSource === 'github_pull_request'
-                                                ? theme.colors.background.elevated
-                                                : theme.colors.background.primary,
+                                                ? 'var(--color-bg-elevated)'
+                                                : 'var(--color-bg-primary)',
                                         color: githubPromptReady
-                                            ? theme.colors.text.primary
-                                            : theme.colors.text.secondary,
+                                            ? 'var(--color-text-primary)'
+                                            : 'var(--color-text-secondary)',
                                         border: `1px solid ${
                                             promptSource === 'github_pull_request'
-                                                ? theme.colors.accent.blue.DEFAULT
-                                                : theme.colors.border.subtle
+                                                ? 'var(--color-accent-blue)'
+                                                : 'var(--color-border-subtle)'
                                         }`,
                                         opacity: githubPromptReady ? 1 : 0.6,
                                         cursor: githubPromptReady ? 'pointer' : 'not-allowed',

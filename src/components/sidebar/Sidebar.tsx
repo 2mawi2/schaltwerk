@@ -1492,9 +1492,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <span
                         className="px-1 py-[2px] rounded border"
                         style={{
-                            color: theme.colors.text.secondary,
-                            borderColor: theme.colors.border.subtle,
-                            backgroundColor: theme.colors.background.elevated,
+                            color: 'var(--color-text-secondary)',
+                            borderColor: 'var(--color-border-subtle)',
+                            backgroundColor: 'var(--color-bg-elevated)',
                             fontSize: theme.fontSize.caption,
                             lineHeight: theme.lineHeight.compact,
                             minWidth: '24px',
@@ -1511,14 +1511,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             {!isCollapsed && (
                 <div
-                    className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center"
+                    className="h-8 px-3 border-t border-b text-xs flex items-center bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)]"
                     data-onboarding="session-filter-row"
                 >
                     <div className="flex items-center gap-2 w-full">
                         <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
                             {/* Search Icon */}
-                                    <button
-                                        onClick={() => {
+                            <button
+                                onClick={() => {
                                             setIsSearchVisible(true)
                                             // Trigger OpenCode TUI resize workaround for the active context
                                             if (selection.kind === 'session' && selection.payload) {
@@ -1536,9 +1536,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             } catch (e) {
                                                 logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search open)', e)
                                             }
-                                        }}
-                                className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
-                                    isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
+                                }}
+                                className={clsx(
+                                    'px-1 py-0.5 rounded flex items-center flex-shrink-0 border border-transparent transition-colors',
+                                    isSearchVisible
+                                        ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border-[var(--color-border-default)]'
+                                        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
+                                )}
                                 title="Search sessions"
                             >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1546,31 +1550,43 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 </svg>
                             </button>
                             <button
-                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
-                                    filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                    keyboardNavigatedFilter === FilterMode.Spec && '' )}
+                                className={clsx(
+                                    'text-[10px] px-2 py-0.5 rounded flex items-center gap-1 border transition-colors',
+                                    filterMode === FilterMode.Spec
+                                        ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border-[var(--color-border-default)]'
+                                        : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
+                                    keyboardNavigatedFilter === FilterMode.Spec && ''
+                                )}
                                 onClick={() => setFilterMode(FilterMode.Spec)}
                                 title="Show spec agents"
                             >
-                                Specs <span className="text-slate-400">({specsCount})</span>
+                                Specs <span className="text-[var(--color-text-muted)]">({specsCount})</span>
                             </button>
                             <button
-                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                    filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                    keyboardNavigatedFilter === FilterMode.Running && '' )}
+                                className={clsx(
+                                    'text-[10px] px-2 py-0.5 rounded flex items-center gap-1 border transition-colors',
+                                    filterMode === FilterMode.Running
+                                        ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border-[var(--color-border-default)]'
+                                        : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
+                                    keyboardNavigatedFilter === FilterMode.Running && ''
+                                )}
                                 onClick={() => setFilterMode(FilterMode.Running)}
                                 title="Show running agents"
                             >
-                                Running <span className="text-slate-400">({runningCount})</span>
+                                Running <span className="text-[var(--color-text-muted)]">({runningCount})</span>
                             </button>
                             <button
-                                className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                    filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                    keyboardNavigatedFilter === FilterMode.Reviewed && '' )}
+                                className={clsx(
+                                    'text-[10px] px-2 py-0.5 rounded flex items-center gap-1 border transition-colors',
+                                    filterMode === FilterMode.Reviewed
+                                        ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border-[var(--color-border-default)]'
+                                        : 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] border-[var(--color-border-subtle)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-primary)]',
+                                    keyboardNavigatedFilter === FilterMode.Reviewed && ''
+                                )}
                                 onClick={() => setFilterMode(FilterMode.Reviewed)}
                                 title="Show reviewed agents"
                             >
-                                Reviewed <span className="text-slate-400">({reviewedCount})</span>
+                                Reviewed <span className="text-[var(--color-text-muted)]">({reviewedCount})</span>
                             </button>
                         </div>
                     </div>
@@ -1579,9 +1595,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             {/* Search Line - appears below filters when active */}
             {!isCollapsed && isSearchVisible && (
-                <div className="h-8 px-3 border-b border-slate-800 bg-slate-900/50 flex items-center">
+                <div className="h-8 px-3 border-b bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] flex items-center">
                     <div className="flex items-center gap-2 w-full">
-                        <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3 h-3 text-[var(--color-text-muted)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                         </svg>
                         <input
@@ -1606,11 +1622,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 }
                             }}
                             placeholder="Search sessions..."
-                            className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
+                            className="flex-1 bg-transparent text-xs text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
                             autoFocus
                         />
                         {searchQuery && (
-                            <span className="text-xs text-slate-400 whitespace-nowrap">
+                            <span className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">
                                 {sessions.length} result{sessions.length !== 1 ? 's' : ''}
                             </span>
                         )}
@@ -1634,7 +1650,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search close)', e)
                                 }
                             }}
-                            className="text-slate-400 hover:text-slate-200 p-0.5"
+                            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] p-0.5"
                             title="Close search"
                         >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1834,11 +1850,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         key="ungrouped-header"
                                         data-testid="epic-ungrouped-header"
                                         className="mt-4 mb-2 px-2 flex items-center gap-2"
-                                        style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}
+                                        style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}
                                     >
-                                        <div style={{ flex: 1, height: 1, backgroundColor: theme.colors.border.subtle }} />
+                                        <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border-subtle)' }} />
                                         <span>Ungrouped</span>
-                                        <div style={{ flex: 1, height: 1, backgroundColor: theme.colors.border.subtle }} />
+                                        <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border-subtle)' }} />
                                     </div>
                                 )
 
@@ -1871,7 +1887,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 open={Boolean(deleteEpicTarget)}
                 title={`Delete epic "${deleteEpicTarget?.name ?? ''}"?`}
                 body={
-                    <div style={{ color: theme.colors.text.secondary, fontSize: theme.fontSize.body }}>
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.body }}>
                         All sessions and specs in this epic will be moved to <strong>Ungrouped</strong>.
                     </div>
                 }

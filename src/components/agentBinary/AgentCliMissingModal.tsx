@@ -1,5 +1,4 @@
 import { AgentBinaryStatus } from '../../hooks/useAgentBinarySnapshot'
-import { theme } from '../../common/theme'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import { AGENT_TYPES } from '../../types/session'
 
@@ -18,18 +17,20 @@ function StatusList({ items }: { items: Record<string, { status: 'present' | 'mi
       {AGENT_TYPES.map(agent => {
         const status = items[agent]?.status ?? 'missing'
         const preferred = items[agent]?.preferredPath ?? null
-        const color = status === 'present' ? theme.colors.accent.green.DEFAULT : theme.colors.text.secondary
+        const color = status === 'present'
+          ? 'var(--color-accent-green)'
+          : 'var(--color-text-secondary)'
         return (
           <div
             key={agent}
             className="flex items-start justify-between border rounded px-3 py-2"
-            style={{ borderColor: theme.colors.border.subtle }}
+            style={{ borderColor: 'var(--color-border-subtle)' }}
           >
             <div>
-              <div className="text-sm" style={{ color: theme.colors.text.primary }}>
+              <div className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
                 {displayNameForAgent(agent)}
               </div>
-              <div className="text-xs" style={{ color: theme.colors.text.secondary }}>
+              <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 {preferred ?? 'No path detected'}
               </div>
             </div>
@@ -69,9 +70,9 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
             onClick={onRefresh}
             className="px-3 py-1.5 rounded border text-sm"
             style={{
-              borderColor: theme.colors.border.subtle,
-              color: theme.colors.text.secondary,
-              backgroundColor: theme.colors.background.elevated,
+              borderColor: 'var(--color-border-subtle)',
+              color: 'var(--color-text-secondary)',
+              backgroundColor: 'var(--color-bg-elevated)',
             }}
             disabled={loading}
           >
@@ -80,7 +81,7 @@ export function AgentCliMissingModal({ open, onClose, onOpenSettings, loading, s
           <button
             onClick={onOpenSettings}
             className="px-3 py-1.5 rounded text-sm text-white"
-            style={{ backgroundColor: theme.colors.accent.blue.dark }}
+            style={{ backgroundColor: 'var(--color-accent-blue-dark)' }}
           >
             Open Settings
           </button>

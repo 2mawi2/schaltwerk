@@ -73,8 +73,8 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
       <div
         className="flex items-center rounded px-2 py-1"
         style={{
-          backgroundColor: theme.colors.background.elevated,
-          border: `1px solid ${theme.colors.border.subtle}`,
+          backgroundColor: 'var(--color-bg-elevated)',
+          border: '1px solid var(--color-border-subtle)',
         }}
         onPointerDown={stopPropagation}
         onMouseDown={stopPropagation}
@@ -85,7 +85,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
           height="14"
           viewBox="0 0 16 16"
           fill="none"
-          style={{ color: theme.colors.text.muted, flexShrink: 0 }}
+          style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}
         >
           <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
           <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -99,7 +99,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
           placeholder="Search commits..."
           className="bg-transparent outline-none placeholder:opacity-50 ml-2 flex-1 min-w-0"
           style={{
-            color: theme.colors.text.primary,
+            color: 'var(--color-text-primary)',
             fontSize: theme.fontSize.body,
           }}
         />
@@ -107,7 +107,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
           <span
             className="ml-2 whitespace-nowrap flex-shrink-0"
             style={{
-              color: theme.colors.text.muted,
+              color: 'var(--color-text-muted)',
               fontSize: theme.fontSize.caption,
             }}
           >
@@ -118,7 +118,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
           <button
             onClick={handleClear}
             className="ml-1 hover:opacity-80 flex-shrink-0"
-            style={{ color: theme.colors.text.tertiary }}
+            style={{ color: 'var(--color-text-tertiary)' }}
             title="Clear search (Escape)"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

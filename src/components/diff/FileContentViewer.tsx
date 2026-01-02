@@ -44,7 +44,7 @@ const CodeContent = memo(function CodeContent({
     <div
       className="h-full overflow-auto font-mono text-sm hljs"
       style={{
-        backgroundColor: theme.colors.background.primary,
+        backgroundColor: 'var(--color-bg-primary)',
         fontFamily: theme.fontFamily.mono,
         fontSize: theme.fontSize.code,
       }}
@@ -58,7 +58,7 @@ const CodeContent = memo(function CodeContent({
                 <td
                   className="select-none text-right pr-4 pl-4"
                   style={{
-                    color: theme.colors.text.muted,
+                    color: 'var(--color-text-muted)',
                     minWidth: '3em',
                     userSelect: 'none',
                   }}
@@ -68,7 +68,7 @@ const CodeContent = memo(function CodeContent({
                 <td
                   className="pr-4"
                   style={{
-                    color: theme.colors.text.primary,
+                    color: 'var(--color-text-primary)',
                     whiteSpace: 'pre',
                   }}
                   dangerouslySetInnerHTML={highlighted ? { __html: highlighted } : undefined}
@@ -182,7 +182,7 @@ export function FileContentViewer({
     if (isLoading) {
       return (
         <div className="h-full flex items-center justify-center">
-          <div className="text-center" style={{ color: theme.colors.text.muted }}>
+          <div className="text-center" style={{ color: 'var(--color-text-muted)' }}>
             <div className="text-sm">Loading...</div>
           </div>
         </div>
@@ -192,8 +192,8 @@ export function FileContentViewer({
     if (error) {
       return (
         <div className="h-full flex items-center justify-center">
-          <div className="text-center" style={{ color: theme.colors.text.muted }}>
-            <VscWarning className="mx-auto mb-2 text-4xl" style={{ color: theme.colors.accent.amber.DEFAULT }} />
+          <div className="text-center" style={{ color: 'var(--color-text-muted)' }}>
+            <VscWarning className="mx-auto mb-2 text-4xl" style={{ color: 'var(--color-accent-amber)' }} />
             <div className="text-sm">{error}</div>
           </div>
         </div>
@@ -203,7 +203,7 @@ export function FileContentViewer({
     if (isBinary) {
       return (
         <div className="h-full flex items-center justify-center">
-          <div className="text-center" style={{ color: theme.colors.text.muted }}>
+          <div className="text-center" style={{ color: 'var(--color-text-muted)' }}>
             <VscFileBinary className="mx-auto mb-2 text-4xl opacity-50" />
             <div className="text-sm">Binary file</div>
             <div className="text-xs mt-1">{formatBytes(fileSize)}</div>
@@ -227,18 +227,18 @@ export function FileContentViewer({
     <div className="h-full flex flex-col overflow-hidden">
       <div
         className="flex items-center justify-between px-3 py-2 border-b shrink-0"
-        style={{ borderColor: theme.colors.border.subtle, backgroundColor: theme.colors.background.primary }}
+        style={{ borderColor: 'var(--color-border-subtle)', backgroundColor: 'var(--color-bg-primary)' }}
       >
         <button
           onClick={onBack}
           className="group pl-2 pr-3 py-1 rounded text-xs font-medium flex items-center gap-2 transition-colors"
-          style={{ color: theme.colors.text.muted }}
+          style={{ color: 'var(--color-text-muted)' }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = theme.colors.text.primary
-            e.currentTarget.style.backgroundColor = theme.colors.background.elevated
+            e.currentTarget.style.color = 'var(--color-text-primary)'
+            e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = theme.colors.text.muted
+            e.currentTarget.style.color = 'var(--color-text-muted)'
             e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
@@ -247,7 +247,7 @@ export function FileContentViewer({
         </button>
 
         <div className="flex-1 mx-4 truncate text-center">
-          <span className="text-sm font-medium" style={{ color: theme.colors.text.primary }}>
+          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
             {fileName}
           </span>
         </div>
@@ -260,8 +260,8 @@ export function FileContentViewer({
                 className="p-1.5 rounded transition-colors"
                 title="Preview"
                 style={{
-                  color: viewMode === 'preview' ? theme.colors.accent.blue.DEFAULT : theme.colors.text.muted,
-                  backgroundColor: viewMode === 'preview' ? theme.colors.background.elevated : 'transparent',
+                  color: viewMode === 'preview' ? 'var(--color-accent-blue)' : 'var(--color-text-muted)',
+                  backgroundColor: viewMode === 'preview' ? 'var(--color-bg-elevated)' : 'transparent',
                 }}
               >
                 <VscPreview className="w-4 h-4" />
@@ -271,8 +271,8 @@ export function FileContentViewer({
                 className="p-1.5 rounded transition-colors"
                 title="Raw"
                 style={{
-                  color: viewMode === 'raw' ? theme.colors.accent.blue.DEFAULT : theme.colors.text.muted,
-                  backgroundColor: viewMode === 'raw' ? theme.colors.background.elevated : 'transparent',
+                  color: viewMode === 'raw' ? 'var(--color-accent-blue)' : 'var(--color-text-muted)',
+                  backgroundColor: viewMode === 'raw' ? 'var(--color-bg-elevated)' : 'transparent',
                 }}
               >
                 <VscCode className="w-4 h-4" />
@@ -283,13 +283,13 @@ export function FileContentViewer({
             onClick={() => { if (filePath) void openInEditor(filePath) }}
             className="p-1.5 rounded transition-colors"
             title="Open in editor"
-            style={{ color: theme.colors.text.muted }}
+            style={{ color: 'var(--color-text-muted)' }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.colors.text.primary
-              e.currentTarget.style.backgroundColor = theme.colors.background.elevated
+              e.currentTarget.style.color = 'var(--color-text-primary)'
+              e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = theme.colors.text.muted
+              e.currentTarget.style.color = 'var(--color-text-muted)'
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >

@@ -5,13 +5,11 @@ import {
   toggleKeepAwakeActionAtom,
   KeepAwakeState,
 } from '../store/atoms/powerSettings'
-import { theme } from '../common/theme'
 import { logger } from '../utils/logger'
-import { withOpacity } from '../common/colorUtils'
 import { useOptionalToast } from '../common/toast/ToastProvider'
 
 const CoffeeIcon = ({ state }: { state: KeepAwakeState }) => {
-  const stroke = state === 'disabled' ? theme.colors.text.tertiary : theme.colors.text.primary
+  const stroke = state === 'disabled' ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)'
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 8h15a3 3 0 0 1 0 6h-1" />
@@ -34,22 +32,22 @@ export function GlobalKeepAwakeButton() {
     switch (state) {
       case 'active':
         return {
-          backgroundColor: theme.colors.accent.green.bg,
-          borderColor: theme.colors.accent.green.border,
-          color: theme.colors.text.primary,
+          backgroundColor: 'var(--color-accent-green-bg)',
+          borderColor: 'var(--color-accent-green-border)',
+          color: 'var(--color-text-primary)',
         }
       case 'auto_paused':
         return {
-          backgroundColor: theme.colors.accent.amber.bg,
-          borderColor: theme.colors.accent.amber.border,
-          color: theme.colors.text.primary,
+          backgroundColor: 'var(--color-accent-amber-bg)',
+          borderColor: 'var(--color-accent-amber-border)',
+          color: 'var(--color-text-primary)',
         }
       case 'disabled':
       default:
         return {
-          backgroundColor: withOpacity(theme.colors.background.elevated, 0.6),
-          borderColor: theme.colors.border.subtle,
-          color: theme.colors.text.tertiary,
+          backgroundColor: 'rgba(var(--color-bg-elevated-rgb), 0.6)',
+          borderColor: 'var(--color-border-subtle)',
+          color: 'var(--color-text-tertiary)',
         }
     }
   }, [state])
@@ -111,7 +109,7 @@ export function GlobalKeepAwakeButton() {
           <span
             className="absolute -top-1 -right-1 block h-2 w-2 rounded-full"
             data-testid="keep-awake-autopause-indicator"
-            style={{ backgroundColor: theme.colors.accent.amber.DEFAULT }}
+            style={{ backgroundColor: 'var(--color-accent-amber)' }}
           />
         )}
       </div>

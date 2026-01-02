@@ -64,15 +64,15 @@ export function UnifiedTab({
   }
 
   const getBackgroundColor = () => {
-    if (isActive) return theme.colors.tabs.active.bg
-    if (isHovered && !disabled) return theme.colors.tabs.inactive.hoverBg
-    return theme.colors.tabs.inactive.bg
+    if (isActive) return 'var(--color-tab-active-bg)'
+    if (isHovered && !disabled) return 'var(--color-tab-inactive-hover-bg)'
+    return 'var(--color-tab-inactive-bg)'
   }
 
   const getTextColor = () => {
-    if (isActive) return theme.colors.tabs.active.text
-    if (isHovered && !disabled) return theme.colors.tabs.inactive.hoverText
-    return theme.colors.tabs.inactive.text
+    if (isActive) return 'var(--color-tab-active-text)'
+    if (isHovered && !disabled) return 'var(--color-tab-inactive-hover-text)'
+    return 'var(--color-tab-inactive-text)'
   }
 
   return (
@@ -85,7 +85,7 @@ export function UnifiedTab({
       style={{
         backgroundColor: getBackgroundColor(),
         color: getTextColor(),
-        borderRight: `1px solid ${theme.colors.border.subtle}`,
+        borderRight: '1px solid var(--color-border-subtle)',
         paddingLeft: '12px',
         paddingRight: '8px',
         minWidth: style?.minWidth || '80px',
@@ -107,8 +107,8 @@ export function UnifiedTab({
         className="absolute left-0 right-0 bottom-0 h-[2px]"
         style={{
           backgroundColor: isRunTab && isRunning
-            ? theme.colors.tabs.running.indicator
-            : theme.colors.tabs.active.indicator,
+            ? 'var(--color-tab-running-indicator)'
+            : 'var(--color-tab-active-indicator)',
           opacity: isActive ? 1 : 0,
           transform: isActive ? 'scaleX(1)' : 'scaleX(0)',
           transition: 'opacity 150ms ease-out, transform 150ms ease-out',
@@ -120,7 +120,7 @@ export function UnifiedTab({
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: `linear-gradient(to top, ${theme.colors.tabs.running.glow} 0%, transparent 50%)`,
+            background: 'linear-gradient(to top, var(--color-tab-running-glow) 0%, transparent 50%)',
           }}
         />
       )}
@@ -152,8 +152,8 @@ export function UnifiedTab({
               fontSize: theme.fontSize.caption,
               height: '16px',
               minWidth: '16px',
-              backgroundColor: theme.colors.tabs.badge.bg,
-              color: theme.colors.tabs.badge.text,
+              backgroundColor: 'var(--color-tab-badge-bg)',
+              color: 'var(--color-tab-badge-text)',
             }}
           >
             {badgeContent}
@@ -170,11 +170,11 @@ export function UnifiedTab({
               fontSize: theme.fontSize.body,
               lineHeight: 1,
               backgroundColor: isCloseHovered
-                ? theme.colors.tabs.close.hoverBg
-                : theme.colors.tabs.close.bg,
+                ? 'var(--color-tab-close-hover-bg)'
+                : 'var(--color-tab-close-bg)',
               color: isCloseHovered
-                ? theme.colors.tabs.close.hoverColor
-                : theme.colors.tabs.close.color,
+                ? 'var(--color-tab-close-hover-color)'
+                : 'var(--color-tab-close-color)',
               opacity: isActive || isHovered ? 1 : 0,
               transition: 'opacity 150ms ease-out, background-color 100ms ease-out, color 100ms ease-out',
             }}

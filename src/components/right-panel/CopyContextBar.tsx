@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
-import { theme } from '../../common/theme'
 import { useToast } from '../../common/toast/ToastProvider'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { ChangedFile, SessionsRefreshedEventPayload } from '../../common/events'
@@ -447,34 +446,34 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
       return {
         borderColor: 'transparent',
         backgroundColor: 'transparent',
-        color: theme.colors.text.muted,
+        color: 'var(--color-text-muted)',
         opacity: 0.4,
         cursor: 'not-allowed',
       }
     }
     if (active) {
       return {
-        borderColor: theme.colors.accent.blue.border,
-        backgroundColor: theme.colors.accent.blue.bg,
-        color: theme.colors.accent.blue.DEFAULT,
-        boxShadow: `0 0 10px -2px ${theme.colors.accent.blue.bg}`,
+        borderColor: 'var(--color-accent-blue-border)',
+        backgroundColor: 'var(--color-accent-blue-bg)',
+        color: 'var(--color-accent-blue)',
+        boxShadow: '0 0 10px -2px var(--color-accent-blue-bg)',
       }
     }
     return {
       borderColor: 'transparent',
       backgroundColor: 'transparent',
-      color: theme.colors.text.secondary,
+      color: 'var(--color-text-secondary)',
     }
   }
 
   const getHoverStyle = (active: boolean, disabled: boolean) => {
     if (disabled) return {}
     if (active) return {
-      backgroundColor: `color-mix(in srgb, ${theme.colors.accent.blue.bg}, ${theme.colors.accent.blue.DEFAULT} 5%)`,
+      backgroundColor: 'color-mix(in srgb, var(--color-accent-blue-bg), var(--color-accent-blue) 5%)',
     }
     return {
-      backgroundColor: theme.colors.background.hover,
-      color: theme.colors.text.primary,
+      backgroundColor: 'var(--color-bg-hover)',
+      color: 'var(--color-text-primary)',
     }
   }
 
@@ -483,8 +482,8 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
       className="flex items-center justify-between px-4 py-3 select-none"
       aria-label="copy-bundle-bar"
       style={{
-        borderBottom: `1px solid ${theme.colors.border.subtle}`,
-        backgroundColor: theme.colors.background.secondary, // Slightly darker/different to separate panels
+        borderBottom: '1px solid var(--color-border-subtle)',
+        backgroundColor: 'var(--color-bg-secondary)', // Slightly darker/different to separate panels
         backdropFilter: 'blur(8px)',
       }}
     >
@@ -536,8 +535,8 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
               style={{
-                backgroundColor: selection.diff ? theme.colors.accent.blue.DEFAULT : theme.colors.background.elevated,
-                color: selection.diff ? theme.colors.background.primary : theme.colors.text.muted,
+                backgroundColor: selection.diff ? 'var(--color-accent-blue)' : 'var(--color-bg-elevated)',
+                color: selection.diff ? 'var(--color-bg-primary)' : 'var(--color-text-muted)',
               }}
             >
               {selectedChangedFilesCount}
@@ -571,8 +570,8 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
               style={{
-                backgroundColor: selection.files ? theme.colors.accent.blue.DEFAULT : theme.colors.background.elevated,
-                color: selection.files ? theme.colors.background.primary : theme.colors.text.muted,
+                backgroundColor: selection.files ? 'var(--color-accent-blue)' : 'var(--color-bg-elevated)',
+                color: selection.files ? 'var(--color-bg-primary)' : 'var(--color-text-muted)',
               }}
             >
               {selectedChangedFilesCount}
@@ -584,7 +583,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
       <div className="flex items-center gap-4">
         <div
           className="text-xs font-mono tracking-wide uppercase"
-          style={{ color: theme.colors.text.secondary }}
+          style={{ color: 'var(--color-text-secondary)' }}
           title={tokenCount !== null ? `${tokenCount.toLocaleString()} tokens` : 'Token count unavailable'}
         >
           {tokenCount !== null ? `${tokenCount.toLocaleString()} TOKENS` : '—'}
@@ -597,19 +596,19 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           title="Copy the selected spec, diffs, and files to paste into an external AI"
           className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
           style={{
-            backgroundColor: theme.colors.accent.blue.DEFAULT,
-            color: theme.colors.background.primary,
-            boxShadow: `0 0 15px -3px ${theme.colors.accent.blue.bg}`,
+            backgroundColor: 'var(--color-accent-blue)',
+            color: 'var(--color-bg-primary)',
+            boxShadow: '0 0 15px -3px var(--color-accent-blue-bg)',
           }}
           onMouseEnter={(e) => {
             if (!isCopying && !nothingSelected) {
-              e.currentTarget.style.backgroundColor = theme.colors.accent.blue.light
-              e.currentTarget.style.boxShadow = `0 0 20px -2px ${theme.colors.accent.blue.bg}`
+              e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-light)'
+              e.currentTarget.style.boxShadow = '0 0 20px -2px var(--color-accent-blue-bg)'
             }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
-            e.currentTarget.style.boxShadow = `0 0 15px -3px ${theme.colors.accent.blue.bg}`
+            e.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
+            e.currentTarget.style.boxShadow = '0 0 15px -3px var(--color-accent-blue-bg)'
           }}
         >
           {isCopying ? (

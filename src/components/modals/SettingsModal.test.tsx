@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, type Mock } from 'vitest'
 import { SettingsModal } from './SettingsModal'
+import { ModalProvider } from '../../contexts/ModalContext'
 import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
 import { renderWithProviders } from '../../tests/test-utils'
@@ -347,23 +348,26 @@ describe('SettingsModal initial tab handling', () => {
       />
     )
 
-    const appearanceButton = await screen.findByRole('button', { name: 'Appearance' })
     await waitFor(() => {
+      const appearanceButton = screen.getByRole('button', { name: 'Appearance' })
       expect(appearanceButton).toHaveClass('bg-slate-800')
     })
 
     rerender(
-      <SettingsModal
-        open={true}
-        initialTab="projectRun"
-        onClose={() => {}}
-      />
+      <ModalProvider>
+        <SettingsModal
+          open={true}
+          initialTab="projectRun"
+          onClose={() => {}}
+        />
+      </ModalProvider>
     )
 
-    const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
+      const runButton = screen.getByRole('button', { name: 'Run & Environment' })
+      const appearanceButtonAfter = screen.getByRole('button', { name: 'Appearance' })
       expect(runButton).toHaveClass('bg-slate-800')
-      expect(appearanceButton).not.toHaveClass('bg-slate-800')
+      expect(appearanceButtonAfter).not.toHaveClass('bg-slate-800')
     })
   })
 

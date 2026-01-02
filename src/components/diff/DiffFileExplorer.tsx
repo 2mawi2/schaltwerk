@@ -5,7 +5,6 @@ import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
 import { useReviewComments } from '../../hooks/useReviewComments'
-import { theme } from '../../common/theme'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import type { ChangedFile as EventsChangedFile } from '../../common/events'
 import { DiffChangeBadges } from './DiffChangeBadges'
@@ -82,7 +81,7 @@ export function DiffFileExplorer({
         {getFileIcon(node.file.change_type, node.file.path)}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 justify-between">
-            <div className="text-sm truncate" style={{ color: theme.colors.text.primary }}>
+            <div className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
               {node.name}
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -97,7 +96,7 @@ export function DiffFileExplorer({
               {commentCount > 0 && (
                 <div
                   className="flex items-center gap-1 text-xs font-medium"
-                  style={{ color: theme.colors.accent.blue.light }}
+                  style={{ color: 'var(--color-accent-blue-light)' }}
                 >
                   <VscComment size={12} />
                   <span>{commentCount}</span>
@@ -138,14 +137,14 @@ export function DiffFileExplorer({
               onClick={onFinishReview}
               className="w-full px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
               style={{
-                backgroundColor: theme.colors.accent.blue.DEFAULT,
-                color: theme.colors.text.inverse,
+                backgroundColor: 'var(--color-accent-blue)',
+                color: 'var(--color-text-inverse)',
               }}
               onMouseEnter={(event) => {
-                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                event.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
               }}
               onMouseLeave={(event) => {
-                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                event.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
               }}
             >
               <VscCheck />

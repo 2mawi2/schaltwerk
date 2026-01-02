@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Tab } from './Tab'
-import { theme } from '../common/theme'
 
 describe('Tab', () => {
   const mockProps = {
@@ -26,19 +25,15 @@ describe('Tab', () => {
   it('applies active styles when active', () => {
     render(<Tab {...mockProps} isActive={true} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button).toHaveStyle({
-      backgroundColor: theme.colors.tabs.active.bg,
-      color: theme.colors.tabs.active.text
-    })
+    expect(button.style.backgroundColor).toBe('var(--color-tab-active-bg)')
+    expect(button.style.color).toBe('var(--color-tab-active-text)')
   })
 
   it('applies inactive styles when not active', () => {
     render(<Tab {...mockProps} isActive={false} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button).toHaveStyle({
-      backgroundColor: theme.colors.tabs.inactive.bg,
-      color: theme.colors.tabs.inactive.text
-    })
+    expect(button.style.backgroundColor).toBe('var(--color-tab-inactive-bg)')
+    expect(button.style.color).toBe('var(--color-tab-inactive-text)')
   })
 
   it('calls onSelect when clicked', () => {

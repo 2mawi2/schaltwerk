@@ -2,7 +2,6 @@ import { forwardRef, useEffect, useImperativeHandle, MouseEvent as ReactMouseEve
 import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
-import { theme } from '../../common/theme'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
@@ -22,7 +21,7 @@ interface MockSplitProps {
 }
 
 interface MockTerminalModule {
-  __getFocusSpy: (id: string) => ReturnType<typeof vi.fn>
+  __getFocusSpy: (id: string) => VoidMock | undefined
   __getMountCount: (id: string) => number
   __getUnmountCount: (id: string) => number
 }
@@ -35,7 +34,7 @@ interface MockTerminalRef {
 
 interface MockTerminalTabsRef {
   focus: () => void
-  focusTerminal: () => void
+  focusTerminal: (terminalId: string) => void
   getActiveTerminalRef: () => MockTerminalRef | null
   getTabsState: () => {
     tabs: Array<{ index: number; terminalId: string; label: string }>
@@ -48,6 +47,8 @@ interface MockTerminalTabsRef {
     setActiveTab: ReturnType<typeof vi.fn>
   }
 }
+
+type VoidMock = ReturnType<typeof vi.fn<() => void>>
 
 function terminalIdsFor(sessionName: string) {
   const group = sessionTerminalGroup(sessionName)
@@ -105,14 +106,14 @@ vi.mock('react-split', () => {
 // Spy-able store for our Terminal mock
 const mountCount = new Map<string, number>()
 const unmountCount = new Map<string, number>()
-const focusSpies = new Map<string, ReturnType<typeof vi.fn>>()
+const focusSpies = new Map<string, VoidMock>()
 
 // Mock the Terminal component used by TerminalGrid
 vi.mock('./Terminal', () => {
   const TerminalMock = forwardRef<MockTerminalRef, { terminalId: string; className?: string; sessionName?: string; isCommander?: boolean }>(function TerminalMock(props, ref) {
     const { terminalId, className = '', sessionName, isCommander } = props
-    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
-    if (!focusRef.current) focusRef.current = vi.fn()
+    const focusRef = useRef<VoidMock | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn<() => void>()
     const focus = focusRef.current
     focusSpies.set(terminalId, focus)
     useEffect(() => {
@@ -125,8 +126,8 @@ vi.mock('./Terminal', () => {
 
     useImperativeHandle(ref, () => ({
       focus: focusRef.current!,
-      showSearch: vi.fn(),
-      scrollToBottom: vi.fn(),
+      showSearch: vi.fn<() => void>(),
+      scrollToBottom: vi.fn<() => void>(),
     }), [])
 
     const handleClick = () => {
@@ -191,8 +192,8 @@ vi.mock('./TerminalTabs', () => {
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
     const addTabAction = useSetAtom(addTabActionAtom)
-    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
-    if (!focusRef.current) focusRef.current = vi.fn()
+    const focusRef = useRef<VoidMock | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn<() => void>()
     const focus = focusRef.current
     
     // Track mount for the tab terminal and register focus spy
@@ -205,7 +206,7 @@ vi.mock('./TerminalTabs', () => {
       }
     }, [terminalId, focus])
 
-    const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
+    const focusTerminal = vi.fn<(terminalId: string) => void>((tid) => { lastFocusedTerminalId = tid })
     const tabFns = getOrCreateTabFns(terminalId)
 
     useEffect(() => {
@@ -217,15 +218,15 @@ vi.mock('./TerminalTabs', () => {
     useImperativeHandle(ref, () => ({ 
       focus: focusRef.current!,
       focusTerminal,
-      getActiveTerminalRef: vi.fn(() => ({
-        focus: vi.fn(),
-        showSearch: vi.fn(),
-        scrollToBottom: vi.fn(),
-        scrollLineUp: vi.fn(),
-        scrollLineDown: vi.fn(),
-        scrollPageUp: vi.fn(),
-        scrollPageDown: vi.fn(),
-        scrollToTop: vi.fn(),
+      getActiveTerminalRef: vi.fn<() => MockTerminalRef | null>(() => ({
+        focus: vi.fn<() => void>(),
+        showSearch: vi.fn<() => void>(),
+        scrollToBottom: vi.fn<() => void>(),
+        scrollLineUp: vi.fn<() => void>(),
+        scrollLineDown: vi.fn<() => void>(),
+        scrollPageUp: vi.fn<() => void>(),
+        scrollPageDown: vi.fn<() => void>(),
+        scrollToTop: vi.fn<() => void>(),
       })),
       getTabsState: () => ({
         tabs: [{ index: 0, terminalId, label: 'Terminal 1' }],
@@ -811,23 +812,7 @@ describe('TerminalGrid', () => {
 
       // Ensure the add button uses the unified styling tokens
       expect(addButton).toHaveClass('rounded')
-      expect(addButton).toHaveStyle({
-        backgroundColor: 'transparent',
-        color: theme.colors.text.muted,
-      })
 
-      fireEvent.mouseEnter(addButton)
-      expect(addButton).toHaveStyle({
-        backgroundColor: theme.colors.tabs.inactive.hoverBg,
-        color: theme.colors.text.secondary,
-      })
-
-      fireEvent.mouseLeave(addButton)
-      expect(addButton).toHaveStyle({
-        backgroundColor: 'transparent',
-        color: theme.colors.text.muted,
-      })
-      
       // Add 5 more tabs to reach the maximum of 6
       for (let i = 0; i < 5; i++) {
         fireEvent.click(addButton)

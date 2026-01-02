@@ -1,5 +1,4 @@
 import { ConfirmModal } from './ConfirmModal'
-import { theme } from '../../common/theme'
 
 interface Props {
   open: boolean
@@ -33,12 +32,12 @@ export function SetupScriptApprovalModal({
           </p>
           <div
             className="rounded border border-slate-700 overflow-auto"
-            style={{ backgroundColor: theme.colors.background.tertiary }}
+            style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
           >
             <pre
               data-testid="setup-script-preview"
               className="p-3 text-sm font-mono whitespace-pre-wrap"
-              style={{ color: theme.colors.text.primary }}
+              style={{ color: 'var(--color-text-primary)' }}
             >
               {script || '(empty script)'}
             </pre>

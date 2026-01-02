@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
 import { VscFolderOpened, VscTrash, VscClose } from 'react-icons/vsc'
-import { theme } from '../../common/theme'
-import { withOpacity } from '../../common/colorUtils'
 import { formatDateTime } from '../../utils/dateTime'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
 
@@ -93,26 +91,26 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ backgroundColor: theme.colors.overlay.strong }}
+      style={{ backgroundColor: 'var(--color-overlay-strong)' }}
       onClick={onClose}
     >
       <div
         className="relative rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden"
         style={{
-          backgroundColor: theme.colors.background.primary,
-          border: `1px solid ${theme.colors.border.default}`
+          backgroundColor: 'var(--color-bg-primary)',
+          border: '1px solid var(--color-border-default)'
         }}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderBottomColor: theme.colors.border.default }}>
-          <h2 className="text-lg font-semibold" style={{ color: theme.colors.text.primary }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderBottomColor: 'var(--color-border-default)' }}>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             Open Project
           </h2>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-bg-elevated transition-colors"
-            style={{ color: theme.colors.text.tertiary }}
+            style={{ color: 'var(--color-text-tertiary)' }}
             aria-label="Close"
           >
             <VscClose className="text-xl" />
@@ -124,11 +122,11 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
             <div
               className="mb-4 p-3 rounded-lg flex items-start gap-3"
               style={{
-                backgroundColor: theme.colors.accent.red.bg,
-                border: `1px solid ${theme.colors.accent.red.border}`
+                backgroundColor: 'var(--color-accent-red-bg)',
+                border: '1px solid var(--color-accent-red-border)'
               }}
             >
-              <p className="text-sm" style={{ color: theme.colors.accent.red.DEFAULT }}>
+              <p className="text-sm" style={{ color: 'var(--color-accent-red)' }}>
                 {error}
               </p>
             </div>
@@ -139,15 +137,15 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
               onClick={() => { void handleSelectDirectory() }}
               className="w-full py-3 px-4 rounded-lg flex items-center justify-center gap-3 transition-colors"
               style={{
-                backgroundColor: theme.colors.accent.blue.bg,
-                border: `1px solid ${theme.colors.accent.blue.border}`,
-                color: theme.colors.accent.blue.DEFAULT
+                backgroundColor: 'var(--color-accent-blue-bg)',
+                border: '1px solid var(--color-accent-blue-border)',
+                color: 'var(--color-accent-blue)'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = withOpacity(theme.colors.accent.blue.DEFAULT, 0.13)
+                e.currentTarget.style.backgroundColor = 'rgba(var(--color-accent-blue-rgb), 0.13)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.colors.accent.blue.bg
+                e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-bg)'
               }}
             >
               <VscFolderOpened className="text-xl" />
@@ -157,7 +155,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
 
           {availableProjects.length > 0 && (
             <div>
-              <h3 className="text-sm font-medium uppercase tracking-wider mb-3" style={{ color: theme.colors.text.muted }}>
+              <h3 className="text-sm font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
                 Recent Projects
               </h3>
 
@@ -167,16 +165,16 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                     key={project.path}
                     className="rounded-lg p-4 group relative transition-colors"
                     style={{
-                      backgroundColor: theme.colors.background.secondary,
-                      border: `1px solid ${theme.colors.border.subtle}`
+                      backgroundColor: 'var(--color-bg-secondary)',
+                      border: '1px solid var(--color-border-subtle)'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = theme.colors.background.elevated
-                      e.currentTarget.style.borderColor = theme.colors.border.default
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-default)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = theme.colors.background.secondary
-                      e.currentTarget.style.borderColor = theme.colors.border.subtle
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-subtle)'
                     }}
                   >
                     {index < 9 && (
@@ -184,8 +182,8 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                         <span
                           className="text-xs px-1.5 py-0.5 rounded"
                           style={{
-                            backgroundColor: `${theme.colors.background.elevated}80`,
-                            color: theme.colors.text.muted
+                            backgroundColor: 'rgba(var(--color-bg-elevated-rgb), 0.5)',
+                            color: 'var(--color-text-muted)'
                           }}
                         >
                           ⌘{index + 1}
@@ -199,16 +197,16 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                       <div className="flex items-start gap-3">
                         <VscFolderOpened
                           className="text-lg flex-shrink-0 mt-0.5"
-                          style={{ color: theme.colors.text.muted }}
+                          style={{ color: 'var(--color-text-muted)' }}
                         />
                         <div className="flex-1 min-w-0 pr-8">
-                          <h3 className="font-medium truncate text-sm" style={{ color: theme.colors.text.primary }}>
+                          <h3 className="font-medium truncate text-sm" style={{ color: 'var(--color-text-primary)' }}>
                             {project.name}
                           </h3>
-                          <p className="text-xs truncate mt-1" style={{ color: theme.colors.text.muted }}>
+                          <p className="text-xs truncate mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {project.path}
                           </p>
-                          <p className="text-xs mt-2" style={{ color: theme.colors.text.tertiary }}>
+                          <p className="text-xs mt-2" style={{ color: 'var(--color-text-tertiary)' }}>
                             {formatDateTime(project.lastOpened, RECENT_PROJECT_DATE_OPTIONS)}
                           </p>
                         </div>
@@ -217,12 +215,12 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
                     <button
                       onClick={(e) => { void handleRemoveProject(project, e) }}
                       className="absolute top-2 right-2 p-1 transition-all opacity-0 group-hover:opacity-100"
-                      style={{ color: theme.colors.text.tertiary }}
+                      style={{ color: 'var(--color-text-tertiary)' }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.color = theme.colors.accent.red.DEFAULT
+                        e.currentTarget.style.color = 'var(--color-accent-red)'
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.color = theme.colors.text.tertiary
+                        e.currentTarget.style.color = 'var(--color-text-tertiary)'
                       }}
                       title={`Remove ${project.name} from recent projects`}
                     >

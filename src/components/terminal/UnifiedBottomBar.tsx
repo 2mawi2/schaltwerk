@@ -53,12 +53,12 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   ])
   const runButtonColors = isRunning
     ? {
-        background: isFocused ? theme.colors.accent.red.bg : theme.colors.accent.red.DEFAULT,
-        text: isFocused ? theme.colors.accent.red.light : theme.colors.text.inverse,
+        background: isFocused ? 'var(--color-accent-red-bg)' : 'var(--color-accent-red)',
+        text: isFocused ? 'var(--color-accent-red-light)' : 'var(--color-text-inverse)',
       }
     : {
-        background: isFocused ? theme.colors.accent.blue.dark : theme.colors.accent.blue.DEFAULT,
-        text: isFocused ? theme.colors.accent.blue.light : theme.colors.text.inverse,
+        background: isFocused ? 'var(--color-accent-blue-dark)' : 'var(--color-accent-blue)',
+        text: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-inverse)',
       };
 
   return (
@@ -66,9 +66,9 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
       ref={ref}
       data-bottom-header
       style={{
-        backgroundColor: isFocused ? theme.colors.accent.blue.bg : undefined,
-        color: isFocused ? theme.colors.accent.blue.light : undefined,
-        borderBottomColor: isFocused ? theme.colors.accent.blue.border : undefined,
+        backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : undefined,
+        color: isFocused ? 'var(--color-accent-blue-light)' : undefined,
+        borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : undefined,
         fontSize: theme.fontSize.body,
       }}
       className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
@@ -156,8 +156,8 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
         
         <span
           style={{
-            backgroundColor: isFocused ? theme.colors.accent.blue.bg : theme.colors.background.hover,
-            color: isFocused ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
+            backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : 'var(--color-bg-hover)',
+            color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
           }}
           className="text-[10px] px-1.5 py-0.5 rounded"
           title={`Focus Terminal (${shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'})`}
@@ -173,7 +173,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
           }}
           title={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
           style={{
-            color: isFocused ? theme.colors.accent.blue.light : theme.colors.text.secondary,
+            color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-secondary)',
           }}
           className={`w-7 h-7 flex items-center justify-center rounded ${
             isFocused
