@@ -38,17 +38,17 @@ describe('ThemeSettings', () => {
   it('marks the active theme as selected', () => {
     renderThemeSettings()
 
-    expect(screen.getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('updates selection when a theme is chosen', async () => {
     const { user } = renderThemeSettings()
 
-    const darkButton = screen.getByRole('button', { name: 'Dark' })
+    const tokyoNightButton = screen.getByRole('button', { name: 'Tokyo Night' })
 
-    await user.click(darkButton)
+    await user.click(tokyoNightButton)
 
-    expect(darkButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'false')
+    expect(tokyoNightButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'false')
   })
 })

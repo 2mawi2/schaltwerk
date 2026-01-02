@@ -447,6 +447,183 @@ describe('Error Handling Architecture', () => {
   }, ARCH_RULE_TIMEOUT);
 });
 
+describe('Theme Consistency Architecture', () => {
+  it('should have a theme preset for each resolved theme', async () => {
+    const { darkTheme, lightTheme, tokyonightTheme } = await import('../common/themes/presets');
+    const { buildTerminalTheme } = await import('../common/themes/terminalTheme');
+
+    const resolvedThemes = ['dark', 'light', 'tokyonight'] as const;
+    const presets = { dark: darkTheme, light: lightTheme, tokyonight: tokyonightTheme };
+
+    const missingPresets: string[] = [];
+    const missingTerminalSupport: string[] = [];
+    const incompleteTerminalColors: string[] = [];
+
+    for (const themeId of resolvedThemes) {
+      const preset = presets[themeId];
+      if (!preset) {
+        missingPresets.push(themeId);
+        continue;
+      }
+
+      const terminalTheme = buildTerminalTheme(themeId);
+      if (!terminalTheme) {
+        missingTerminalSupport.push(themeId);
+        continue;
+      }
+
+      const requiredTerminalColors = [
+        'background', 'foreground', 'cursor', 'black', 'red', 'green',
+        'yellow', 'blue', 'magenta', 'cyan', 'white', 'brightBlack',
+        'brightRed', 'brightGreen', 'brightYellow', 'brightBlue',
+        'brightMagenta', 'brightCyan', 'brightWhite'
+      ];
+
+      const missingColors = requiredTerminalColors.filter(
+        color => !terminalTheme[color as keyof typeof terminalTheme]
+      );
+
+      if (missingColors.length > 0) {
+        incompleteTerminalColors.push(`${themeId}: missing ${missingColors.join(', ')}`);
+      }
+    }
+
+    const errors: string[] = [];
+    if (missingPresets.length > 0) {
+      errors.push(`Missing presets: ${missingPresets.join(', ')}`);
+    }
+    if (missingTerminalSupport.length > 0) {
+      errors.push(`Missing terminal support in buildTerminalTheme(): ${missingTerminalSupport.join(', ')}`);
+    }
+    if (incompleteTerminalColors.length > 0) {
+      errors.push(`Incomplete terminal colors:\n  ${incompleteTerminalColors.join('\n  ')}`);
+    }
+
+    if (errors.length > 0) {
+      throw new Error(
+        `Theme consistency violations:\n${errors.join('\n')}\n\n` +
+        `When adding a new theme:\n` +
+        `1. Add to ThemeId/ResolvedTheme types in src/common/themes/types.ts\n` +
+        `2. Create preset in src/common/themes/presets.ts\n` +
+        `3. Add to buildTerminalTheme() in src/common/themes/terminalTheme.ts\n` +
+        `4. Create CSS file in src/styles/themes/{themename}.css\n` +
+        `5. Import new theme file in src/styles/theme.css\n` +
+        `6. Update theme atom validation in src/store/atoms/theme.ts`
+      );
+    }
+  }, ARCH_RULE_TIMEOUT);
+
+  it('should have CSS variables for each theme', async () => {
+    const fs = await import('node:fs');
+    const themesDir = path.resolve(projectRoot, 'src/styles/themes');
+
+    const themeFiles = {
+      dark: path.join(themesDir, 'dark.css'),
+      light: path.join(themesDir, 'light.css'),
+      tokyonight: path.join(themesDir, 'tokyonight.css'),
+    } as const;
+
+    const missingCssThemes: string[] = [];
+
+    for (const [themeId, themePath] of Object.entries(themeFiles)) {
+      if (!fs.existsSync(themePath)) {
+        missingCssThemes.push(`${themeId} (missing file ${path.basename(themePath)})`);
+        continue;
+      }
+
+      const themeCss = fs.readFileSync(themePath, 'utf-8');
+
+      if (themeId === 'dark') {
+        if (!themeCss.includes(':root {')) {
+          missingCssThemes.push(`${themeId} (missing :root block in dark.css)`);
+        }
+        continue;
+      }
+
+      const selector = `[data-theme="${themeId}"]`;
+      if (!themeCss.includes(selector)) {
+        missingCssThemes.push(`${themeId} (missing ${selector} block in ${path.basename(themePath)})`);
+      }
+    }
+
+    if (missingCssThemes.length > 0) {
+      throw new Error(
+        `Missing CSS theme definitions:\n  ${missingCssThemes.join('\n  ')}\n\n` +
+        `Add CSS variables for each theme in src/styles/themes/`
+      );
+    }
+  }, ARCH_RULE_TIMEOUT);
+
+  it('should validate theme atom recognizes all theme IDs', async () => {
+    const themeAtomPath = path.resolve(projectRoot, 'src/store/atoms/theme.ts');
+    const fs = await import('node:fs');
+    const themeAtomContent = fs.readFileSync(themeAtomPath, 'utf-8');
+
+    const themeIds = ['dark', 'light', 'tokyonight', 'system'];
+    const missingValidation: string[] = [];
+
+    for (const themeId of themeIds) {
+      if (!themeAtomContent.includes(`'${themeId}'`)) {
+        missingValidation.push(themeId);
+      }
+    }
+
+    if (missingValidation.length > 0) {
+      throw new Error(
+        `Theme atom isThemeId() missing validation for: ${missingValidation.join(', ')}\n\n` +
+        `Update isThemeId() in src/store/atoms/theme.ts`
+      );
+    }
+  }, ARCH_RULE_TIMEOUT);
+
+  it('should have Tailwind color scales for each theme', async () => {
+    const fs = await import('node:fs');
+    const themesDir = path.resolve(projectRoot, 'src/styles/themes');
+
+    const themeFiles = {
+      dark: path.join(themesDir, 'dark.css'),
+      light: path.join(themesDir, 'light.css'),
+      tokyonight: path.join(themesDir, 'tokyonight.css'),
+    } as const;
+
+    const requiredColorScales = ['gray', 'blue', 'green', 'amber', 'red', 'cyan', 'purple', 'violet', 'yellow'];
+    const requiredShades = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+
+    const missingScales: string[] = [];
+
+    for (const [themeId, themePath] of Object.entries(themeFiles)) {
+      if (!fs.existsSync(themePath)) {
+        missingScales.push(`${themeId}: missing theme file ${path.basename(themePath)}`);
+        continue;
+      }
+
+      const themeCss = fs.readFileSync(themePath, 'utf-8');
+
+      for (const scale of requiredColorScales) {
+        for (const shade of requiredShades) {
+          const varName = `--color-${scale}-${shade}-rgb`;
+          if (!themeCss.includes(varName)) {
+            missingScales.push(`${themeId}: missing ${varName}`);
+          }
+        }
+      }
+
+      if (!themeCss.includes('--color-white-rgb')) {
+        missingScales.push(`${themeId}: missing --color-white-rgb`);
+      }
+    }
+
+    if (missingScales.length > 0) {
+      throw new Error(
+        `Missing Tailwind color scale variables:\n  ${missingScales.slice(0, 10).join('\n  ')}` +
+        (missingScales.length > 10 ? `\n  ... and ${missingScales.length - 10} more` : '') +
+        `\n\nTailwind classes like bg-slate-800 use these variables.\n` +
+        `Add the missing color scales to src/styles/themes/ for each theme.`
+      );
+    }
+  }, ARCH_RULE_TIMEOUT);
+});
+
 describe('State Management Architecture', () => {
   it('should not use React Context for state management (migrate to Jotai)', async () => {
     const failureDetails = new Map<string, FailureDetail[]>();

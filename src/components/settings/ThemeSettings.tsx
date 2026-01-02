@@ -1,19 +1,202 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { currentThemeIdAtom, setThemeActionAtom, resolvedThemeAtom } from '../../store/atoms/theme'
-import { ThemeId } from '../../common/themes/types'
+import { ThemeId, ResolvedTheme } from '../../common/themes/types'
 import { theme } from '../../common/theme'
 
-const themeOptions: { id: ThemeId; label: string; icon: string; experimental?: boolean }[] = [
-  { id: 'dark', label: 'Dark', icon: '\u{1F319}' },
-  { id: 'light', label: 'Light', icon: '\u2600\uFE0F', experimental: true },
-  { id: 'system', label: 'System', icon: '\u{1F4BB}', experimental: true },
+interface ThemeOption {
+  id: ThemeId
+  label: string
+  description: string
+  experimental?: boolean
+  colors: {
+    bg: string
+    bgSecondary: string
+    text: string
+    accent: string
+  }
+}
+
+const themeOptions: ThemeOption[] = [
+  {
+    id: 'dark',
+    label: 'Dark',
+    description: 'Default dark theme',
+    colors: {
+      bg: '#0f172a',
+      bgSecondary: '#1e293b',
+      text: '#e2e8f0',
+      accent: '#22d3ee',
+    },
+  },
+  {
+    id: 'tokyonight',
+    label: 'Tokyo Night',
+    description: 'Based on the popular Neovim theme',
+    colors: {
+      bg: '#1a1b26',
+      bgSecondary: '#24283b',
+      text: '#c0caf5',
+      accent: '#7aa2f7',
+    },
+  },
+  {
+    id: 'light',
+    label: 'Light',
+    description: 'Light theme for bright environments',
+    experimental: true,
+    colors: {
+      bg: '#ffffff',
+      bgSecondary: '#f6f8fa',
+      text: '#1f2328',
+      accent: '#2563eb',
+    },
+  },
+  {
+    id: 'system',
+    label: 'System',
+    description: 'Follows your OS preference',
+    experimental: true,
+    colors: {
+      bg: 'linear-gradient(135deg, #0f172a 50%, #ffffff 50%)',
+      bgSecondary: '#1e293b',
+      text: '#e2e8f0',
+      accent: '#22d3ee',
+    },
+  },
 ]
+
+function ThemePreviewCard({
+  option,
+  isSelected,
+  onClick,
+}: {
+  option: ThemeOption
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const isGradient = option.colors.bg.includes('gradient')
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isSelected}
+      className="flex flex-col rounded-lg border transition-all"
+      style={{
+        width: '140px',
+        backgroundColor: isSelected
+          ? 'var(--color-accent-blue-bg)'
+          : 'var(--color-bg-elevated)',
+        borderColor: isSelected
+          ? 'var(--color-accent-blue)'
+          : 'var(--color-border-subtle)',
+        borderWidth: isSelected ? '2px' : '1px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          height: '60px',
+          background: isGradient ? option.colors.bg : option.colors.bg,
+          backgroundColor: isGradient ? undefined : option.colors.bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+        }}
+      >
+        <div
+          style={{
+            width: '80%',
+            height: '36px',
+            backgroundColor: option.colors.bgSecondary,
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 8px',
+            gap: '6px',
+          }}
+        >
+          <div
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: option.colors.accent,
+            }}
+          />
+          <div
+            style={{
+              flex: 1,
+              height: '4px',
+              backgroundColor: option.colors.text,
+              borderRadius: '2px',
+              opacity: 0.6,
+            }}
+          />
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: '8px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          <span
+            style={{
+              color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+              fontSize: theme.fontSize.body,
+              fontWeight: 500,
+            }}
+          >
+            {option.label}
+          </span>
+          {option.experimental && (
+            <span
+              style={{
+                fontSize: '9px',
+                color: 'var(--color-accent-amber)',
+                fontWeight: 500,
+                padding: '1px 3px',
+                borderRadius: '2px',
+                backgroundColor: 'var(--color-accent-amber-bg)',
+              }}
+            >
+              Beta
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function getResolvedLabel(resolved: ResolvedTheme): string {
+  switch (resolved) {
+    case 'tokyonight':
+      return 'Tokyo Night'
+    case 'light':
+      return 'Light'
+    default:
+      return 'Dark'
+  }
+}
 
 export function ThemeSettings() {
   const currentTheme = useAtomValue(currentThemeIdAtom)
   const resolvedTheme = useAtomValue(resolvedThemeAtom)
   const setTheme = useSetAtom(setThemeActionAtom)
-  const resolvedLabel = resolvedTheme === 'dark' ? 'Dark' : 'Light'
+  const resolvedLabel = getResolvedLabel(resolvedTheme)
   const statusLabel = currentTheme === 'system'
     ? `Follows system (${resolvedLabel})`
     : `Currently ${resolvedLabel}`
@@ -38,49 +221,15 @@ export function ThemeSettings() {
           {statusLabel}
         </span>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {themeOptions.map((option) => {
-          const isSelected = currentTheme === option.id
-
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => { void setTheme(option.id) }}
-              aria-pressed={isSelected}
-              className="flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors"
-              style={{
-                backgroundColor: isSelected
-                  ? 'var(--color-accent-blue-bg)'
-                  : 'var(--color-bg-elevated)',
-                borderColor: isSelected
-                  ? 'var(--color-accent-blue)'
-                  : 'var(--color-border-subtle)',
-                color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                fontSize: theme.fontSize.body,
-              }}
-            >
-              <span role="img" aria-hidden="true">
-                {option.icon}
-              </span>
-              <span>{option.label}</span>
-              {option.experimental && (
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: 'var(--color-accent-amber)',
-                    fontWeight: 500,
-                    padding: '1px 4px',
-                    borderRadius: '3px',
-                    backgroundColor: 'var(--color-accent-amber-bg)',
-                  }}
-                >
-                  Experimental
-                </span>
-              )}
-            </button>
-          )
-        })}
+      <div className="flex flex-wrap gap-3">
+        {themeOptions.map((option) => (
+          <ThemePreviewCard
+            key={option.id}
+            option={option}
+            isSelected={currentTheme === option.id}
+            onClick={() => { void setTheme(option.id) }}
+          />
+        ))}
       </div>
       <p
         style={{
@@ -89,7 +238,7 @@ export function ThemeSettings() {
           marginTop: '0.5rem',
         }}
       >
-        Light and System themes are experimental and may have visual inconsistencies.
+        More themes coming soon: Everforest, Catppuccin, Gruvbox, Nord, and more.
       </p>
     </div>
   )

@@ -1,9 +1,20 @@
 import type { ITheme } from '@xterm/xterm'
 import { ResolvedTheme } from './types'
-import { darkTheme, lightTheme } from './presets'
+import { darkTheme, lightTheme, tokyonightTheme } from './presets'
+
+function getTerminalColors(themeId: ResolvedTheme) {
+  switch (themeId) {
+    case 'tokyonight':
+      return tokyonightTheme.colors.terminal
+    case 'light':
+      return lightTheme.colors.terminal
+    default:
+      return darkTheme.colors.terminal
+  }
+}
 
 export function buildTerminalTheme(themeId: ResolvedTheme): ITheme {
-  const colors = themeId === 'dark' ? darkTheme.colors.terminal : lightTheme.colors.terminal
+  const colors = getTerminalColors(themeId)
   return {
     background: colors.background,
     foreground: colors.foreground,

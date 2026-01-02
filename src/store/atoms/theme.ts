@@ -18,7 +18,7 @@ const resolveThemeId = (themeId: ThemeId, prefersDark: boolean): ResolvedTheme =
 }
 
 const isThemeId = (value: unknown): value is ThemeId =>
-  value === 'dark' || value === 'light' || value === 'system'
+  value === 'dark' || value === 'light' || value === 'tokyonight' || value === 'system'
 
 export const resolvedThemeAtom = atom<ResolvedTheme>((get) =>
   resolveThemeId(get(themeIdAtom), get(systemPrefersDarkAtom))

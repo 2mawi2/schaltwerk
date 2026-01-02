@@ -14,6 +14,7 @@ export const EVENT_LISTENER_EXCEPTIONS: ArchitectureException[] = [
 export const THEME_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/common/toast/ToastCard.tsx', reason: 'boxShadow uses universal black rgba for shadow transparency' },
   { file: 'src/components/home/AsciiBuilderLogo.tsx', reason: 'Dynamic color interpolation for animation effects' },
+  { file: 'src/components/settings/ThemeSettings.tsx', reason: 'Theme preview cards use hardcoded colors to show theme appearance' },
 ];
 
 export const MODULE_BOUNDARY_EXCEPTIONS: ArchitectureException[] = [

@@ -58,6 +58,77 @@ const lightAccent = {
   copilot: buildAccent('#BD79CC', '#D9A6E5', '#8F4A9E'),
 }
 
+const tokyonightAccent = {
+  blue: buildAccent('#7aa2f7', '#89ddff', '#3d59a1'),
+  green: buildAccent('#9ece6a', '#73daca', '#41a6b5'),
+  amber: buildAccent('#e0af68', '#ff9e64', '#d19a66'),
+  red: buildAccent('#f7768e', '#ff8c9a', '#db4b4b'),
+  violet: buildAccent('#bb9af7', '#c9b0ff', '#9d7cd8'),
+  purple: buildAccent('#9d7cd8', '#bb9af7', '#7e5db2'),
+  magenta: buildAccent('#ff007c', '#ff4d9d', '#c71f6e'),
+  yellow: buildAccent('#e0af68', '#ffcb6b', '#d19a66'),
+  cyan: buildAccent('#7dcfff', '#b4f9f8', '#2ac3de'),
+  copilot: buildAccent('#bb9af7', '#c9b0ff', '#9d7cd8'),
+}
+
+export const tokyonightTheme: ThemeDefinition = {
+  id: 'tokyonight',
+  name: 'Tokyo Night',
+  isDark: true,
+  colors: {
+    background: {
+      primary: '#1a1b26',
+      secondary: '#16161e',
+      tertiary: '#1f2335',
+      elevated: '#24283b',
+      hover: '#292e42',
+      active: '#3b4261',
+    },
+    text: {
+      primary: '#c0caf5',
+      secondary: '#a9b1d6',
+      tertiary: '#737aa2',
+      muted: '#565f89',
+      inverse: '#1a1b26',
+    },
+    border: {
+      default: '#3b4261',
+      subtle: '#292e42',
+      strong: '#545c7e',
+      focus: tokyonightAccent.blue.DEFAULT,
+    },
+    accent: tokyonightAccent,
+    status: {
+      info: '#7dcfff',
+      success: '#9ece6a',
+      warning: '#e0af68',
+      error: '#f7768e',
+    },
+    terminal: {
+      background: '#1a1b26',
+      foreground: '#c0caf5',
+      cursor: '#c0caf5',
+      selection: withOpacity(tokyonightAccent.blue.DEFAULT, 0.3),
+      black: '#414868',
+      red: '#f7768e',
+      green: '#9ece6a',
+      yellow: '#e0af68',
+      blue: '#7aa2f7',
+      magenta: '#bb9af7',
+      cyan: '#7dcfff',
+      white: '#c0caf5',
+      brightBlack: '#545c7e',
+      brightRed: '#ff8c9a',
+      brightGreen: '#73daca',
+      brightYellow: '#ff9e64',
+      brightBlue: '#89ddff',
+      brightMagenta: '#c9b0ff',
+      brightCyan: '#b4f9f8',
+      brightWhite: '#c0caf5',
+    },
+  },
+}
+
 export const lightTheme: ThemeDefinition = {
   id: 'light',
   name: 'Light',
