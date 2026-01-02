@@ -11,8 +11,9 @@ pub use super::branches::{
 #[cfg(test)]
 pub use super::repository::{get_commit_hash, get_current_branch};
 pub use super::worktrees::{
-    create_worktree_for_existing_branch, create_worktree_from_base, get_worktree_for_branch,
-    list_worktrees, prune_worktrees, remove_worktree, update_worktree_branch,
+    create_worktree_for_existing_branch, create_worktree_from_base, create_worktree_from_pr,
+    get_worktree_for_branch, list_worktrees, prune_worktrees, remove_worktree,
+    update_worktree_branch,
 };
 
 pub use super::history::{

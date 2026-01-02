@@ -1556,6 +1556,7 @@ function AppContent() {
               epicId: data.epicId ?? null,
               agentType: agentTypeForVersion,
               skipPermissions: data.skipPermissions,
+              prNumber: data.prNumber || null,
             })
 
             const actualSessionName = createdSession?.name ?? versionName

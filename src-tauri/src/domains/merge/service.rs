@@ -1684,6 +1684,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1753,6 +1754,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1823,6 +1825,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1865,6 +1868,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1903,6 +1907,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1951,6 +1956,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -1999,6 +2005,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2066,6 +2073,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2129,6 +2137,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2255,6 +2264,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2301,6 +2311,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2351,6 +2362,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2393,6 +2405,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2435,6 +2448,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let manager = SessionManager::new(db.clone(), repo_path.clone());
@@ -2473,6 +2487,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2512,6 +2527,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2582,6 +2598,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2691,6 +2708,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2764,6 +2782,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2794,6 +2813,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2827,6 +2847,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2859,6 +2880,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2906,6 +2928,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -2987,6 +3010,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3083,6 +3107,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3142,6 +3167,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3211,6 +3237,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3288,6 +3315,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3362,6 +3390,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3440,6 +3469,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3506,6 +3536,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3592,6 +3623,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3700,6 +3732,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
@@ -3797,6 +3830,7 @@ mod tests {
             epic_id: None,
             agent_type: None,
             skip_permissions: None,
+            pr_number: None,
         };
 
         let session = manager.create_session_with_agent(params).unwrap();
