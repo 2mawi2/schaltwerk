@@ -69,37 +69,37 @@ export function IconButton({
 
   const getButtonTokens = () => {
     const base = {
-      bg: 'rgba(var(--color-bg-hover-rgb), 0.6)',
-      hoverBg: 'rgba(var(--color-bg-hover-rgb), 0.8)',
+      bg: 'rgb(var(--color-bg-hover-rgb) / 0.6)',
+      hoverBg: 'rgb(var(--color-bg-hover-rgb) / 0.8)',
       text: 'var(--color-text-secondary)',
-      border: 'rgba(var(--color-border-subtle-rgb), 0.6)',
-      hoverBorder: 'rgba(var(--color-border-strong-rgb), 0.7)',
+      border: 'rgb(var(--color-border-subtle-rgb) / 0.6)',
+      hoverBorder: 'rgb(var(--color-border-strong-rgb) / 0.7)',
     };
 
     switch (variant) {
       case 'success':
         return {
-          bg: 'rgba(var(--color-accent-green-rgb), 0.16)',
-          hoverBg: 'rgba(var(--color-accent-green-rgb), 0.24)',
+          bg: 'rgb(var(--color-accent-green-rgb) / 0.16)',
+          hoverBg: 'rgb(var(--color-accent-green-rgb) / 0.24)',
           text: 'var(--color-accent-green-light)',
-          border: 'rgba(var(--color-accent-green-rgb), 0.35)',
-          hoverBorder: 'rgba(var(--color-accent-green-rgb), 0.5)',
+          border: 'rgb(var(--color-accent-green-rgb) / 0.35)',
+          hoverBorder: 'rgb(var(--color-accent-green-rgb) / 0.5)',
         };
       case 'danger':
         return {
-          bg: 'rgba(var(--color-accent-red-rgb), 0.16)',
-          hoverBg: 'rgba(var(--color-accent-red-rgb), 0.24)',
+          bg: 'rgb(var(--color-accent-red-rgb) / 0.16)',
+          hoverBg: 'rgb(var(--color-accent-red-rgb) / 0.24)',
           text: 'var(--color-accent-red-light)',
-          border: 'rgba(var(--color-accent-red-rgb), 0.35)',
-          hoverBorder: 'rgba(var(--color-accent-red-rgb), 0.5)',
+          border: 'rgb(var(--color-accent-red-rgb) / 0.35)',
+          hoverBorder: 'rgb(var(--color-accent-red-rgb) / 0.5)',
         };
       case 'warning':
         return {
-          bg: 'rgba(var(--color-accent-amber-rgb), 0.18)',
-          hoverBg: 'rgba(var(--color-accent-amber-rgb), 0.26)',
+          bg: 'rgb(var(--color-accent-amber-rgb) / 0.18)',
+          hoverBg: 'rgb(var(--color-accent-amber-rgb) / 0.26)',
           text: 'var(--color-accent-amber-light)',
-          border: 'rgba(var(--color-accent-amber-rgb), 0.35)',
-          hoverBorder: 'rgba(var(--color-accent-amber-rgb), 0.5)',
+          border: 'rgb(var(--color-accent-amber-rgb) / 0.35)',
+          hoverBorder: 'rgb(var(--color-accent-amber-rgb) / 0.5)',
         };
       default:
         return base;

@@ -99,8 +99,8 @@ export function getSessionCardSurfaceClasses({
   isPromotionPreview,
 }: SessionCardSurfaceOptions): SessionCardSurface {
   const style: SessionCardSurfaceStyle = {
-    '--session-card-bg': 'rgba(var(--color-bg-tertiary-rgb), 0.4)',
-    '--session-card-hover-bg': 'rgba(var(--color-bg-hover-rgb), 0.4)',
+    '--session-card-bg': 'rgb(var(--color-bg-tertiary-rgb) / 0.4)',
+    '--session-card-hover-bg': 'rgb(var(--color-bg-hover-rgb) / 0.4)',
     '--session-card-border': 'var(--color-border-default)',
   }
 
@@ -108,17 +108,17 @@ export function getSessionCardSurfaceClasses({
 
   if (sessionState === "running") {
     style['--session-card-border'] = 'var(--color-border-subtle)'
-    style['--session-card-bg'] = 'rgba(var(--color-bg-elevated-rgb), 0.5)'
-    style['--session-card-hover-bg'] = 'rgba(var(--color-bg-hover-rgb), 0.5)'
+    style['--session-card-bg'] = 'rgb(var(--color-bg-elevated-rgb) / 0.5)'
+    style['--session-card-hover-bg'] = 'rgb(var(--color-bg-hover-rgb) / 0.5)'
   } else if (sessionState === "spec") {
-    style['--session-card-bg'] = 'rgba(var(--color-bg-tertiary-rgb), 0.3)'
-    style['--session-card-hover-bg'] = 'rgba(var(--color-bg-hover-rgb), 0.35)'
+    style['--session-card-bg'] = 'rgb(var(--color-bg-tertiary-rgb) / 0.3)'
+    style['--session-card-hover-bg'] = 'rgb(var(--color-bg-hover-rgb) / 0.35)'
   }
 
   if (willBeDeleted) {
     style['--session-card-border'] = 'var(--color-accent-red-border)'
-    style['--session-card-bg'] = 'rgba(var(--color-accent-red-rgb), 0.12)'
-    style['--session-card-hover-bg'] = 'rgba(var(--color-accent-red-rgb), 0.18)'
+    style['--session-card-bg'] = 'rgb(var(--color-accent-red-rgb) / 0.12)'
+    style['--session-card-hover-bg'] = 'rgb(var(--color-accent-red-rgb) / 0.18)'
     className = clsx(className, "opacity-30 transition-all duration-200")
   }
 
@@ -482,7 +482,7 @@ export const SessionCard = memo<SessionCardProps>(
                 className="px-1.5 py-0.5 rounded"
                 style={{
                   ...sessionText.meta,
-                  backgroundColor: "rgba(var(--color-bg-hover-rgb), 0.6)",
+                  backgroundColor: "rgb(var(--color-bg-hover-rgb) / 0.6)",
                 }}
               >
                 {(() => {
