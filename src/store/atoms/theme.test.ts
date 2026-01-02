@@ -51,7 +51,7 @@ const createMatchMedia = (matches: boolean): MediaQueryListMock => {
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string) => {
     if (cmd === TauriCommands.SchaltwerkCoreGetTheme) {
-      return Promise.resolve('system')
+      return Promise.resolve('dark')
     }
     if (cmd === TauriCommands.SchaltwerkCoreSetTheme) {
       return Promise.resolve()
@@ -82,8 +82,8 @@ describe('theme atoms', () => {
     vi.clearAllMocks()
   })
 
-  it('defaults to system theme and resolves to dark', () => {
-    expect(store.get(currentThemeIdAtom)).toBe('system')
+  it('defaults to dark theme', () => {
+    expect(store.get(currentThemeIdAtom)).toBe('dark')
     expect(store.get(resolvedThemeAtom)).toBe('dark')
   })
 
@@ -117,18 +117,18 @@ describe('theme atoms', () => {
     })
   })
 
-  it('falls back to system theme when backend returns invalid value', async () => {
+  it('falls back to dark theme when backend returns invalid value', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     vi.mocked(invoke).mockResolvedValueOnce('neon')
 
     mediaQueryList.__setMatches(true)
     await store.set(initializeThemeActionAtom)
 
-    expect(store.get(currentThemeIdAtom)).toBe('system')
+    expect(store.get(currentThemeIdAtom)).toBe('dark')
     expect(store.get(resolvedThemeAtom)).toBe('dark')
     expect(vi.mocked(applyThemeToDOM)).toHaveBeenCalledWith('dark')
     expect(vi.mocked(emitUiEvent)).toHaveBeenCalledWith(UiEvent.ThemeChanged, {
-      themeId: 'system',
+      themeId: 'dark',
       resolved: 'dark',
     })
   })
@@ -136,7 +136,7 @@ describe('theme atoms', () => {
   it('persists theme changes after initialization', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
 
-    vi.mocked(invoke).mockResolvedValueOnce('system')
+    vi.mocked(invoke).mockResolvedValueOnce('dark')
     await store.set(initializeThemeActionAtom)
     vi.clearAllMocks()
 

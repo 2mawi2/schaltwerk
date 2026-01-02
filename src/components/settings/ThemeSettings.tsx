@@ -3,10 +3,10 @@ import { currentThemeIdAtom, setThemeActionAtom, resolvedThemeAtom } from '../..
 import { ThemeId } from '../../common/themes/types'
 import { theme } from '../../common/theme'
 
-const themeOptions: { id: ThemeId; label: string; icon: string }[] = [
-  { id: 'light', label: 'Light', icon: '\u2600\uFE0F' },
+const themeOptions: { id: ThemeId; label: string; icon: string; experimental?: boolean }[] = [
   { id: 'dark', label: 'Dark', icon: '\u{1F319}' },
-  { id: 'system', label: 'System', icon: '\u{1F4BB}' },
+  { id: 'light', label: 'Light', icon: '\u2600\uFE0F', experimental: true },
+  { id: 'system', label: 'System', icon: '\u{1F4BB}', experimental: true },
 ]
 
 export function ThemeSettings() {
@@ -64,10 +64,30 @@ export function ThemeSettings() {
                 {option.icon}
               </span>
               <span>{option.label}</span>
+              {option.experimental && (
+                <span
+                  style={{
+                    fontSize: theme.fontSize.caption,
+                    color: 'var(--color-accent-amber)',
+                    fontWeight: 500,
+                  }}
+                >
+                  β
+                </span>
+              )}
             </button>
           )
         })}
       </div>
+      <p
+        style={{
+          color: 'var(--color-text-muted)',
+          fontSize: theme.fontSize.caption,
+          marginTop: '0.5rem',
+        }}
+      >
+        Light and System themes are experimental and may have visual inconsistencies.
+      </p>
     </div>
   )
 }

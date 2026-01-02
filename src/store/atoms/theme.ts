@@ -6,7 +6,7 @@ import type { ThemeId, ResolvedTheme } from '../../common/themes/types'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
 
-const themeIdAtom = atom<ThemeId>('system')
+const themeIdAtom = atom<ThemeId>('dark')
 const initializedAtom = atom(false)
 const systemPrefersDarkAtom = atom(true)
 
@@ -48,11 +48,11 @@ export const setThemeActionAtom = atom(
 export const initializeThemeActionAtom = atom(
   null,
   async (get, set) => {
-    let savedTheme: ThemeId = 'system'
+    let savedTheme: ThemeId = 'dark'
 
     try {
       const saved = await invoke<string>(TauriCommands.SchaltwerkCoreGetTheme)
-      savedTheme = isThemeId(saved) ? saved : 'system'
+      savedTheme = isThemeId(saved) ? saved : 'dark'
     } catch (error) {
       logger.error('Failed to load theme preference:', error)
     }
