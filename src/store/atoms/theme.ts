@@ -78,6 +78,7 @@ export const initializeThemeActionAtom = atom(
     set(themeIdAtom, savedTheme)
     const resolved = resolveThemeId(savedTheme, mediaQuery.matches)
     applyThemeToDOM(resolved)
+    emitUiEvent(UiEvent.ThemeChanged, { themeId: savedTheme, resolved })
     set(initializedAtom, true)
   }
 )

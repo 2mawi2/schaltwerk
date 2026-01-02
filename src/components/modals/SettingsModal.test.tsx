@@ -348,8 +348,8 @@ describe('SettingsModal initial tab handling', () => {
       />
     )
 
-    const appearanceButton = await screen.findByRole('button', { name: 'Appearance' })
     await waitFor(() => {
+      const appearanceButton = screen.getByRole('button', { name: 'Appearance' })
       expect(appearanceButton).toHaveClass('bg-slate-800')
     })
 
@@ -363,10 +363,11 @@ describe('SettingsModal initial tab handling', () => {
       </ModalProvider>
     )
 
-    const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
+      const runButton = screen.getByRole('button', { name: 'Run & Environment' })
+      const appearanceButtonAfter = screen.getByRole('button', { name: 'Appearance' })
       expect(runButton).toHaveClass('bg-slate-800')
-      expect(appearanceButton).not.toHaveClass('bg-slate-800')
+      expect(appearanceButtonAfter).not.toHaveClass('bg-slate-800')
     })
   })
 

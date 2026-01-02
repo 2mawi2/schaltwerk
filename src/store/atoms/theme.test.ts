@@ -111,6 +111,10 @@ describe('theme atoms', () => {
     expect(store.get(currentThemeIdAtom)).toBe('dark')
     expect(store.get(resolvedThemeAtom)).toBe('dark')
     expect(vi.mocked(applyThemeToDOM)).toHaveBeenCalledWith('dark')
+    expect(vi.mocked(emitUiEvent)).toHaveBeenCalledWith(UiEvent.ThemeChanged, {
+      themeId: 'dark',
+      resolved: 'dark',
+    })
   })
 
   it('falls back to system theme when backend returns invalid value', async () => {
@@ -123,6 +127,10 @@ describe('theme atoms', () => {
     expect(store.get(currentThemeIdAtom)).toBe('system')
     expect(store.get(resolvedThemeAtom)).toBe('dark')
     expect(vi.mocked(applyThemeToDOM)).toHaveBeenCalledWith('dark')
+    expect(vi.mocked(emitUiEvent)).toHaveBeenCalledWith(UiEvent.ThemeChanged, {
+      themeId: 'system',
+      resolved: 'dark',
+    })
   })
 
   it('persists theme changes after initialization', async () => {

@@ -418,6 +418,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, []);
 
     useEffect(() => {
+        if (!hydrated) return;
+        applyTerminalTheme(resolvedTheme);
+    }, [resolvedTheme, applyTerminalTheme, hydrated]);
+
+    useEffect(() => {
         const cleanup = listenUiEvent(UiEvent.ThemeChanged, detail => {
             applyTerminalTheme(detail.resolved);
         });

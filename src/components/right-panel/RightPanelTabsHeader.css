@@ -1,0 +1,42 @@
+.right-panel-tabs-header {
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.right-panel-tab {
+  color: var(--color-tab-inactive-text);
+  background: var(--color-tab-inactive-bg);
+}
+
+.right-panel-tab:hover {
+  color: var(--color-tab-inactive-hover-text);
+  background: var(--color-tab-inactive-hover-bg);
+}
+
+.right-panel-tab--active {
+  color: var(--color-tab-active-text);
+  background: var(--color-tab-active-bg);
+}
+
+.right-panel-tab--active:hover {
+  color: var(--color-tab-active-text);
+  background: var(--color-tab-active-bg);
+}
+
+.right-panel-tab--focus {
+  color: var(--color-tab-focus-inactive-text);
+}
+
+.right-panel-tab--focus:hover {
+  color: var(--color-tab-focus-inactive-hover-text);
+  background: var(--color-tab-focus-inactive-hover-bg);
+}
+
+.right-panel-tab--focus.right-panel-tab--active {
+  color: var(--color-tab-focus-active-text);
+  background: var(--color-tab-focus-active-bg);
+}
+
+.right-panel-tab--focus.right-panel-tab--active:hover {
+  color: var(--color-tab-focus-active-text);
+  background: var(--color-tab-focus-active-bg);
+}

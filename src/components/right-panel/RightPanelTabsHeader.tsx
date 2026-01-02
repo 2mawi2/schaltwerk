@@ -2,6 +2,7 @@ import React from 'react'
 import clsx from 'clsx'
 import { VscDiff, VscGitCommit, VscInfo, VscNotebook, VscPreview } from 'react-icons/vsc'
 import type { TabKey } from './RightPanelTabs.types'
+import './RightPanelTabsHeader.css'
 
 interface RightPanelTabsHeaderProps {
   activeTab: TabKey
@@ -20,14 +21,9 @@ const specTabIconClass = baseTabIconClass
 
 const buildButtonClass = (active: boolean, localFocus: boolean) => (
   clsx(
-    'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-    active
-      ? localFocus
-        ? 'text-cyan-200 bg-cyan-800/30'
-        : 'text-slate-200 bg-slate-800/50'
-      : localFocus
-        ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
-        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+    'right-panel-tab h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
+    active && 'right-panel-tab--active',
+    localFocus && 'right-panel-tab--focus'
   )
 )
 
@@ -124,7 +120,7 @@ export const RightPanelTabsHeader = ({
   if (descriptors.length === 0) return null
 
   return (
-    <div className="h-8 flex items-center border-b border-slate-800">
+    <div className="right-panel-tabs-header h-8 flex items-center">
       {descriptors.map(({ key, label, title, icon, dataAttrs }) => (
         <button
           key={key}

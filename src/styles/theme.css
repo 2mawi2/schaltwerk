@@ -471,7 +471,7 @@
   --color-tab-inactive-text: #94a3b8;
   --color-tab-inactive-hover-bg: rgba(51, 65, 85, 0.5);
   --color-tab-inactive-hover-text: #cbd5e1;
-  --color-tab-active-bg: #0f172a;
+  --color-tab-active-bg: rgba(30, 41, 59, 0.5);
   --color-tab-active-text: #f1f5f9;
   --color-tab-active-indicator: #22d3ee;
   --color-tab-close-bg: transparent;
@@ -482,6 +482,35 @@
   --color-tab-badge-text: #020617;
   --color-tab-running-indicator: #06b6d4;
   --color-tab-running-glow: rgba(6, 182, 212, 0.3);
+
+  /* Tab Focus Colors (cyan accent) */
+  --color-tab-focus-inactive-text: #67e8f9;
+  --color-tab-focus-inactive-hover-bg: rgba(8, 145, 178, 0.2);
+  --color-tab-focus-inactive-hover-text: #a5f3fc;
+  --color-tab-focus-active-bg: rgba(8, 145, 178, 0.3);
+  --color-tab-focus-active-text: #a5f3fc;
+
+  /* Icon Button Colors (dark mode - solid, no border) */
+  --icon-button-default-bg: #334155;
+  --icon-button-default-hover-bg: #475569;
+  --icon-button-default-text: #cbd5e1;
+  --icon-button-default-border: transparent;
+  --icon-button-default-hover-border: transparent;
+  --icon-button-success-bg: #166534;
+  --icon-button-success-hover-bg: #15803d;
+  --icon-button-success-text: #86efac;
+  --icon-button-success-border: transparent;
+  --icon-button-success-hover-border: transparent;
+  --icon-button-danger-bg: #991b1b;
+  --icon-button-danger-hover-bg: #b91c1c;
+  --icon-button-danger-text: #fca5a5;
+  --icon-button-danger-border: transparent;
+  --icon-button-danger-hover-border: transparent;
+  --icon-button-warning-bg: #92400e;
+  --icon-button-warning-hover-bg: #b45309;
+  --icon-button-warning-text: #fcd34d;
+  --icon-button-warning-border: transparent;
+  --icon-button-warning-hover-border: transparent;
 }
 
 [data-theme="light"] {
@@ -902,7 +931,7 @@
   --color-tab-inactive-text: #656d76;
   --color-tab-inactive-hover-bg: rgba(209, 217, 224, 0.6);
   --color-tab-inactive-hover-text: #1f2328;
-  --color-tab-active-bg: #ffffff;
+  --color-tab-active-bg: rgba(9, 105, 218, 0.1);
   --color-tab-active-text: #1f2328;
   --color-tab-active-indicator: #0969da;
   --color-tab-close-bg: transparent;
@@ -913,6 +942,35 @@
   --color-tab-badge-text: #ffffff;
   --color-tab-running-indicator: #0969da;
   --color-tab-running-glow: rgba(9, 105, 218, 0.25);
+
+  /* Tab Focus Colors (cyan accent for light theme - matches dark mode) */
+  --color-tab-focus-inactive-text: #0891b2;
+  --color-tab-focus-inactive-hover-bg: rgba(8, 145, 178, 0.12);
+  --color-tab-focus-inactive-hover-text: #0e7490;
+  --color-tab-focus-active-bg: rgba(8, 145, 178, 0.15);
+  --color-tab-focus-active-text: #0e7490;
+
+  /* Icon Button Colors (light mode - semi-transparent with border) */
+  --icon-button-default-bg: rgba(209, 217, 224, 0.5);
+  --icon-button-default-hover-bg: rgba(209, 217, 224, 0.8);
+  --icon-button-default-text: #57606a;
+  --icon-button-default-border: rgba(140, 149, 159, 0.4);
+  --icon-button-default-hover-border: rgba(140, 149, 159, 0.6);
+  --icon-button-success-bg: rgba(22, 163, 74, 0.15);
+  --icon-button-success-hover-bg: rgba(22, 163, 74, 0.25);
+  --icon-button-success-text: #1a7f37;
+  --icon-button-success-border: rgba(22, 163, 74, 0.35);
+  --icon-button-success-hover-border: rgba(22, 163, 74, 0.5);
+  --icon-button-danger-bg: rgba(220, 38, 38, 0.12);
+  --icon-button-danger-hover-bg: rgba(220, 38, 38, 0.2);
+  --icon-button-danger-text: #cf222e;
+  --icon-button-danger-border: rgba(220, 38, 38, 0.35);
+  --icon-button-danger-hover-border: rgba(220, 38, 38, 0.5);
+  --icon-button-warning-bg: rgba(217, 119, 6, 0.15);
+  --icon-button-warning-hover-bg: rgba(217, 119, 6, 0.25);
+  --icon-button-warning-text: #9a6700;
+  --icon-button-warning-border: rgba(217, 119, 6, 0.35);
+  --icon-button-warning-hover-border: rgba(217, 119, 6, 0.5);
 }
 
 /* ==========================================================================

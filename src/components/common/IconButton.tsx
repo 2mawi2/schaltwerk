@@ -68,41 +68,39 @@ export function IconButton({
   };
 
   const getButtonTokens = () => {
-    const base = {
-      bg: 'rgb(var(--color-border-subtle-rgb) / 0.4)',
-      hoverBg: 'rgb(var(--color-border-subtle-rgb) / 0.6)',
-      text: 'var(--color-text-secondary)',
-      border: 'rgb(var(--color-border-strong-rgb) / 0.5)',
-      hoverBorder: 'rgb(var(--color-border-strong-rgb) / 0.7)',
-    };
-
     switch (variant) {
       case 'success':
         return {
-          bg: 'rgb(var(--color-accent-green-rgb) / 0.16)',
-          hoverBg: 'rgb(var(--color-accent-green-rgb) / 0.24)',
-          text: 'var(--color-accent-green-light)',
-          border: 'rgb(var(--color-accent-green-rgb) / 0.35)',
-          hoverBorder: 'rgb(var(--color-accent-green-rgb) / 0.5)',
+          bg: 'var(--icon-button-success-bg)',
+          hoverBg: 'var(--icon-button-success-hover-bg)',
+          text: 'var(--icon-button-success-text)',
+          border: 'var(--icon-button-success-border)',
+          hoverBorder: 'var(--icon-button-success-hover-border)',
         };
       case 'danger':
         return {
-          bg: 'rgb(var(--color-accent-red-rgb) / 0.16)',
-          hoverBg: 'rgb(var(--color-accent-red-rgb) / 0.24)',
-          text: 'var(--color-accent-red-light)',
-          border: 'rgb(var(--color-accent-red-rgb) / 0.35)',
-          hoverBorder: 'rgb(var(--color-accent-red-rgb) / 0.5)',
+          bg: 'var(--icon-button-danger-bg)',
+          hoverBg: 'var(--icon-button-danger-hover-bg)',
+          text: 'var(--icon-button-danger-text)',
+          border: 'var(--icon-button-danger-border)',
+          hoverBorder: 'var(--icon-button-danger-hover-border)',
         };
       case 'warning':
         return {
-          bg: 'rgb(var(--color-accent-amber-rgb) / 0.18)',
-          hoverBg: 'rgb(var(--color-accent-amber-rgb) / 0.26)',
-          text: 'var(--color-accent-amber-light)',
-          border: 'rgb(var(--color-accent-amber-rgb) / 0.35)',
-          hoverBorder: 'rgb(var(--color-accent-amber-rgb) / 0.5)',
+          bg: 'var(--icon-button-warning-bg)',
+          hoverBg: 'var(--icon-button-warning-hover-bg)',
+          text: 'var(--icon-button-warning-text)',
+          border: 'var(--icon-button-warning-border)',
+          hoverBorder: 'var(--icon-button-warning-hover-border)',
         };
       default:
-        return base;
+        return {
+          bg: 'var(--icon-button-default-bg)',
+          hoverBg: 'var(--icon-button-default-hover-bg)',
+          text: 'var(--icon-button-default-text)',
+          border: 'var(--icon-button-default-border)',
+          hoverBorder: 'var(--icon-button-default-hover-border)',
+        };
     }
   };
 

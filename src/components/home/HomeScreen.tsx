@@ -128,7 +128,12 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <button
               onClick={() => setShowNewProjectDialog(true)}
-              className="bg-emerald-900/30 hover:bg-emerald-800/40 border border-emerald-700/50 text-emerald-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
+              className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
+              style={{
+                backgroundColor: 'var(--color-accent-green-bg)',
+                border: '1px solid var(--color-accent-green-border)',
+                color: 'var(--color-accent-green)'
+              }}
             >
               <VscNewFolder className="text-2xl" />
               <span className="text-lg font-medium">New Project</span>
