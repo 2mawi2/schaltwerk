@@ -69,10 +69,10 @@ export function IconButton({
 
   const getButtonTokens = () => {
     const base = {
-      bg: 'rgb(var(--color-bg-hover-rgb) / 0.6)',
-      hoverBg: 'rgb(var(--color-bg-hover-rgb) / 0.8)',
+      bg: 'rgb(var(--color-border-subtle-rgb) / 0.4)',
+      hoverBg: 'rgb(var(--color-border-subtle-rgb) / 0.6)',
       text: 'var(--color-text-secondary)',
-      border: 'rgb(var(--color-border-subtle-rgb) / 0.6)',
+      border: 'rgb(var(--color-border-strong-rgb) / 0.5)',
       hoverBorder: 'rgb(var(--color-border-strong-rgb) / 0.7)',
     };
 

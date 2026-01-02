@@ -133,7 +133,7 @@ export function EpicSelect({ value, disabled = false, onChange, variant = 'pill'
                         }}
                         disabled={disabled}
                         className={variant === 'icon'
-                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded border transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-[rgb(var(--color-bg-hover-rgb)/0.6)] hover:bg-[rgb(var(--color-bg-hover-rgb)/0.8)] border-[rgb(var(--color-border-subtle-rgb)/0.6)] hover:border-[rgb(var(--color-border-strong-rgb)/0.7)] cursor-pointer'} ${className}`
+                            ? `inline-flex items-center justify-center px-1.5 py-1 rounded border transition-colors duration-150 ${disabled ? 'opacity-50 cursor-not-allowed' : 'bg-[rgb(var(--color-border-subtle-rgb)/0.4)] hover:bg-[rgb(var(--color-border-subtle-rgb)/0.6)] border-[rgb(var(--color-border-strong-rgb)/0.5)] hover:border-[rgb(var(--color-border-strong-rgb)/0.7)] cursor-pointer'} ${className}`
                             : `${variant === 'field' ? 'w-full px-3 py-2 justify-between' : variant === 'compact' ? 'p-1' : 'px-2 py-1'} rounded border inline-flex items-center gap-2 ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'} ${className}`
                         }
                         style={variant === 'icon' ? undefined : {
