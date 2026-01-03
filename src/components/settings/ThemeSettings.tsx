@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { currentThemeIdAtom, setThemeActionAtom, resolvedThemeAtom } from '../../store/atoms/theme'
-import { ThemeId, ResolvedTheme } from '../../common/themes/types'
+import { currentThemeIdAtom, setThemeActionAtom } from '../../store/atoms/theme'
+import { ThemeId } from '../../common/themes/types'
 import { theme } from '../../common/theme'
 
 interface ThemeOption {
@@ -32,6 +32,7 @@ const themeOptions: ThemeOption[] = [
     id: 'tokyonight',
     label: 'Tokyo Night',
     description: 'Based on the popular Neovim theme',
+    experimental: true,
     colors: {
       bg: '#1a1b26',
       bgSecondary: '#24283b',
@@ -43,6 +44,7 @@ const themeOptions: ThemeOption[] = [
     id: 'gruvbox',
     label: 'Gruvbox',
     description: 'Retro groove color scheme',
+    experimental: true,
     colors: {
       bg: '#282828',
       bgSecondary: '#3c3836',
@@ -54,6 +56,7 @@ const themeOptions: ThemeOption[] = [
     id: 'catppuccin',
     label: 'Catppuccin Mocha',
     description: 'Soothing pastel theme (darkest)',
+    experimental: true,
     colors: {
       bg: '#1e1e2e',
       bgSecondary: '#313244',
@@ -65,6 +68,7 @@ const themeOptions: ThemeOption[] = [
     id: 'catppuccin-macchiato',
     label: 'Catppuccin Macchiato',
     description: 'Soothing pastel theme (medium)',
+    experimental: true,
     colors: {
       bg: '#24273a',
       bgSecondary: '#363a4f',
@@ -76,6 +80,7 @@ const themeOptions: ThemeOption[] = [
     id: 'everforest',
     label: 'Everforest',
     description: 'Green-based comfortable color scheme',
+    experimental: true,
     colors: {
       bg: '#2d353b',
       bgSecondary: '#3d484d',
@@ -87,6 +92,7 @@ const themeOptions: ThemeOption[] = [
     id: 'ayu',
     label: 'Ayu Dark',
     description: 'Modern dark theme with warm accents',
+    experimental: true,
     colors: {
       bg: '#0B0E14',
       bgSecondary: '#11151C',
@@ -98,6 +104,7 @@ const themeOptions: ThemeOption[] = [
     id: 'kanagawa',
     label: 'Kanagawa',
     description: 'Inspired by Hokusai\'s Great Wave',
+    experimental: true,
     colors: {
       bg: '#1F1F28',
       bgSecondary: '#2A2A37',
@@ -247,58 +254,20 @@ function ThemePreviewCard({
   )
 }
 
-function getResolvedLabel(resolved: ResolvedTheme): string {
-  switch (resolved) {
-    case 'tokyonight':
-      return 'Tokyo Night'
-    case 'gruvbox':
-      return 'Gruvbox'
-    case 'catppuccin':
-      return 'Catppuccin Mocha'
-    case 'catppuccin-macchiato':
-      return 'Catppuccin Macchiato'
-    case 'everforest':
-      return 'Everforest'
-    case 'ayu':
-      return 'Ayu Dark'
-    case 'kanagawa':
-      return 'Kanagawa'
-    case 'light':
-      return 'Light'
-    default:
-      return 'Dark'
-  }
-}
-
 export function ThemeSettings() {
   const currentTheme = useAtomValue(currentThemeIdAtom)
-  const resolvedTheme = useAtomValue(resolvedThemeAtom)
   const setTheme = useSetAtom(setThemeActionAtom)
-  const resolvedLabel = getResolvedLabel(resolvedTheme)
-  const statusLabel = currentTheme === 'system'
-    ? `Follows system (${resolvedLabel})`
-    : `Currently ${resolvedLabel}`
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label
-          style={{
-            color: 'var(--color-text-secondary)',
-            fontSize: theme.fontSize.label,
-          }}
-        >
-          Theme
-        </label>
-        <span
-          style={{
-            color: 'var(--color-text-muted)',
-            fontSize: theme.fontSize.caption,
-          }}
-        >
-          {statusLabel}
-        </span>
-      </div>
+      <label
+        style={{
+          color: 'var(--color-text-secondary)',
+          fontSize: theme.fontSize.label,
+        }}
+      >
+        Theme
+      </label>
       <div className="flex flex-wrap gap-3">
         {themeOptions.map((option) => (
           <ThemePreviewCard
