@@ -1408,13 +1408,13 @@ const TerminalGridComponent = () => {
                     <div
                         style={{
                             backgroundColor: localFocus === 'claude' ? 'var(--color-accent-blue-bg)' : undefined,
-                            color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : undefined,
-                            borderBottomColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : undefined,
+                            color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
+                            borderBottomColor: localFocus === 'claude' ? 'var(--color-accent-blue-border)' : 'var(--color-border-default)',
                         }}
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
                                 localFocus === 'claude'
                                     ? 'hover:bg-opacity-60'
-                                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                                    : 'hover:bg-elevated'
                         }`}
                     >
                         {/* Left side: Action Buttons - only show for orchestrator */}
@@ -1448,7 +1448,7 @@ const TerminalGridComponent = () => {
                             {selection.kind === 'orchestrator' && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfigureAgentsOpen(true) }}
-                                    className="px-2 py-1 text-[10px] rounded border border-slate-700 hover:bg-slate-800"
+                                    className="px-2 py-1 text-[10px] rounded border border-subtle hover:bg-elevated"
                                     title="Change orchestrator agent"
                                 >
                                     Configure agent…
@@ -1457,7 +1457,7 @@ const TerminalGridComponent = () => {
                             {selection.kind === 'session' && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
-                                    className="p-1 rounded hover:bg-slate-800"
+                                    className="p-1 rounded hover:bg-elevated"
                                     title="Reset session"
                                     aria-label="Reset session"
                                 >

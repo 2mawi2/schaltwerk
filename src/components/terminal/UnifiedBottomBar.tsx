@@ -67,14 +67,14 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
       data-bottom-header
       style={{
         backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : undefined,
-        color: isFocused ? 'var(--color-accent-blue-light)' : undefined,
-        borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : undefined,
+        color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
+        borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : 'var(--color-border-default)',
         fontSize: theme.fontSize.body,
       }}
       className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
         isFocused
           ? 'hover:bg-opacity-60'
-          : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+          : 'hover:bg-elevated'
       }`}
       onClick={onBarClick}
     >
@@ -178,7 +178,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
           className={`w-7 h-7 flex items-center justify-center rounded ${
             isFocused
               ? 'hover:bg-opacity-60 hover:text-white'
-              : 'hover:bg-slate-700/50 hover:text-slate-100'
+              : 'hover:bg-hover hover:text-primary'
           }`}
           aria-label={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
         >

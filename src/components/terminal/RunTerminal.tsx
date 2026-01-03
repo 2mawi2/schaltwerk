@@ -405,13 +405,25 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
   return (
     <div className={`${className} flex flex-col overflow-hidden`} style={{ backgroundColor: 'var(--color-bg-primary)' }}>
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex-shrink-0">
+      <div
+        className="px-4 py-2 flex-shrink-0 border-b"
+        style={{
+          backgroundColor: 'var(--color-bg-tertiary)',
+          borderColor: 'var(--color-border-default)',
+        }}
+      >
         <div className="flex items-center gap-3 text-xs">
-          <span className={`${isRunning ? 'text-green-500' : 'text-slate-600'}`}>
+          <span style={{ color: isRunning ? 'var(--color-accent-green)' : 'var(--color-text-muted)' }}>
             {isRunning ? '▶' : '■'}
           </span>
-          <span className="text-slate-500">{isRunning ? 'Running:' : 'Ready to run:'}</span>
-          <code className={`bg-slate-800 px-2 py-0.5 rounded font-mono ${isRunning ? 'text-green-400' : 'text-slate-400'}`}>
+          <span style={{ color: 'var(--color-text-muted)' }}>{isRunning ? 'Running:' : 'Ready to run:'}</span>
+          <code
+            className="px-2 py-0.5 rounded font-mono"
+            style={{
+              backgroundColor: 'var(--color-bg-elevated)',
+              color: isRunning ? 'var(--color-accent-green-light)' : 'var(--color-text-tertiary)',
+            }}
+          >
             {runScript.command}
           </code>
         </div>

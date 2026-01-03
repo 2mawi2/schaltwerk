@@ -67,13 +67,13 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
             data-testid="agent-tab-bar"
             style={{
                 backgroundColor: isFocused ? 'var(--color-accent-blue-bg)' : undefined,
-                color: isFocused ? 'var(--color-accent-blue-light)' : undefined,
-                borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : undefined,
+                color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
+                borderBottomColor: isFocused ? 'var(--color-accent-blue-border)' : 'var(--color-border-default)',
             }}
             className={`h-9 px-2 text-xs border-b flex items-center gap-1 overflow-hidden z-10 relative ${
                 isFocused
                     ? 'hover:bg-opacity-60'
-                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                    : 'hover:bg-elevated'
             }`}
         >
             {/* Tabs - Expand to fill space, scroll internally */}
@@ -94,7 +94,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                 onClose={canClose ? () => onTabClose(index) : undefined}
                                 onMiddleClick={canClose ? () => onTabClose(index) : undefined}
                                 showCloseButton={canClose}
-                                className="h-full flex-shrink-0 border-r border-slate-800/50"
+                                className="h-full flex-shrink-0 border-r border-default/50"
                                 style={{
                                     minWidth: '100px',
                                     maxWidth: '200px',
@@ -147,7 +147,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                             e.stopPropagation()
                             onReset()
                         }}
-                        className="p-1 rounded hover:bg-slate-700 mr-1"
+                        className="p-1 rounded hover:bg-hover mr-1"
                         title="Reset session"
                     >
                         <VscDiscard className="text-base" />
