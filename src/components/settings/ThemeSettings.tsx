@@ -40,6 +40,17 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'gruvbox',
+    label: 'Gruvbox',
+    description: 'Retro groove color scheme',
+    colors: {
+      bg: '#282828',
+      bgSecondary: '#3c3836',
+      text: '#ebdbb2',
+      accent: '#83a598',
+    },
+  },
+  {
     id: 'catppuccin',
     label: 'Catppuccin Mocha',
     description: 'Soothing pastel theme (darkest)',
@@ -240,6 +251,8 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
   switch (resolved) {
     case 'tokyonight':
       return 'Tokyo Night'
+    case 'gruvbox':
+      return 'Gruvbox'
     case 'catppuccin':
       return 'Catppuccin Mocha'
     case 'catppuccin-macchiato':
@@ -303,7 +316,7 @@ export function ThemeSettings() {
           marginTop: '0.5rem',
         }}
       >
-        More themes coming soon: Gruvbox, Nord, and more.
+        More themes coming soon: Nord, and more.
       </p>
     </div>
   )
