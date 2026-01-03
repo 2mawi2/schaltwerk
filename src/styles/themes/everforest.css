@@ -1,0 +1,471 @@
+/* ==========================================================================
+   Everforest Theme (Dark variant)
+   Palette derived from https://github.com/sainnhe/everforest
+   Extended with Tailwind color scales and terminal colors
+   ========================================================================== */
+[data-theme="everforest"] {
+  /* Color Scheme for native widgets */
+  --color-scheme: dark;
+
+  /* Background Colors */
+  --color-bg-primary: #2d353b;
+  --color-bg-primary-rgb: 45 53 59;
+  --color-bg-secondary: #272e33;
+  --color-bg-secondary-rgb: 39 46 51;
+  --color-bg-tertiary: #333c43;
+  --color-bg-tertiary-rgb: 51 60 67;
+  --color-bg-elevated: #3d484d;
+  --color-bg-elevated-rgb: 61 72 77;
+  --color-bg-hover: #475258;
+  --color-bg-hover-rgb: 71 82 88;
+  --color-bg-active: #4f585e;
+  --color-bg-active-rgb: 79 88 94;
+
+  /* Panel aliases */
+  --color-panel: var(--color-bg-secondary);
+  --color-panel-rgb: var(--color-bg-secondary-rgb);
+  --color-panel-alt: var(--color-bg-tertiary);
+  --color-panel-alt-rgb: var(--color-bg-tertiary-rgb);
+
+  /* Text Colors */
+  --color-text-primary: #d3c6aa;
+  --color-text-primary-rgb: 211 198 170;
+  --color-text-secondary: #9da9a0;
+  --color-text-secondary-rgb: 157 169 160;
+  --color-text-tertiary: #859289;
+  --color-text-tertiary-rgb: 133 146 137;
+  --color-text-muted: #7a8478;
+  --color-text-muted-rgb: 122 132 120;
+  --color-text-inverse: #2d353b;
+  --color-text-inverse-rgb: 45 53 59;
+
+  /* Border Colors */
+  --color-border-default: #4f585e;
+  --color-border-default-rgb: 79 88 94;
+  --color-border-subtle: #3d484d;
+  --color-border-subtle-rgb: 61 72 77;
+  --color-border-strong: #5c6a72;
+  --color-border-strong-rgb: 92 106 114;
+  --color-border-focus: #a7c080;
+  --color-border-focus-rgb: 167 192 128;
+
+  /* Accent Colors - Everforest palette */
+  --color-accent-blue: #7fbbb3;
+  --color-accent-blue-rgb: 127 187 179;
+  --color-accent-blue-light: #a7c080;
+  --color-accent-blue-dark: #5a7785;
+  --color-accent-blue-bg: rgba(127, 187, 179, 0.1);
+  --color-accent-blue-border: rgba(127, 187, 179, 0.5);
+
+  --color-accent-green: #a7c080;
+  --color-accent-green-rgb: 167 192 128;
+  --color-accent-green-light: #b7d99a;
+  --color-accent-green-dark: #8da974;
+  --color-accent-green-bg: rgba(167, 192, 128, 0.1);
+  --color-accent-green-border: rgba(167, 192, 128, 0.5);
+
+  --color-accent-amber: #e69875;
+  --color-accent-amber-rgb: 230 152 117;
+  --color-accent-amber-light: #f0a984;
+  --color-accent-amber-dark: #b87a5e;
+  --color-accent-amber-bg: rgba(230, 152, 117, 0.1);
+  --color-accent-amber-border: rgba(230, 152, 117, 0.5);
+
+  --color-accent-red: #e67e80;
+  --color-accent-red-rgb: 230 126 128;
+  --color-accent-red-light: #f0908a;
+  --color-accent-red-dark: #b86466;
+  --color-accent-red-bg: rgba(230, 126, 128, 0.1);
+  --color-accent-red-border: rgba(230, 126, 128, 0.5);
+
+  --color-accent-violet: #d699b6;
+  --color-accent-violet-rgb: 214 153 182;
+  --color-accent-violet-light: #e6a8c6;
+  --color-accent-violet-dark: #a87a94;
+  --color-accent-violet-bg: rgba(214, 153, 182, 0.1);
+  --color-accent-violet-border: rgba(214, 153, 182, 0.5);
+
+  --color-accent-purple: #d699b6;
+  --color-accent-purple-rgb: 214 153 182;
+  --color-accent-purple-light: #e6a8c6;
+  --color-accent-purple-dark: #a87a94;
+  --color-accent-purple-bg: rgba(214, 153, 182, 0.1);
+  --color-accent-purple-border: rgba(214, 153, 182, 0.5);
+
+  --color-accent-magenta: #d699b6;
+  --color-accent-magenta-rgb: 214 153 182;
+  --color-accent-magenta-light: #e6a8c6;
+  --color-accent-magenta-dark: #a87a94;
+  --color-accent-magenta-bg: rgba(214, 153, 182, 0.1);
+  --color-accent-magenta-border: rgba(214, 153, 182, 0.5);
+
+  --color-accent-yellow: #dbbc7f;
+  --color-accent-yellow-rgb: 219 188 127;
+  --color-accent-yellow-light: #e8cc8f;
+  --color-accent-yellow-dark: #b09a66;
+  --color-accent-yellow-bg: rgba(219, 188, 127, 0.1);
+  --color-accent-yellow-border: rgba(219, 188, 127, 0.5);
+
+  --color-accent-cyan: #83c092;
+  --color-accent-cyan-rgb: 131 192 146;
+  --color-accent-cyan-light: #9cd6a8;
+  --color-accent-cyan-dark: #6a9a76;
+  --color-accent-cyan-bg: rgba(131, 192, 146, 0.1);
+  --color-accent-cyan-border: rgba(131, 192, 146, 0.5);
+
+  --color-accent-copilot: #a7c080;
+  --color-accent-copilot-rgb: 167 192 128;
+  --color-accent-copilot-light: #b7d99a;
+  --color-accent-copilot-dark: #8da974;
+  --color-accent-copilot-bg: rgba(167, 192, 128, 0.1);
+  --color-accent-copilot-border: rgba(167, 192, 128, 0.5);
+
+  /* Status Colors */
+  --color-status-info: #7fbbb3;
+  --color-status-info-rgb: 127 187 179;
+  --color-status-success: #a7c080;
+  --color-status-success-rgb: 167 192 128;
+  --color-status-warning: #dbbc7f;
+  --color-status-warning-rgb: 219 188 127;
+  --color-status-error: #e67e80;
+  --color-status-error-rgb: 230 126 128;
+
+  /* Diff Colors */
+  --color-diff-added-bg: rgba(167, 192, 128, 0.15);
+  --color-diff-added-text: #a7c080;
+  --color-diff-removed-bg: rgba(230, 126, 128, 0.15);
+  --color-diff-removed-text: #e67e80;
+  --color-diff-modified-bg: rgba(219, 188, 127, 0.15);
+  --color-diff-modified-text: #dbbc7f;
+
+  /* Scrollbar Colors */
+  --color-scrollbar-track: rgba(61, 72, 77, 0.5);
+  --color-scrollbar-thumb: rgba(79, 88, 94, 0.8);
+  --color-scrollbar-thumb-hover: rgba(92, 106, 114, 0.9);
+
+  /* Selection Colors */
+  --color-selection-bg: rgba(167, 192, 128, 0.3);
+
+  /* Overlay Colors */
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay-strong: rgba(0, 0, 0, 0.8);
+  --color-overlay-light: rgba(255, 255, 255, 0.1);
+  --color-overlay-dark: rgba(0, 0, 0, 0.3);
+
+  /* Graph Colors */
+  --color-graph-reference-default: #a7c080;
+  --color-graph-reference-remote: #d699b6;
+  --color-graph-reference-base: #e69875;
+  --color-graph-reference-tag: #dbbc7f;
+
+  /* Surface Colors */
+  --color-surface-modal: #333c43;
+  --color-surface-modal-rgb: 51 60 67;
+
+  /* Editor Colors */
+  --color-editor-background: #2d353b;
+  --color-editor-background-rgb: 45 53 59;
+  --color-editor-text: #d3c6aa;
+  --color-editor-caret: #a7c080;
+  --color-editor-gutter-text: #4f585e;
+  --color-editor-gutter-active-text: #9da9a0;
+  --color-editor-active-line: rgba(255, 255, 255, 0.04);
+  --color-editor-inline-code-bg: rgba(61, 72, 77, 0.8);
+  --color-editor-code-block-bg: rgba(61, 72, 77, 0.5);
+  --color-editor-blockquote-border: #4f585e;
+  --color-editor-line-rule: #4f585e;
+  --color-editor-strikethrough: #7a8478;
+  --color-editor-selection: rgba(167, 192, 128, 0.3);
+  --color-editor-selection-focused: rgba(167, 192, 128, 0.4);
+  --color-editor-selection-alt: rgba(255, 255, 255, 0.04);
+  --color-editor-placeholder-border: #4f585e;
+
+  /* Syntax Colors - Everforest style */
+  --color-syntax-default: #9da9a0;
+  --color-syntax-comment: #7a8478;
+  --color-syntax-variable: #d3c6aa;
+  --color-syntax-number: #e69875;
+  --color-syntax-type: #7fbbb3;
+  --color-syntax-keyword: #d699b6;
+  --color-syntax-string: #a7c080;
+  --color-syntax-function: #7fbbb3;
+  --color-syntax-operator: #83c092;
+  --color-syntax-punctuation: #9da9a0;
+  --color-syntax-tag: #e67e80;
+  --color-syntax-attribute: #83c092;
+  --color-syntax-selector: #d699b6;
+  --color-syntax-property: #a7c080;
+  --color-syntax-bracket: #dbbc7f;
+  --color-syntax-class: #7fbbb3;
+  --color-syntax-constant: #e69875;
+  --color-syntax-decorator: #d699b6;
+  --color-syntax-regex: #83c092;
+  --color-syntax-escape: #83c092;
+  --color-syntax-emphasis: #d699b6;
+  --color-syntax-highlight: #d3c6aa;
+
+  /* Gray Scale (Everforest style) */
+  --color-gray-50: #d3c6aa;
+  --color-gray-50-rgb: 211 198 170;
+  --color-gray-100: #9da9a0;
+  --color-gray-100-rgb: 157 169 160;
+  --color-gray-200: #8b9a8f;
+  --color-gray-200-rgb: 139 154 143;
+  --color-gray-300: #859289;
+  --color-gray-300-rgb: 133 146 137;
+  --color-gray-400: #7a8478;
+  --color-gray-400-rgb: 122 132 120;
+  --color-gray-500: #6d7a6e;
+  --color-gray-500-rgb: 109 122 110;
+  --color-gray-500-alt: #5c6a72;
+  --color-gray-500-alt-rgb: 92 106 114;
+  --color-gray-600: #4f585e;
+  --color-gray-600-rgb: 79 88 94;
+  --color-gray-700: #3d484d;
+  --color-gray-700-rgb: 61 72 77;
+  --color-gray-800: #333c43;
+  --color-gray-800-rgb: 51 60 67;
+  --color-gray-900: #2d353b;
+  --color-gray-900-rgb: 45 53 59;
+  --color-gray-950: #272e33;
+  --color-gray-950-rgb: 39 46 51;
+
+  /* Blue Scale (Everforest - teal/aqua tones) */
+  --color-blue-50: #e0f2f1;
+  --color-blue-50-rgb: 224 242 241;
+  --color-blue-100: #c2e7e5;
+  --color-blue-100-rgb: 194 231 229;
+  --color-blue-200: #a0d8d4;
+  --color-blue-200-rgb: 160 216 212;
+  --color-blue-300: #7fbbb3;
+  --color-blue-300-rgb: 127 187 179;
+  --color-blue-400: #7fbbb3;
+  --color-blue-400-rgb: 127 187 179;
+  --color-blue-500: #6aa49c;
+  --color-blue-500-rgb: 106 164 156;
+  --color-blue-600: #5a8d86;
+  --color-blue-600-rgb: 90 141 134;
+  --color-blue-700: #4a7670;
+  --color-blue-700-rgb: 74 118 112;
+  --color-blue-800: #3a5f5a;
+  --color-blue-800-rgb: 58 95 90;
+  --color-blue-900: #2a4844;
+  --color-blue-900-rgb: 42 72 68;
+  --color-blue-950: #1a312e;
+  --color-blue-950-rgb: 26 49 46;
+
+  /* Green Scale (Everforest) */
+  --color-green-50: #e8f3dc;
+  --color-green-50-rgb: 232 243 220;
+  --color-green-100: #d4e9bf;
+  --color-green-100-rgb: 212 233 191;
+  --color-green-200: #bddc9e;
+  --color-green-200-rgb: 189 220 158;
+  --color-green-300: #a7c080;
+  --color-green-300-rgb: 167 192 128;
+  --color-green-400: #a7c080;
+  --color-green-400-rgb: 167 192 128;
+  --color-green-500: #8da974;
+  --color-green-500-rgb: 141 169 116;
+  --color-green-600: #769262;
+  --color-green-600-rgb: 118 146 98;
+  --color-green-700: #5f7b50;
+  --color-green-700-rgb: 95 123 80;
+  --color-green-800: #48643e;
+  --color-green-800-rgb: 72 100 62;
+  --color-green-900: #314d2c;
+  --color-green-900-rgb: 49 77 44;
+  --color-green-950: #1a361a;
+  --color-green-950-rgb: 26 54 26;
+
+  /* Amber Scale (Everforest - orange tones) */
+  --color-amber-50: #fdf2e6;
+  --color-amber-50-rgb: 253 242 230;
+  --color-amber-100: #fbe3cc;
+  --color-amber-100-rgb: 251 227 204;
+  --color-amber-200: #f4c8a0;
+  --color-amber-200-rgb: 244 200 160;
+  --color-amber-300: #e69875;
+  --color-amber-300-rgb: 230 152 117;
+  --color-amber-400: #e69875;
+  --color-amber-400-rgb: 230 152 117;
+  --color-amber-500: #c88462;
+  --color-amber-500-rgb: 200 132 98;
+  --color-amber-600: #aa704f;
+  --color-amber-600-rgb: 170 112 79;
+  --color-amber-700: #8c5c3c;
+  --color-amber-700-rgb: 140 92 60;
+  --color-amber-800: #6e4829;
+  --color-amber-800-rgb: 110 72 41;
+  --color-amber-900: #503416;
+  --color-amber-900-rgb: 80 52 22;
+  --color-amber-950: #322003;
+  --color-amber-950-rgb: 50 32 3;
+
+  /* Red Scale (Everforest) */
+  --color-red-50: #fce8e8;
+  --color-red-50-rgb: 252 232 232;
+  --color-red-100: #f9d0d0;
+  --color-red-100-rgb: 249 208 208;
+  --color-red-200: #f0a8a8;
+  --color-red-200-rgb: 240 168 168;
+  --color-red-300: #e67e80;
+  --color-red-300-rgb: 230 126 128;
+  --color-red-400: #e67e80;
+  --color-red-400-rgb: 230 126 128;
+  --color-red-500: #c86a6c;
+  --color-red-500-rgb: 200 106 108;
+  --color-red-600: #aa5658;
+  --color-red-600-rgb: 170 86 88;
+  --color-red-700: #8c4244;
+  --color-red-700-rgb: 140 66 68;
+  --color-red-800: #6e2e30;
+  --color-red-800-rgb: 110 46 48;
+  --color-red-900: #501a1c;
+  --color-red-900-rgb: 80 26 28;
+  --color-red-950: #320608;
+  --color-red-950-rgb: 50 6 8;
+
+  /* Cyan Scale (Everforest - emerald/aqua tones) */
+  --color-cyan-50: #e4f5e8;
+  --color-cyan-50-rgb: 228 245 232;
+  --color-cyan-100: #c9ead2;
+  --color-cyan-100-rgb: 201 234 210;
+  --color-cyan-200: #a6dbb6;
+  --color-cyan-200-rgb: 166 219 182;
+  --color-cyan-300: #83c092;
+  --color-cyan-300-rgb: 131 192 146;
+  --color-cyan-400: #83c092;
+  --color-cyan-400-rgb: 131 192 146;
+  --color-cyan-500: #6aa67c;
+  --color-cyan-500-rgb: 106 166 124;
+  --color-cyan-600: #528c66;
+  --color-cyan-600-rgb: 82 140 102;
+  --color-cyan-700: #3a7250;
+  --color-cyan-700-rgb: 58 114 80;
+  --color-cyan-800: #22583a;
+  --color-cyan-800-rgb: 34 88 58;
+  --color-cyan-900: #0a3e24;
+  --color-cyan-900-rgb: 10 62 36;
+  --color-cyan-950: #00240e;
+  --color-cyan-950-rgb: 0 36 14;
+
+  /* Purple Scale (Everforest - pink/mauve tones) */
+  --color-purple-50: #f8eaf0;
+  --color-purple-50-rgb: 248 234 240;
+  --color-purple-100: #f0d4e1;
+  --color-purple-100-rgb: 240 212 225;
+  --color-purple-200: #e3b7cb;
+  --color-purple-200-rgb: 227 183 203;
+  --color-purple-300: #d699b6;
+  --color-purple-300-rgb: 214 153 182;
+  --color-purple-400: #d699b6;
+  --color-purple-400-rgb: 214 153 182;
+  --color-purple-500: #b8839c;
+  --color-purple-500-rgb: 184 131 156;
+  --color-purple-600: #9a6d82;
+  --color-purple-600-rgb: 154 109 130;
+  --color-purple-700: #7c5768;
+  --color-purple-700-rgb: 124 87 104;
+  --color-purple-800: #5e414e;
+  --color-purple-800-rgb: 94 65 78;
+  --color-purple-900: #402b34;
+  --color-purple-900-rgb: 64 43 52;
+  --color-purple-950: #22151a;
+  --color-purple-950-rgb: 34 21 26;
+
+  /* Violet Scale (Everforest - same as purple) */
+  --color-violet-50: #f8eaf0;
+  --color-violet-50-rgb: 248 234 240;
+  --color-violet-100: #f0d4e1;
+  --color-violet-100-rgb: 240 212 225;
+  --color-violet-200: #e3b7cb;
+  --color-violet-200-rgb: 227 183 203;
+  --color-violet-300: #d699b6;
+  --color-violet-300-rgb: 214 153 182;
+  --color-violet-400: #d699b6;
+  --color-violet-400-rgb: 214 153 182;
+  --color-violet-500: #b8839c;
+  --color-violet-500-rgb: 184 131 156;
+  --color-violet-600: #9a6d82;
+  --color-violet-600-rgb: 154 109 130;
+  --color-violet-700: #7c5768;
+  --color-violet-700-rgb: 124 87 104;
+  --color-violet-800: #5e414e;
+  --color-violet-800-rgb: 94 65 78;
+  --color-violet-900: #402b34;
+  --color-violet-900-rgb: 64 43 52;
+  --color-violet-950: #22151a;
+  --color-violet-950-rgb: 34 21 26;
+
+  /* Yellow Scale (Everforest) */
+  --color-yellow-50: #fbf5e0;
+  --color-yellow-50-rgb: 251 245 224;
+  --color-yellow-100: #f6eac1;
+  --color-yellow-100-rgb: 246 234 193;
+  --color-yellow-200: #edd9a0;
+  --color-yellow-200-rgb: 237 217 160;
+  --color-yellow-300: #dbbc7f;
+  --color-yellow-300-rgb: 219 188 127;
+  --color-yellow-400: #dbbc7f;
+  --color-yellow-400-rgb: 219 188 127;
+  --color-yellow-500: #c0a46c;
+  --color-yellow-500-rgb: 192 164 108;
+  --color-yellow-600: #a58c59;
+  --color-yellow-600-rgb: 165 140 89;
+  --color-yellow-700: #8a7446;
+  --color-yellow-700-rgb: 138 116 70;
+  --color-yellow-800: #6f5c33;
+  --color-yellow-800-rgb: 111 92 51;
+  --color-yellow-900: #544420;
+  --color-yellow-900-rgb: 84 68 32;
+
+  --color-white: #d3c6aa;
+  --color-white-rgb: 211 198 170;
+
+  /* Tab Colors */
+  --color-tab-inactive-bg: transparent;
+  --color-tab-inactive-text: #7a8478;
+  --color-tab-inactive-hover-bg: rgba(79, 88, 94, 0.5);
+  --color-tab-inactive-hover-text: #9da9a0;
+  --color-tab-active-bg: rgba(61, 72, 77, 0.5);
+  --color-tab-active-text: #d3c6aa;
+  --color-tab-active-indicator: #a7c080;
+  --color-tab-close-bg: transparent;
+  --color-tab-close-hover-bg: rgba(79, 88, 94, 0.6);
+  --color-tab-close-color: #7a8478;
+  --color-tab-close-hover-color: #d3c6aa;
+  --color-tab-badge-bg: #dbbc7f;
+  --color-tab-badge-text: #2d353b;
+  --color-tab-running-indicator: #83c092;
+  --color-tab-running-glow: rgba(131, 192, 146, 0.3);
+
+  /* Tab Focus Colors (green accent) */
+  --color-tab-focus-inactive-text: #a7c080;
+  --color-tab-focus-inactive-hover-bg: rgba(167, 192, 128, 0.2);
+  --color-tab-focus-inactive-hover-text: #b7d99a;
+  --color-tab-focus-active-bg: rgba(167, 192, 128, 0.3);
+  --color-tab-focus-active-text: #b7d99a;
+
+  /* Icon Button Colors */
+  --icon-button-default-bg: #4f585e;
+  --icon-button-default-hover-bg: #5c6a72;
+  --icon-button-default-text: #9da9a0;
+  --icon-button-default-border: transparent;
+  --icon-button-default-hover-border: transparent;
+  --icon-button-success-bg: #3d5a3d;
+  --icon-button-success-hover-bg: #4a6d4a;
+  --icon-button-success-text: #a7c080;
+  --icon-button-success-border: transparent;
+  --icon-button-success-hover-border: transparent;
+  --icon-button-danger-bg: #5a3d3d;
+  --icon-button-danger-hover-bg: #6d4a4a;
+  --icon-button-danger-text: #e67e80;
+  --icon-button-danger-border: transparent;
+  --icon-button-danger-hover-border: transparent;
+  --icon-button-warning-bg: #5a4d3d;
+  --icon-button-warning-hover-bg: #6d5d4a;
+  --icon-button-warning-text: #dbbc7f;
+  --icon-button-warning-border: transparent;
+  --icon-button-warning-hover-border: transparent;
+}

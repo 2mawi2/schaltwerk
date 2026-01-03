@@ -62,6 +62,17 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'everforest',
+    label: 'Everforest',
+    description: 'Green-based comfortable color scheme',
+    colors: {
+      bg: '#2d353b',
+      bgSecondary: '#3d484d',
+      text: '#d3c6aa',
+      accent: '#a7c080',
+    },
+  },
+  {
     id: 'ayu',
     label: 'Ayu Dark',
     description: 'Modern dark theme with warm accents',
@@ -222,6 +233,8 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
       return 'Catppuccin Mocha'
     case 'catppuccin-macchiato':
       return 'Catppuccin Macchiato'
+    case 'everforest':
+      return 'Everforest'
     case 'ayu':
       return 'Ayu Dark'
     case 'light':
@@ -277,7 +290,7 @@ export function ThemeSettings() {
           marginTop: '0.5rem',
         }}
       >
-        More themes coming soon: Everforest, Gruvbox, Nord, and more.
+        More themes coming soon: Gruvbox, Nord, and more.
       </p>
     </div>
   )
