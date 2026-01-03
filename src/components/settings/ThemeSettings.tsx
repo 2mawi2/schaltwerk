@@ -40,6 +40,17 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'catppuccin-macchiato',
+    label: 'Catppuccin',
+    description: 'Soothing pastel theme for cozy coding',
+    colors: {
+      bg: '#24273a',
+      bgSecondary: '#363a4f',
+      text: '#cad3f5',
+      accent: '#8aadf4',
+    },
+  },
+  {
     id: 'light',
     label: 'Light',
     description: 'Light theme for bright environments',
@@ -185,6 +196,8 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
   switch (resolved) {
     case 'tokyonight':
       return 'Tokyo Night'
+    case 'catppuccin-macchiato':
+      return 'Catppuccin'
     case 'light':
       return 'Light'
     default:
@@ -238,7 +251,7 @@ export function ThemeSettings() {
           marginTop: '0.5rem',
         }}
       >
-        More themes coming soon: Everforest, Catppuccin, Gruvbox, Nord, and more.
+        More themes coming soon: Everforest, Gruvbox, Nord, and more.
       </p>
     </div>
   )

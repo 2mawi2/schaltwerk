@@ -1,5 +1,5 @@
-export type ThemeId = 'dark' | 'light' | 'tokyonight' | 'system'
-export type ResolvedTheme = 'dark' | 'light' | 'tokyonight'
+export type ThemeId = 'dark' | 'light' | 'tokyonight' | 'catppuccin-macchiato' | 'system'
+export type ResolvedTheme = 'dark' | 'light' | 'tokyonight' | 'catppuccin-macchiato'
 
 export interface ThemeAccent {
   DEFAULT: string
