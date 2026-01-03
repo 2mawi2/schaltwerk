@@ -55,6 +55,7 @@ import { useHighlightWorker } from "../../hooks/useHighlightWorker";
 import { hashSegments } from "../../utils/hashSegments";
 import { stableSessionTerminalId } from "../../common/terminalIdentity";
 import { getActiveAgentTerminalId } from "../../common/terminalTargeting";
+import { buildSessionScopeId } from "../../common/sessionScope";
 import { ReviewCommentThread, ReviewComment } from "../../types/review";
 import { listenEvent, SchaltEvent } from "../../common/eventSystem";
 import { ORCHESTRATOR_SESSION_NAME } from "../../constants/sessions";
@@ -2791,7 +2792,8 @@ export function UnifiedDiffView({
     try {
       if (selectedKind === "orchestrator") {
         const baseTerminalId = terminalTop || "orchestrator-top";
-        const terminalId = getActiveAgentTerminalId("orchestrator") ?? baseTerminalId;
+        const sessionKey = buildSessionScopeId({ kind: "orchestrator", projectPath: selection?.projectPath ?? null });
+        const terminalId = getActiveAgentTerminalId(sessionKey) ?? baseTerminalId;
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -2802,7 +2804,8 @@ export function UnifiedDiffView({
         setCurrentFocus("claude");
       } else if (sessionName) {
         const baseTerminalId = terminalTop || stableSessionTerminalId(sessionName, "top");
-        const terminalId = getActiveAgentTerminalId(sessionName) ?? baseTerminalId;
+        const sessionKey = buildSessionScopeId({ kind: "session", projectPath: selection?.projectPath ?? null, sessionId: sessionName });
+        const terminalId = getActiveAgentTerminalId(sessionKey) ?? baseTerminalId;
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -2810,7 +2813,7 @@ export function UnifiedDiffView({
           needsDelayedSubmit,
         });
         await setSelection({ kind: "session", payload: sessionName });
-        setFocusForSession(sessionName, "claude");
+        setFocusForSession(sessionKey, "claude");
         setCurrentFocus("claude");
       } else {
         logger.warn("[UnifiedDiffView] Finish review had no valid target", {

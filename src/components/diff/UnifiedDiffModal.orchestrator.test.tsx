@@ -6,6 +6,7 @@ import { useReview } from '../../contexts/ReviewContext'
 import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { useSelection } from '../../hooks/useSelection'
 import { __resetTerminalTargetingForTest, setActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { buildSessionScopeId } from '../../common/sessionScope'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 
@@ -39,8 +40,9 @@ function SeedOrchestratorActiveAgentTab() {
     if (selection.kind !== 'orchestrator') return
     if (!terminals.top) return
 
-    setActiveAgentTerminalId('orchestrator', `${terminals.top}-1`)
-  }, [selection.kind, terminals.top])
+    const sessionKey = buildSessionScopeId({ kind: 'orchestrator', projectPath: selection.projectPath ?? null })
+    setActiveAgentTerminalId(sessionKey, `${terminals.top}-1`)
+  }, [selection.kind, selection.projectPath, terminals.top])
 
   return null
 }

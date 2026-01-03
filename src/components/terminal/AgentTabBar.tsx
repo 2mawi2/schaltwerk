@@ -7,6 +7,7 @@ import { AddTabButton } from '../AddTabButton'
 import { HeaderActionConfig } from '../../types/actionButton'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { getAgentColorKey } from '../../utils/agentColors'
+import { useTabDragDrop } from '../../hooks/useTabDragDrop'
 
 interface AgentTabBarProps {
     tabs: AgentTab[]
@@ -14,6 +15,7 @@ interface AgentTabBarProps {
     onTabSelect: (index: number) => void
     onTabClose?: (index: number) => void
     onTabAdd?: () => void
+    onTabReorder?: (fromIndex: number, toIndex: number) => void
     onReset?: () => void
     isFocused?: boolean
     actionButtons?: HeaderActionConfig[]
@@ -27,6 +29,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
     onTabSelect,
     onTabClose,
     onTabAdd,
+    onTabReorder,
     onReset,
     isFocused,
     actionButtons = [],
@@ -34,6 +37,16 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
     shortcutLabel,
 }) => {
     const canAddTab = onTabAdd && tabs.length < MAX_AGENT_TABS
+
+    const { dragState, getDragHandlers } = useTabDragDrop({
+        items: tabs,
+        onReorder: (fromIndex, toIndex) => {
+            onTabReorder?.(fromIndex, toIndex)
+        },
+        type: 'agent',
+        getItemId: (tab) => tab.id,
+        disabled: !onTabReorder || tabs.length <= 1,
+    })
 
     const renderAgentLabel = (tab: AgentTab) => {
         const colorScheme = getAgentColorScheme(getAgentColorKey(tab.agentType))
@@ -81,12 +94,13 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                 <div className="flex items-center h-full overflow-x-auto overflow-y-hidden scrollbar-hide w-full">
                     {tabs.map((tab, index) => {
                         const isActive = index === activeTab
-                        const canClose = index > 0 && !!onTabClose
+                        const isPrimary = tab.id === 'tab-0'
+                        const canClose = !isPrimary && !!onTabClose
 
                         return (
                             <UnifiedTab
                                 key={tab.id}
-                                id={index}
+                                id={tab.id}
                                 label={tab.label}
                                 labelContent={renderAgentLabel(tab)}
                                 isActive={isActive}
@@ -102,6 +116,9 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                         ? 'var(--color-bg-primary)'
                                         : 'transparent',
                                 }}
+                                dragHandlers={onTabReorder ? getDragHandlers(index) : undefined}
+                                isDraggedOver={dragState.dropTargetIndex === index}
+                                isDragging={dragState.draggedIndex === index}
                             />
                         )
                     })}

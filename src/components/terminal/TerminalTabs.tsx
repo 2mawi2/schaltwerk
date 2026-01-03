@@ -7,10 +7,12 @@ import { safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
 import { AddTabButton } from '../AddTabButton'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
+import { useTabDragDrop } from '../../hooks/useTabDragDrop'
 
 interface TerminalTabsProps {
   baseTerminalId: string
   workingDirectory: string
+  projectPath: string | null
   className?: string
   sessionName?: string
   isCommander?: boolean
@@ -41,6 +43,7 @@ export interface TerminalTabsHandle {
 const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   baseTerminalId,
   workingDirectory,
+  projectPath,
   className = '',
   sessionName,
   isCommander = false,
@@ -51,12 +54,22 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   previewKey,
   autoPreviewConfig,
 }, ref) => {
-  const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
+  const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab, reorderTabs } = useTerminalTabs({
     baseTerminalId,
     workingDirectory,
+    projectPath,
     maxTabs,
     sessionName: sessionName ?? null,
     bootstrapTopTerminalId
+  })
+
+  const { dragState, getDragHandlers } = useTabDragDrop({
+    items: tabs,
+    onReorder: (fromIndex, toIndex) => {
+      reorderTabs(fromIndex, toIndex)
+    },
+    type: 'terminal',
+    getItemId: (tab) => tab.terminalId,
   })
 
   const terminalRefs = useRef<Map<number, TerminalHandle>>(new Map())
@@ -146,7 +159,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
           boxShadow: 'inset 0 -1px 0 var(--color-border-default)',
         }}
       >
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <UnifiedTab
             key={tab.index}
             id={tab.index}
@@ -169,6 +182,9 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
               maxWidth: '150px',
               minWidth: '100px'
             }}
+            dragHandlers={getDragHandlers(index)}
+            isDraggedOver={dragState.dropTargetIndex === index}
+            isDragging={dragState.draggedIndex === index}
           />
         ))}
         

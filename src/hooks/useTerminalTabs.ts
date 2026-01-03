@@ -14,15 +14,18 @@ import {
 import { releaseTerminalInstance } from '../terminal/registry/terminalRegistry'
 import {
   terminalTabsAtomFamily,
+  buildTerminalTabsKey,
   addTabActionAtom,
   removeTabActionAtom,
   setActiveTabActionAtom,
   resetTerminalTabsActionAtom,
+  reorderTerminalTabsActionAtom,
 } from '../store/atoms/terminal'
 
 interface UseTerminalTabsProps {
   baseTerminalId: string
   workingDirectory: string
+  projectPath: string | null
   maxTabs?: number
   sessionName?: string | null
   bootstrapTopTerminalId?: string
@@ -35,16 +38,22 @@ const globalTerminalCreated = new Set<string>()
 export function useTerminalTabs({
   baseTerminalId,
   workingDirectory,
+  projectPath,
   maxTabs = DEFAULT_MAX_TABS,
   sessionName = null,
   bootstrapTopTerminalId,
 }: UseTerminalTabsProps) {
   // Use Jotai atoms for tab state
-  const atomState = useAtomValue(terminalTabsAtomFamily(baseTerminalId))
+  const compositeKey = useMemo(
+    () => buildTerminalTabsKey(projectPath, baseTerminalId),
+    [projectPath, baseTerminalId]
+  )
+  const atomState = useAtomValue(terminalTabsAtomFamily(compositeKey))
   const addTabAction = useSetAtom(addTabActionAtom)
   const removeTabAction = useSetAtom(removeTabActionAtom)
   const setActiveTabAction = useSetAtom(setActiveTabActionAtom)
   const resetTabsAction = useSetAtom(resetTerminalTabsActionAtom)
+  const reorderTabsAction = useSetAtom(reorderTerminalTabsActionAtom)
 
   // Convert atom state to TabInfo format, providing default tab if empty
   const tabs: TabInfo[] = useMemo(() => {
@@ -80,12 +89,12 @@ export function useTerminalTabs({
       })
 
       // Reset atom state
-      resetTabsAction({ baseTerminalId })
+      resetTabsAction({ projectPath, baseTerminalId })
     }
 
     const cleanup = listenUiEvent(UiEvent.TerminalReset, handleReset)
     return cleanup
-  }, [baseTerminalId, tabs, resetTabsAction, shouldHandleReset])
+  }, [baseTerminalId, projectPath, tabs, resetTabsAction, shouldHandleReset])
 
   const createTerminal = useCallback(async (terminalId: string) => {
     if (globalTerminalCreated.has(terminalId)) {
@@ -144,7 +153,7 @@ export function useTerminalTabs({
       await createTerminal(newTerminalId)
 
       // Use Jotai action to add the tab
-      addTabAction({ baseTerminalId, activateNew: true, maxTabs })
+      addTabAction({ projectPath, baseTerminalId, activateNew: true, maxTabs })
 
       // Focus the newly created terminal tab
       if (typeof window !== 'undefined') {
@@ -155,7 +164,7 @@ export function useTerminalTabs({
     } catch (error) {
       logger.error('Failed to add new tab:', error)
     }
-  }, [tabs, maxTabs, baseTerminalId, createTerminal, addTabAction])
+  }, [tabs, maxTabs, projectPath, baseTerminalId, createTerminal, addTabAction])
 
   const closeTab = useCallback(async (tabIndex: number) => {
     if (tabs.length <= 1) {
@@ -171,15 +180,19 @@ export function useTerminalTabs({
       releaseTerminalInstance(tabToClose.terminalId)
 
       // Use Jotai action to remove the tab
-      removeTabAction({ baseTerminalId, tabIndex })
+      removeTabAction({ projectPath, baseTerminalId, tabIndex })
     } catch (error) {
       logger.error(`Failed to close terminal ${tabToClose.terminalId}:`, error)
     }
-  }, [tabs, baseTerminalId, removeTabAction])
+  }, [tabs, projectPath, baseTerminalId, removeTabAction])
 
   const setActiveTab = useCallback((tabIndex: number) => {
-    setActiveTabAction({ baseTerminalId, tabIndex })
-  }, [baseTerminalId, setActiveTabAction])
+    setActiveTabAction({ projectPath, baseTerminalId, tabIndex })
+  }, [projectPath, baseTerminalId, setActiveTabAction])
+
+  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
+    reorderTabsAction({ projectPath, baseTerminalId, fromIndex, toIndex })
+  }, [projectPath, baseTerminalId, reorderTabsAction])
 
   // Create initial terminal when component mounts
   useEffect(() => {
@@ -201,6 +214,7 @@ export function useTerminalTabs({
     canAddTab: tabs.length < maxTabs,
     addTab,
     closeTab,
-    setActiveTab
+    setActiveTab,
+    reorderTabs,
   }
 }

@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useMemo } from 'react'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
@@ -13,6 +13,7 @@ import {
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { AddTabButton } from '../AddTabButton'
+import { useTabDragDrop } from '../../hooks/useTabDragDrop'
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean
@@ -22,6 +23,7 @@ export interface UnifiedBottomBarProps {
   onTabSelect: (index: number) => void
   onTabClose: (index: number) => void
   onTabAdd: () => void
+  onTabReorder?: (fromIndex: number, toIndex: number) => void
   canAddTab: boolean
   isFocused: boolean
   onBarClick: () => void
@@ -39,6 +41,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   onTabSelect,
   onTabClose,
   onTabAdd,
+  onTabReorder,
   canAddTab,
   isFocused,
   onBarClick,
@@ -51,6 +54,18 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
     KeyboardShortcutAction.FocusTerminal,
     KeyboardShortcutAction.ToggleRunMode
   ])
+
+  const terminalTabs = useMemo(() => tabs.filter(tab => !isRunTab(tab)), [tabs])
+
+  const { dragState, getDragHandlers } = useTabDragDrop({
+    items: terminalTabs,
+    onReorder: (fromIndex, toIndex) => {
+      onTabReorder?.(fromIndex, toIndex)
+    },
+    type: 'terminal',
+    getItemId: (tab) => tab.terminalId,
+    disabled: !onTabReorder || terminalTabs.length <= 1,
+  })
   const runButtonColors = isRunning
     ? {
         background: isFocused ? 'var(--color-accent-red-bg)' : 'var(--color-accent-red)',
@@ -85,6 +100,8 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             {tabs.map((tab) => {
               const runTab = isRunTab(tab)
               const canClose = canCloseTab(tab, tabs)
+              const terminalIndex = runTab ? -1 : terminalTabs.findIndex(t => t.index === tab.index)
+              const canDrag = !runTab && Boolean(onTabReorder) && terminalIndex >= 0
               
               return (
                 <UnifiedTab
@@ -103,6 +120,9 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                   }}
                   isRunTab={runTab}
                   isRunning={runTab && isRunning}
+                  dragHandlers={canDrag ? getDragHandlers(terminalIndex) : undefined}
+                  isDraggedOver={canDrag && dragState.dropTargetIndex === terminalIndex}
+                  isDragging={canDrag && dragState.draggedIndex === terminalIndex}
                 />
               )
             })}

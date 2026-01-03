@@ -29,6 +29,7 @@ import {
 import { projectPathAtom } from '../../store/atoms/project'
 import {
   terminalTabsAtomFamily,
+  buildTerminalTabsKey,
   terminalFocusAtom,
   setTerminalFocusActionAtom,
   runModeActiveAtomFamily,
@@ -38,6 +39,7 @@ import {
   removeTabActionAtom,
   setActiveTabActionAtom,
   resetTerminalTabsActionAtom,
+  reorderTerminalTabsActionAtom,
 } from '../../store/atoms/terminal'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -63,6 +65,7 @@ import { CustomAgentModal } from '../modals/CustomAgentModal'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { startOrchestratorTop } from '../../common/agentSpawn'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { buildSessionScopeId } from '../../common/sessionScope'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -112,27 +115,36 @@ const TerminalGridComponent = () => {
     // Constants for special tab indices
     const RUN_TAB_INDEX = -1 // Special index for the Run tab
 
-    // Get session key for persistence
-    const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
-    const activeTabKey = `schaltwerk:active-tab:${sessionKey}`
+    const sessionScopeId = useMemo(() => {
+        if (selection.kind === 'session') {
+            return buildSessionScopeId({
+                kind: 'session',
+                projectPath,
+                sessionId: selection.payload,
+            })
+        }
+        return buildSessionScopeId({ kind: 'orchestrator', projectPath })
+    }, [projectPath, selection.kind, selection.payload])
+
+    const activeTabKey = `schaltwerk:active-tab:${sessionScopeId}`
 
     // Jotai atoms for terminal state
     const terminalFocusMap = useAtomValue(terminalFocusAtom)
     const setTerminalFocus = useSetAtom(setTerminalFocusActionAtom)
-    const localFocus = terminalFocusMap.get(sessionKey) ?? null
+    const localFocus = terminalFocusMap.get(sessionScopeId) ?? null
     const setLocalFocus = useCallback((focus: 'claude' | 'terminal' | null) => {
-        setTerminalFocus({ sessionKey, focus })
-    }, [sessionKey, setTerminalFocus])
+        setTerminalFocus({ sessionKey: sessionScopeId, focus })
+    }, [sessionScopeId, setTerminalFocus])
 
     const agentTypeCacheMap = useAtomValue(agentTypeCacheAtom)
     const setAgentTypeCache = useSetAtom(setAgentTypeCacheActionAtom)
-    const agentType = agentTypeCacheMap.get(sessionKey) ?? 'claude'
+    const agentType = agentTypeCacheMap.get(sessionScopeId) ?? 'claude'
     const setAgentType = useCallback((type: string) => {
-        setAgentTypeCache({ sessionId: sessionKey, agentType: type })
-    }, [sessionKey, setAgentTypeCache])
+        setAgentTypeCache({ sessionId: sessionScopeId, agentType: type })
+    }, [sessionScopeId, setAgentTypeCache])
 
     // Agent tabs state for multiple agents in top terminal
-    const agentTabScopeId = selection.kind === 'session' ? (selection.payload ?? null) : selection.kind === 'orchestrator' ? 'orchestrator' : null
+    const agentTabScopeId = sessionScopeId
     const orchestratorTabStarter = useCallback(async ({ terminalId, agentType }: { sessionId: string; terminalId: string; agentType: string }) => {
         await startOrchestratorTop({ terminalId, agentType })
     }, [])
@@ -145,10 +157,13 @@ const TerminalGridComponent = () => {
         setActiveTab: setActiveAgentTab,
         resetTabs: resetAgentTabs,
         updatePrimaryAgentType,
+        reorderTabs: reorderAgentTabs,
     } = useAgentTabs(
         agentTabScopeId,
         terminals.top,
-        selection.kind === 'orchestrator' ? { startAgent: orchestratorTabStarter } : undefined
+        selection.kind === 'orchestrator'
+            ? { startAgent: orchestratorTabStarter }
+            : { sessionNameForBackend: selection.payload ?? null }
     )
 
     const agentTabsState = getAgentTabsState()
@@ -176,12 +191,17 @@ const TerminalGridComponent = () => {
         }, isAnyModalOpen)
     }, [agentTabsState, isAnyModalOpen, localFocus])
 
-    // Terminal tabs state from Jotai atom
-    const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminals.bottomBase))
+    // Terminal tabs state from Jotai atom (scoped by project path)
+    const terminalTabsKey = useMemo(
+        () => buildTerminalTabsKey(projectPath, terminals.bottomBase),
+        [projectPath, terminals.bottomBase]
+    )
+    const terminalTabsAtomState = useAtomValue(terminalTabsAtomFamily(terminalTabsKey))
     const addTab = useSetAtom(addTabActionAtom)
     const removeTab = useSetAtom(removeTabActionAtom)
     const setActiveTab = useSetAtom(setActiveTabActionAtom)
     const resetTerminalTabs = useSetAtom(resetTerminalTabsActionAtom)
+    const reorderTerminalTabs = useSetAtom(reorderTerminalTabsActionAtom)
 
     // Convert atom state to UI state format
     const terminalTabsState: TerminalTabsUiState = useMemo(() => {
@@ -215,23 +235,23 @@ const TerminalGridComponent = () => {
             const next = updater(terminalTabsState)
             // Update activeTabIndex via Jotai atom
             if (next.activeTab !== terminalTabsState.activeTab) {
-                setActiveTab({ baseTerminalId: terminals.bottomBase, tabIndex: next.activeTab })
+                setActiveTab({ projectPath, baseTerminalId: terminals.bottomBase, tabIndex: next.activeTab })
             }
             // Handle tab additions/removals
             if (next.tabs.length > terminalTabsState.tabs.length) {
                 // Tab was added - use addTab action
-                addTab({ baseTerminalId: terminals.bottomBase, activateNew: next.activeTab === next.tabs.length - 1 })
+                addTab({ projectPath, baseTerminalId: terminals.bottomBase, activateNew: next.activeTab === next.tabs.length - 1 })
             } else if (next.tabs.length < terminalTabsState.tabs.length) {
                 // Tab was removed - find which one and use removeTab action
                 const removedTab = terminalTabsState.tabs.find(
                     t => !next.tabs.some(nt => nt.index === t.index)
                 )
                 if (removedTab) {
-                    removeTab({ baseTerminalId: terminals.bottomBase, tabIndex: removedTab.index })
+                    removeTab({ projectPath, baseTerminalId: terminals.bottomBase, tabIndex: removedTab.index })
                 }
             }
         },
-        [terminalTabsState, terminals.bottomBase, setActiveTab, addTab, removeTab]
+        [terminalTabsState, projectPath, terminals.bottomBase, setActiveTab, addTab, removeTab]
     )
 
     const containerRef = useRef<HTMLDivElement>(null)
@@ -336,7 +356,7 @@ const TerminalGridComponent = () => {
     
     // Run Mode state
     const [hasRunScripts, setHasRunScripts] = useState(false)
-    const [runModeActive, setRunModeActive] = useAtom(runModeActiveAtomFamily(sessionKey))
+    const [runModeActive, setRunModeActive] = useAtom(runModeActiveAtomFamily(sessionScopeId))
     const [activeRunSessions, setActiveRunSessions] = useState<Set<string>>(new Set())
     const [pendingRunToggle, setPendingRunToggle] = useState(false)
 
@@ -400,8 +420,8 @@ const TerminalGridComponent = () => {
 
 
     const getSessionKey = useCallback(() => {
-        return sessionKey
-    }, [sessionKey])
+        return sessionScopeId
+    }, [sessionScopeId])
 
     // Computed tabs that include Run tab when active
     const computedTabs = useMemo(() => {
@@ -565,13 +585,13 @@ const TerminalGridComponent = () => {
     const setActiveTabRef = useRef(setActiveTab)
     const terminalsBottomBaseRef = useRef(terminals.bottomBase)
     const activeTabKeyRef = useRef(activeTabKey)
+    const projectPathRef = useRef(projectPath)
 
-    useEffect(() => {
-        setRunModeActiveRef.current = setRunModeActive
-        setActiveTabRef.current = setActiveTab
-        terminalsBottomBaseRef.current = terminals.bottomBase
-        activeTabKeyRef.current = activeTabKey
-    })
+    setRunModeActiveRef.current = setRunModeActive
+    setActiveTabRef.current = setActiveTab
+    terminalsBottomBaseRef.current = terminals.bottomBase
+    activeTabKeyRef.current = activeTabKey
+    projectPathRef.current = projectPath
 
     // Stable callbacks that use refs to avoid recreating on every render
     const persistRunModeState = useCallback((sessionKeyValue: string, isActive: boolean) => {
@@ -589,7 +609,7 @@ const TerminalGridComponent = () => {
         if (shouldUpdate && !shouldUpdate(terminalTabsState)) {
             return
         }
-        setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: targetIndex })
+        setActiveTabRef.current({ projectPath: projectPathRef.current, baseTerminalId: terminalsBottomBaseRef.current, tabIndex: targetIndex })
         sessionStorage.setItem(activeTabKeyRef.current, String(targetIndex))
     }, [terminalTabsState])
 
@@ -607,7 +627,7 @@ const TerminalGridComponent = () => {
 
             if (!config.hasRunScripts) {
                 setRunModeActiveRef.current(false)
-                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
+                setActiveTabRef.current({ projectPath: projectPathRef.current, baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
                 sessionStorage.setItem(activeTabKeyRef.current, String(0))
                 return
             }
@@ -615,10 +635,10 @@ const TerminalGridComponent = () => {
             setRunModeActiveRef.current(config.shouldActivateRunMode)
 
             if (config.savedActiveTab !== null) {
-                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: config.savedActiveTab })
+                setActiveTabRef.current({ projectPath: projectPathRef.current, baseTerminalId: terminalsBottomBaseRef.current, tabIndex: config.savedActiveTab })
                 sessionStorage.setItem(activeTabKeyRef.current, String(config.savedActiveTab))
             } else if (!config.shouldActivateRunMode) {
-                setActiveTabRef.current({ baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
+                setActiveTabRef.current({ projectPath: projectPathRef.current, baseTerminalId: terminalsBottomBaseRef.current, tabIndex: 0 })
                 sessionStorage.setItem(activeTabKeyRef.current, String(0))
             }
         } catch (error) {
@@ -646,7 +666,7 @@ const TerminalGridComponent = () => {
         }
 
         persistRunModeState(sessionId, true)
-        setActiveTab({ baseTerminalId: terminals.bottomBase, tabIndex: RUN_TAB_INDEX })
+        setActiveTab({ projectPath, baseTerminalId: terminals.bottomBase, tabIndex: RUN_TAB_INDEX })
         sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
 
         if (isBottomCollapsed) {
@@ -972,7 +992,6 @@ const TerminalGridComponent = () => {
         runModeActive,
         terminalTabsState.activeTab,
         terminalTabsState.tabs,
-        sessionKey,
         getFocusForSession,
         setFocusForSession,
         isAnyModalOpen,
@@ -1126,7 +1145,7 @@ const TerminalGridComponent = () => {
         const currentBase = terminals.bottomBase
 
         if (terminalKey !== previousKey && currentBase) {
-            resetTerminalTabs({ baseTerminalId: currentBase })
+            resetTerminalTabs({ projectPath, baseTerminalId: currentBase })
         }
 
         previousTerminalKeyRef.current = terminalKey
@@ -1231,7 +1250,7 @@ const TerminalGridComponent = () => {
         }
 
         const isOrchestrator = selection.kind === 'orchestrator'
-        const sessionKey = selection.kind === 'session' && selection.payload ? selection.payload : 'orchestrator'
+        const sessionKey = getSessionKey()
         const targetTerminalId = getActiveAgentTerminalId(sessionKey) ?? terminalId
 
         try {
@@ -1398,6 +1417,7 @@ const TerminalGridComponent = () => {
                             onTabSelect={setActiveAgentTab}
                             onTabClose={(selection.kind === 'session' || selection.kind === 'orchestrator') && agentTabsState.tabs.length > 1 ? closeAgentTab : undefined}
                             onTabAdd={(selection.kind === 'session' || selection.kind === 'orchestrator') ? () => setCustomAgentModalOpen(true) : undefined}
+                            onTabReorder={reorderAgentTabs}
                             onReset={selection.kind === 'session' ? () => setConfirmResetOpen(true) : undefined}
                             isFocused={localFocus === 'claude'}
                             actionButtons={shouldShowActionButtons ? actionButtons : []}
@@ -1497,6 +1517,7 @@ const TerminalGridComponent = () => {
                                                 terminalId={activeTab.terminalId}
                                                 className="h-full w-full"
                                                 sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                                sessionScopeId={sessionScopeId}
                                                 isCommander={selection.kind === 'orchestrator'}
                                                 agentType={activeTab.agentType}
                                                 onTerminalClick={handleClaudeSessionClick}
@@ -1515,6 +1536,7 @@ const TerminalGridComponent = () => {
                                     terminalId={terminals.top}
                                     className="h-full w-full"
                                     sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                    sessionScopeId={sessionScopeId}
                                     isCommander={selection.kind === 'orchestrator'}
                                     agentType={agentType}
                                     onTerminalClick={handleClaudeSessionClick}
@@ -1603,6 +1625,9 @@ const TerminalGridComponent = () => {
                         onTabAdd={() => {
                             terminalTabsRef.current?.getTabFunctions().addTab()
                         }}
+                        onTabReorder={(fromIndex, toIndex) => {
+                            reorderTerminalTabs({ projectPath, baseTerminalId: terminals.bottomBase, fromIndex, toIndex })
+                        }}
                         canAddTab={terminalTabsState.canAddTab}
                         isFocused={localFocus === 'terminal'}
                         onBarClick={handleTerminalClick}
@@ -1625,7 +1650,7 @@ const TerminalGridComponent = () => {
                                 {selection.kind === 'orchestrator' && (
                                     <div className="h-full w-full">
                                         <RunTerminal
-                                            ref={(ref) => { if (ref) runTerminalRefs.current.set('orchestrator', ref) }}
+                                            ref={(ref) => { if (ref) runTerminalRefs.current.set(sessionScopeId, ref) }}
                                             className="h-full w-full overflow-hidden"
                                             sessionName={undefined}
                                             onTerminalClick={handleTerminalClick}
@@ -1635,12 +1660,12 @@ const TerminalGridComponent = () => {
                                             onRunningStateChange={(isRunning) => {
                                                 if (isRunning) {
                                                     addRunningSession('orchestrator')
-                                                    setActiveRunSessions(prev => new Set(prev).add('orchestrator'))
+                                                    setActiveRunSessions(prev => new Set(prev).add(sessionScopeId))
                                                 } else {
                                                     removeRunningSession('orchestrator')
                                                     setActiveRunSessions(prev => {
                                                         const next = new Set(prev)
-                                                        next.delete('orchestrator')
+                                                        next.delete(sessionScopeId)
                                                         return next
                                                     })
                                                 }
@@ -1658,7 +1683,7 @@ const TerminalGridComponent = () => {
                                     return (
                                         <div key={sessionId} className="h-full w-full">
                                             <RunTerminal
-                                                ref={(ref) => { if (ref) runTerminalRefs.current.set(sessionId, ref) }}
+                                                ref={(ref) => { if (ref) runTerminalRefs.current.set(sessionScopeId, ref) }}
                                                 className="h-full w-full overflow-hidden"
                                                 sessionName={sessionId}
                                                 onTerminalClick={handleTerminalClick}
@@ -1668,12 +1693,12 @@ const TerminalGridComponent = () => {
                                                 onRunningStateChange={(isRunning) => {
                                                     if (isRunning) {
                                                         addRunningSession(sessionId)
-                                                        setActiveRunSessions(prev => new Set(prev).add(sessionId))
+                                                        setActiveRunSessions(prev => new Set(prev).add(sessionScopeId))
                                                     } else {
                                                         removeRunningSession(sessionId)
                                                         setActiveRunSessions(prev => {
                                                             const next = new Set(prev)
-                                                            next.delete(sessionId)
+                                                            next.delete(sessionScopeId)
                                                             return next
                                                         })
                                                     }
@@ -1698,6 +1723,7 @@ const TerminalGridComponent = () => {
                                     ref={terminalTabsRef}
                                     baseTerminalId={terminals.bottomBase}
                                     workingDirectory={effectiveWorkingDirectory}
+                                    projectPath={projectPath}
                                     className="h-full"
                                     sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                                     isCommander={selection.kind === 'orchestrator'}

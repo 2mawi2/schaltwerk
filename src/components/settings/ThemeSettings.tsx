@@ -236,8 +236,9 @@ function ThemePreviewCard({
           </span>
           {option.experimental && (
             <span
+              aria-hidden="true"
               style={{
-                fontSize: '9px',
+                fontSize: theme.fontSize.caption,
                 color: 'var(--color-accent-amber)',
                 fontWeight: 500,
                 padding: '1px 3px',

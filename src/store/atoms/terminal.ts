@@ -5,6 +5,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { logger } from '../../utils/logger'
+import { reorderArray } from '../../common/reorderArray'
 
 export interface TerminalTab {
   terminalId: string
@@ -23,16 +24,22 @@ const DEFAULT_TABS_STATE: TerminalTabsState = {
   activeTabIndex: 0,
 }
 
+export function buildTerminalTabsKey(projectPath: string | null, baseTerminalId: string): string {
+  const projectKey = projectPath ?? 'no-project'
+  return `${projectKey}::${baseTerminalId}`
+}
+
 export const terminalTabsAtomFamily = atomFamily(
-  (_baseTerminalId: string) => atom<TerminalTabsState>({ ...DEFAULT_TABS_STATE, tabs: [] }),
+  (_compositeKey: string) => atom<TerminalTabsState>({ ...DEFAULT_TABS_STATE, tabs: [] }),
   (a, b) => a === b
 )
 
 export const addTabActionAtom = atom(
   null,
-  (get, set, params: { baseTerminalId: string; activateNew?: boolean; maxTabs?: number }) => {
-    const { baseTerminalId, activateNew = false, maxTabs } = params
-    const tabsAtom = terminalTabsAtomFamily(baseTerminalId)
+  (get, set, params: { projectPath: string | null; baseTerminalId: string; activateNew?: boolean; maxTabs?: number }) => {
+    const { projectPath, baseTerminalId, activateNew = false, maxTabs } = params
+    const compositeKey = buildTerminalTabsKey(projectPath, baseTerminalId)
+    const tabsAtom = terminalTabsAtomFamily(compositeKey)
     let current = get(tabsAtom)
 
     // If the atom has no tabs, initialize with the default first tab
@@ -70,9 +77,10 @@ export const addTabActionAtom = atom(
 
 export const removeTabActionAtom = atom(
   null,
-  (get, set, params: { baseTerminalId: string; tabIndex: number }) => {
-    const { baseTerminalId, tabIndex } = params
-    const tabsAtom = terminalTabsAtomFamily(baseTerminalId)
+  (get, set, params: { projectPath: string | null; baseTerminalId: string; tabIndex: number }) => {
+    const { projectPath, baseTerminalId, tabIndex } = params
+    const compositeKey = buildTerminalTabsKey(projectPath, baseTerminalId)
+    const tabsAtom = terminalTabsAtomFamily(compositeKey)
     const current = get(tabsAtom)
 
     const tabArrayIndex = current.tabs.findIndex(t => t.index === tabIndex)
@@ -106,9 +114,10 @@ export const removeTabActionAtom = atom(
 
 export const setActiveTabActionAtom = atom(
   null,
-  (get, set, params: { baseTerminalId: string; tabIndex: number }) => {
-    const { baseTerminalId, tabIndex } = params
-    const tabsAtom = terminalTabsAtomFamily(baseTerminalId)
+  (get, set, params: { projectPath: string | null; baseTerminalId: string; tabIndex: number }) => {
+    const { projectPath, baseTerminalId, tabIndex } = params
+    const compositeKey = buildTerminalTabsKey(projectPath, baseTerminalId)
+    const tabsAtom = terminalTabsAtomFamily(compositeKey)
     const current = get(tabsAtom)
 
     // Allow negative indices (e.g., -1 for Run tab) to pass through
@@ -147,10 +156,36 @@ export const setActiveTabActionAtom = atom(
 
 export const resetTerminalTabsActionAtom = atom(
   null,
-  (_get, set, params: { baseTerminalId: string }) => {
-    const { baseTerminalId } = params
-    const tabsAtom = terminalTabsAtomFamily(baseTerminalId)
+  (_get, set, params: { projectPath: string | null; baseTerminalId: string }) => {
+    const { projectPath, baseTerminalId } = params
+    const compositeKey = buildTerminalTabsKey(projectPath, baseTerminalId)
+    const tabsAtom = terminalTabsAtomFamily(compositeKey)
     set(tabsAtom, { ...DEFAULT_TABS_STATE, tabs: [] })
+  }
+)
+
+export const reorderTerminalTabsActionAtom = atom(
+  null,
+  (get, set, params: { projectPath: string | null; baseTerminalId: string; fromIndex: number; toIndex: number }) => {
+    const { projectPath, baseTerminalId, fromIndex, toIndex } = params
+    const compositeKey = buildTerminalTabsKey(projectPath, baseTerminalId)
+    const tabsAtom = terminalTabsAtomFamily(compositeKey)
+    const current = get(tabsAtom)
+
+    if (
+      fromIndex < 0 ||
+      fromIndex >= current.tabs.length ||
+      toIndex < 0 ||
+      toIndex >= current.tabs.length ||
+      fromIndex === toIndex
+    ) {
+      return
+    }
+
+    set(tabsAtom, {
+      ...current,
+      tabs: reorderArray(current.tabs, fromIndex, toIndex),
+    })
   }
 )
 

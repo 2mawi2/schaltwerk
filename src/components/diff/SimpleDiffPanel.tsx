@@ -26,6 +26,7 @@ import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../hooks/useSessions'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { buildSessionScopeId } from '../../common/sessionScope'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
@@ -177,7 +178,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     try {
       if (selection.kind === 'orchestrator') {
         const baseTerminalId = terminals.top || 'orchestrator-top'
-        const terminalId = getActiveAgentTerminalId('orchestrator') ?? baseTerminalId
+        const sessionKey = buildSessionScopeId({ kind: 'orchestrator', projectPath: selection.projectPath ?? null })
+        const terminalId = getActiveAgentTerminalId(sessionKey) ?? baseTerminalId
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -188,7 +190,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         setCurrentFocus('claude')
       } else if (selection.kind === 'session' && typeof selection.payload === 'string') {
         const baseTerminalId = terminals.top || stableSessionTerminalId(selection.payload, 'top')
-        const terminalId = getActiveAgentTerminalId(selection.payload) ?? baseTerminalId
+        const sessionKey = buildSessionScopeId({ kind: 'session', projectPath: selection.projectPath ?? null, sessionId: selection.payload })
+        const terminalId = getActiveAgentTerminalId(sessionKey) ?? baseTerminalId
         await invoke(TauriCommands.PasteAndSubmitTerminal, {
           id: terminalId,
           data: reviewText,
@@ -196,7 +199,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
           needsDelayedSubmit
         })
         await setSelection({ kind: 'session', payload: selection.payload })
-        setFocusForSession(selection.payload, 'claude')
+        setFocusForSession(sessionKey, 'claude')
         setCurrentFocus('claude')
       } else {
         logger.warn('[SimpleDiffPanel] Finish review triggered without valid selection context', selection)

@@ -8,6 +8,7 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
 import { cleanupOrchestratorTerminalsActionAtom, setProjectPathActionAtom } from './selection'
 import { cleanupProjectSessionsCacheActionAtom } from './sessions'
+import { reorderArray } from '../../common/reorderArray'
 
 type SetAtomFunction = <Value, Result>(
   atom: WritableAtom<unknown, [Value], Result>,
@@ -439,6 +440,26 @@ export const deactivateProjectActionAtom = atom(
   null,
   async (_get, set): Promise<void> => {
     await set(setProjectPathActionAtom, null)
+  },
+)
+
+export const reorderProjectTabsActionAtom = atom(
+  null,
+  (get, set, payload: { fromIndex: number; toIndex: number }): void => {
+    const { fromIndex, toIndex } = payload
+    const tabs = get(projectTabsInternalAtom)
+
+    if (
+      fromIndex < 0 ||
+      fromIndex >= tabs.length ||
+      toIndex < 0 ||
+      toIndex >= tabs.length ||
+      fromIndex === toIndex
+    ) {
+      return
+    }
+
+    set(projectTabsInternalAtom, reorderArray(tabs, fromIndex, toIndex))
   },
 )
 

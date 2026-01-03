@@ -5,6 +5,7 @@ import * as splitDragCoordinator from '../../utils/splitDragCoordinator'
 import type { ReactNode } from 'react'
 import type { EnrichedSession, SessionInfo } from '../../types/session'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { buildSessionScopeId } from '../../common/sessionScope'
 
 interface MockSplitProps {
   onDragStart?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
@@ -434,7 +435,10 @@ describe('RightPanelTabs split layout', () => {
     })
 
     await waitFor(() => {
-      expect(mockSetFocusForSession).toHaveBeenCalledWith('test-session', 'diff')
+      expect(mockSetFocusForSession).toHaveBeenCalledWith(
+        buildSessionScopeId({ kind: 'session', projectPath: '/tmp/project', sessionId: 'test-session' }),
+        'diff',
+      )
       expect(screen.getByTestId('right-panel-container')).toHaveFocus()
       expect(screen.getByTitle('Changes').getAttribute('data-active')).toBe('true')
     })

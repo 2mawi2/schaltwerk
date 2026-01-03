@@ -64,8 +64,11 @@ describe('useTerminalTabs', () => {
     const store = createStore()
     return ({ children }: { children: ReactNode }) => createElement(Provider, { store }, children)
   }
-  const renderTabsHook = (props: Parameters<typeof useTerminalTabs>[0]) =>
-    renderHook<ReturnType<typeof useTerminalTabs>, void>(() => useTerminalTabs(props), { wrapper: createWrapper() })
+
+  type UseTerminalTabsProps = Parameters<typeof useTerminalTabs>[0]
+  type RenderTabsHookProps = Omit<UseTerminalTabsProps, 'projectPath'> & { projectPath?: string | null }
+  const renderTabsHook = (props: RenderTabsHookProps) =>
+    renderHook<ReturnType<typeof useTerminalTabs>, void>(() => useTerminalTabs({ projectPath: null, ...props }), { wrapper: createWrapper() })
 
   describe('initialization', () => {
     it('creates initial tab with correct structure', () => {
@@ -388,12 +391,13 @@ describe('useTerminalTabs', () => {
       })
 
       const { rerender } = renderHook(
-        (props: { baseTerminalId: string; workingDirectory: string }) => useTerminalTabs(props),
+        (props: { baseTerminalId: string; workingDirectory: string; projectPath?: string | null }) => useTerminalTabs({ projectPath: null, ...props }),
         {
           wrapper: createWrapper(),
           initialProps: {
             baseTerminalId: 'test-defer',
-            workingDirectory: ''
+            workingDirectory: '',
+            projectPath: null
           }
         }
       )
@@ -410,7 +414,7 @@ describe('useTerminalTabs', () => {
       })
       expect(createCallsBefore).toHaveLength(0)
 
-      rerender({ baseTerminalId: 'test-defer', workingDirectory: '/ready/path' })
+      rerender({ baseTerminalId: 'test-defer', workingDirectory: '/ready/path', projectPath: null })
 
       await act(async () => {
         await Promise.resolve()

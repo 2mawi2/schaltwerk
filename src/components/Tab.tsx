@@ -1,4 +1,4 @@
-import { UnifiedTab } from './UnifiedTab'
+import { UnifiedTab, UnifiedTabDragHandlers } from './UnifiedTab'
 
 interface TabProps {
   projectPath: string
@@ -7,9 +7,12 @@ interface TabProps {
   isActive: boolean
   onSelect: () => void | Promise<void | boolean>
   onClose: () => void | Promise<void>
+  dragHandlers?: UnifiedTabDragHandlers
+  isDraggedOver?: boolean
+  isDragging?: boolean
 }
 
-export function Tab({ projectPath, projectName, attentionCount, isActive, onSelect, onClose }: TabProps) {
+export function Tab({ projectPath, projectName, attentionCount, isActive, onSelect, onClose, dragHandlers, isDraggedOver, isDragging }: TabProps) {
   const badgeLabel =
     attentionCount && attentionCount > 0
       ? (attentionCount > 9 ? '9+' : String(attentionCount))
@@ -29,6 +32,9 @@ export function Tab({ projectPath, projectName, attentionCount, isActive, onSele
         minWidth: '100px'
       }}
       badgeContent={badgeLabel}
+      dragHandlers={dragHandlers}
+      isDraggedOver={isDraggedOver}
+      isDragging={isDragging}
     />
   )
 }
