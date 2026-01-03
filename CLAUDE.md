@@ -180,22 +180,21 @@ Agents start via terminal commands built in `App.tsx`:
 
 ## UI Systems
 
-### Color Theme (MANDATORY)
-**NEVER use hardcoded colors.** Always use theme system:
-- Import: `import { theme } from '../common/theme'`
-- TypeScript: `theme.colors.background.secondary`
-- CSS: `var(--color-bg-secondary)`
-- Tailwind: `bg-primary text-primary`
+### Theme System (MANDATORY)
 
-If a new UI element needs a color, add it to `src/common/theme.ts` / `src/styles/theme.css` (and Tailwind config when necessary) or reuse an existing shared component that already reads from the theme. UI components must never introduce inline hex/RGB/RGBA values; the palette is maintained centrally.
+**NEVER use hardcoded colors.** The app supports 10 themes—all colors must come from the theme system so they adapt when users switch themes.
 
-Categories: background, text, border, accent (blue/green/amber/red/violet/purple/yellow/cyan), status
+**How to apply colors** (see `src/common/theme.ts` for available color names):
+- Tailwind: `className="bg-primary text-primary border-subtle accent-blue"`
+- CSS vars: `style={{ backgroundColor: 'var(--color-bg-elevated)' }}`
+- TypeScript: `import { theme } from '../common/theme'` → `theme.colors.text.primary`
 
-Common mappings:
-- `bg-slate-950` → `theme.colors.background.primary`
-- `bg-slate-800` → `theme.colors.background.elevated`
-- `text-slate-100` → `theme.colors.text.primary`
-- `border-slate-700` → `theme.colors.border.subtle`
+**Key files:**
+- `src/styles/themes/*.css` - CSS variable definitions per theme (`[data-theme="x"]` selectors)
+- `src/common/theme.ts` - TypeScript theme object
+- `src/common/themes/` - Theme switching logic and presets
+
+**Adding a new theme:** Create CSS file in `src/styles/themes/`, import in `theme.css`, add preset in `presets.ts`, register type in `types.ts`, add to `ThemeSettings.tsx`. Each color needs both hex and RGB values for Tailwind opacity support.
 
 ### Font Sizes (MANDATORY)
 **NEVER use hardcoded font sizes.** Use theme system:
