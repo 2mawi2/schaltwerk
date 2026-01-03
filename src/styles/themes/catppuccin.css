@@ -1,0 +1,471 @@
+/* ==========================================================================
+   Catppuccin Theme (Mocha variant)
+   Palette derived from https://github.com/catppuccin/catppuccin
+   Extended with Tailwind color scales and terminal colors
+   ========================================================================== */
+[data-theme="catppuccin"] {
+  /* Color Scheme for native widgets */
+  --color-scheme: dark;
+
+  /* Background Colors */
+  --color-bg-primary: #1e1e2e;
+  --color-bg-primary-rgb: 30 30 46;
+  --color-bg-secondary: #181825;
+  --color-bg-secondary-rgb: 24 24 37;
+  --color-bg-tertiary: #11111b;
+  --color-bg-tertiary-rgb: 17 17 27;
+  --color-bg-elevated: #313244;
+  --color-bg-elevated-rgb: 49 50 68;
+  --color-bg-hover: #45475a;
+  --color-bg-hover-rgb: 69 71 90;
+  --color-bg-active: #585b70;
+  --color-bg-active-rgb: 88 91 112;
+
+  /* Panel aliases */
+  --color-panel: var(--color-bg-secondary);
+  --color-panel-rgb: var(--color-bg-secondary-rgb);
+  --color-panel-alt: var(--color-bg-tertiary);
+  --color-panel-alt-rgb: var(--color-bg-tertiary-rgb);
+
+  /* Text Colors */
+  --color-text-primary: #cdd6f4;
+  --color-text-primary-rgb: 205 214 244;
+  --color-text-secondary: #bac2de;
+  --color-text-secondary-rgb: 186 194 222;
+  --color-text-tertiary: #a6adc8;
+  --color-text-tertiary-rgb: 166 173 200;
+  --color-text-muted: #6c7086;
+  --color-text-muted-rgb: 108 112 134;
+  --color-text-inverse: #1e1e2e;
+  --color-text-inverse-rgb: 30 30 46;
+
+  /* Border Colors */
+  --color-border-default: #45475a;
+  --color-border-default-rgb: 69 71 90;
+  --color-border-subtle: #313244;
+  --color-border-subtle-rgb: 49 50 68;
+  --color-border-strong: #585b70;
+  --color-border-strong-rgb: 88 91 112;
+  --color-border-focus: #89b4fa;
+  --color-border-focus-rgb: 137 180 250;
+
+  /* Accent Colors - Catppuccin palette */
+  --color-accent-blue: #89b4fa;
+  --color-accent-blue-rgb: 137 180 250;
+  --color-accent-blue-light: #b4befe;
+  --color-accent-blue-dark: #74c7ec;
+  --color-accent-blue-bg: rgba(137, 180, 250, 0.1);
+  --color-accent-blue-border: rgba(137, 180, 250, 0.5);
+
+  --color-accent-green: #a6e3a1;
+  --color-accent-green-rgb: 166 227 161;
+  --color-accent-green-light: #94e2d5;
+  --color-accent-green-dark: #40a02b;
+  --color-accent-green-bg: rgba(166, 227, 161, 0.1);
+  --color-accent-green-border: rgba(166, 227, 161, 0.5);
+
+  --color-accent-amber: #f9e2af;
+  --color-accent-amber-rgb: 249 226 175;
+  --color-accent-amber-light: #f5e0dc;
+  --color-accent-amber-dark: #fab387;
+  --color-accent-amber-bg: rgba(249, 226, 175, 0.1);
+  --color-accent-amber-border: rgba(249, 226, 175, 0.5);
+
+  --color-accent-red: #f38ba8;
+  --color-accent-red-rgb: 243 139 168;
+  --color-accent-red-light: #f5c2e7;
+  --color-accent-red-dark: #eba0ac;
+  --color-accent-red-bg: rgba(243, 139, 168, 0.1);
+  --color-accent-red-border: rgba(243, 139, 168, 0.5);
+
+  --color-accent-violet: #cba6f7;
+  --color-accent-violet-rgb: 203 166 247;
+  --color-accent-violet-light: #f5c2e7;
+  --color-accent-violet-dark: #b4befe;
+  --color-accent-violet-bg: rgba(203, 166, 247, 0.1);
+  --color-accent-violet-border: rgba(203, 166, 247, 0.5);
+
+  --color-accent-purple: #cba6f7;
+  --color-accent-purple-rgb: 203 166 247;
+  --color-accent-purple-light: #f5c2e7;
+  --color-accent-purple-dark: #b4befe;
+  --color-accent-purple-bg: rgba(203, 166, 247, 0.1);
+  --color-accent-purple-border: rgba(203, 166, 247, 0.5);
+
+  --color-accent-magenta: #f5c2e7;
+  --color-accent-magenta-rgb: 245 194 231;
+  --color-accent-magenta-light: #f5e0dc;
+  --color-accent-magenta-dark: #cba6f7;
+  --color-accent-magenta-bg: rgba(245, 194, 231, 0.1);
+  --color-accent-magenta-border: rgba(245, 194, 231, 0.5);
+
+  --color-accent-yellow: #f9e2af;
+  --color-accent-yellow-rgb: 249 226 175;
+  --color-accent-yellow-light: #f5e0dc;
+  --color-accent-yellow-dark: #fab387;
+  --color-accent-yellow-bg: rgba(249, 226, 175, 0.1);
+  --color-accent-yellow-border: rgba(249, 226, 175, 0.5);
+
+  --color-accent-cyan: #94e2d5;
+  --color-accent-cyan-rgb: 148 226 213;
+  --color-accent-cyan-light: #89dceb;
+  --color-accent-cyan-dark: #74c7ec;
+  --color-accent-cyan-bg: rgba(148, 226, 213, 0.1);
+  --color-accent-cyan-border: rgba(148, 226, 213, 0.5);
+
+  --color-accent-copilot: #cba6f7;
+  --color-accent-copilot-rgb: 203 166 247;
+  --color-accent-copilot-light: #f5c2e7;
+  --color-accent-copilot-dark: #b4befe;
+  --color-accent-copilot-bg: rgba(203, 166, 247, 0.1);
+  --color-accent-copilot-border: rgba(203, 166, 247, 0.5);
+
+  /* Status Colors */
+  --color-status-info: #89dceb;
+  --color-status-info-rgb: 137 220 235;
+  --color-status-success: #a6e3a1;
+  --color-status-success-rgb: 166 227 161;
+  --color-status-warning: #fab387;
+  --color-status-warning-rgb: 250 179 135;
+  --color-status-error: #f38ba8;
+  --color-status-error-rgb: 243 139 168;
+
+  /* Diff Colors */
+  --color-diff-added-bg: rgba(166, 227, 161, 0.15);
+  --color-diff-added-text: #a6e3a1;
+  --color-diff-removed-bg: rgba(243, 139, 168, 0.15);
+  --color-diff-removed-text: #f38ba8;
+  --color-diff-modified-bg: rgba(249, 226, 175, 0.15);
+  --color-diff-modified-text: #f9e2af;
+
+  /* Scrollbar Colors */
+  --color-scrollbar-track: rgba(49, 50, 68, 0.5);
+  --color-scrollbar-thumb: rgba(69, 71, 90, 0.8);
+  --color-scrollbar-thumb-hover: rgba(88, 91, 112, 0.9);
+
+  /* Selection Colors */
+  --color-selection-bg: rgba(137, 180, 250, 0.3);
+
+  /* Overlay Colors */
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay-strong: rgba(0, 0, 0, 0.8);
+  --color-overlay-light: rgba(255, 255, 255, 0.1);
+  --color-overlay-dark: rgba(0, 0, 0, 0.3);
+
+  /* Graph Colors */
+  --color-graph-reference-default: #a6e3a1;
+  --color-graph-reference-remote: #cba6f7;
+  --color-graph-reference-base: #fab387;
+  --color-graph-reference-tag: #f9e2af;
+
+  /* Surface Colors */
+  --color-surface-modal: #1e1e2e;
+  --color-surface-modal-rgb: 30 30 46;
+
+  /* Editor Colors */
+  --color-editor-background: #1e1e2e;
+  --color-editor-background-rgb: 30 30 46;
+  --color-editor-text: #cdd6f4;
+  --color-editor-caret: #f5e0dc;
+  --color-editor-gutter-text: #45475a;
+  --color-editor-gutter-active-text: #bac2de;
+  --color-editor-active-line: rgba(255, 255, 255, 0.04);
+  --color-editor-inline-code-bg: rgba(49, 50, 68, 0.8);
+  --color-editor-code-block-bg: rgba(49, 50, 68, 0.5);
+  --color-editor-blockquote-border: #45475a;
+  --color-editor-line-rule: #45475a;
+  --color-editor-strikethrough: #6c7086;
+  --color-editor-selection: rgba(137, 180, 250, 0.3);
+  --color-editor-selection-focused: rgba(137, 180, 250, 0.4);
+  --color-editor-selection-alt: rgba(255, 255, 255, 0.04);
+  --color-editor-placeholder-border: #45475a;
+
+  /* Syntax Colors - Catppuccin style */
+  --color-syntax-default: #bac2de;
+  --color-syntax-comment: #6c7086;
+  --color-syntax-variable: #cdd6f4;
+  --color-syntax-number: #fab387;
+  --color-syntax-type: #89dceb;
+  --color-syntax-keyword: #cba6f7;
+  --color-syntax-string: #a6e3a1;
+  --color-syntax-function: #89b4fa;
+  --color-syntax-operator: #89dceb;
+  --color-syntax-punctuation: #bac2de;
+  --color-syntax-tag: #f38ba8;
+  --color-syntax-attribute: #89dceb;
+  --color-syntax-selector: #cba6f7;
+  --color-syntax-property: #94e2d5;
+  --color-syntax-bracket: #f9e2af;
+  --color-syntax-class: #89dceb;
+  --color-syntax-constant: #fab387;
+  --color-syntax-decorator: #cba6f7;
+  --color-syntax-regex: #94e2d5;
+  --color-syntax-escape: #89dceb;
+  --color-syntax-emphasis: #cba6f7;
+  --color-syntax-highlight: #cdd6f4;
+
+  /* Gray Scale (Catppuccin style - using surface/overlay colors) */
+  --color-gray-50: #cdd6f4;
+  --color-gray-50-rgb: 205 214 244;
+  --color-gray-100: #bac2de;
+  --color-gray-100-rgb: 186 194 222;
+  --color-gray-200: #a6adc8;
+  --color-gray-200-rgb: 166 173 200;
+  --color-gray-300: #9399b2;
+  --color-gray-300-rgb: 147 153 178;
+  --color-gray-400: #7f849c;
+  --color-gray-400-rgb: 127 132 156;
+  --color-gray-500: #6c7086;
+  --color-gray-500-rgb: 108 112 134;
+  --color-gray-500-alt: #585b70;
+  --color-gray-500-alt-rgb: 88 91 112;
+  --color-gray-600: #45475a;
+  --color-gray-600-rgb: 69 71 90;
+  --color-gray-700: #313244;
+  --color-gray-700-rgb: 49 50 68;
+  --color-gray-800: #1e1e2e;
+  --color-gray-800-rgb: 30 30 46;
+  --color-gray-900: #181825;
+  --color-gray-900-rgb: 24 24 37;
+  --color-gray-950: #11111b;
+  --color-gray-950-rgb: 17 17 27;
+
+  /* Blue Scale (Catppuccin) */
+  --color-blue-50: #e8f0fe;
+  --color-blue-50-rgb: 232 240 254;
+  --color-blue-100: #c5d8fc;
+  --color-blue-100-rgb: 197 216 252;
+  --color-blue-200: #a1c0fa;
+  --color-blue-200-rgb: 161 192 250;
+  --color-blue-300: #89b4fa;
+  --color-blue-300-rgb: 137 180 250;
+  --color-blue-400: #89b4fa;
+  --color-blue-400-rgb: 137 180 250;
+  --color-blue-500: #74c7ec;
+  --color-blue-500-rgb: 116 199 236;
+  --color-blue-600: #5ba8cf;
+  --color-blue-600-rgb: 91 168 207;
+  --color-blue-700: #4589b2;
+  --color-blue-700-rgb: 69 137 178;
+  --color-blue-800: #326a95;
+  --color-blue-800-rgb: 50 106 149;
+  --color-blue-900: #224b78;
+  --color-blue-900-rgb: 34 75 120;
+  --color-blue-950: #152d5b;
+  --color-blue-950-rgb: 21 45 91;
+
+  /* Green Scale (Catppuccin) */
+  --color-green-50: #edfbec;
+  --color-green-50-rgb: 237 251 236;
+  --color-green-100: #d1f5ce;
+  --color-green-100-rgb: 209 245 206;
+  --color-green-200: #a6e3a1;
+  --color-green-200-rgb: 166 227 161;
+  --color-green-300: #94e2d5;
+  --color-green-300-rgb: 148 226 213;
+  --color-green-400: #a6e3a1;
+  --color-green-400-rgb: 166 227 161;
+  --color-green-500: #94e2d5;
+  --color-green-500-rgb: 148 226 213;
+  --color-green-600: #40a02b;
+  --color-green-600-rgb: 64 160 43;
+  --color-green-700: #358521;
+  --color-green-700-rgb: 53 133 33;
+  --color-green-800: #2a6a18;
+  --color-green-800-rgb: 42 106 24;
+  --color-green-900: #1f4f10;
+  --color-green-900-rgb: 31 79 16;
+  --color-green-950: #143408;
+  --color-green-950-rgb: 20 52 8;
+
+  /* Amber Scale (Catppuccin - using peach/yellow) */
+  --color-amber-50: #fef6e8;
+  --color-amber-50-rgb: 254 246 232;
+  --color-amber-100: #fdebc8;
+  --color-amber-100-rgb: 253 235 200;
+  --color-amber-200: #fce0a8;
+  --color-amber-200-rgb: 252 224 168;
+  --color-amber-300: #fab387;
+  --color-amber-300-rgb: 250 179 135;
+  --color-amber-400: #f9e2af;
+  --color-amber-400-rgb: 249 226 175;
+  --color-amber-500: #fab387;
+  --color-amber-500-rgb: 250 179 135;
+  --color-amber-600: #df8e1d;
+  --color-amber-600-rgb: 223 142 29;
+  --color-amber-700: #b87314;
+  --color-amber-700-rgb: 184 115 20;
+  --color-amber-800: #91580d;
+  --color-amber-800-rgb: 145 88 13;
+  --color-amber-900: #6a3d07;
+  --color-amber-900-rgb: 106 61 7;
+  --color-amber-950: #432203;
+  --color-amber-950-rgb: 67 34 3;
+
+  /* Red Scale (Catppuccin) */
+  --color-red-50: #fee8ed;
+  --color-red-50-rgb: 254 232 237;
+  --color-red-100: #fcc5d2;
+  --color-red-100-rgb: 252 197 210;
+  --color-red-200: #f9a3b7;
+  --color-red-200-rgb: 249 163 183;
+  --color-red-300: #f38ba8;
+  --color-red-300-rgb: 243 139 168;
+  --color-red-400: #f38ba8;
+  --color-red-400-rgb: 243 139 168;
+  --color-red-500: #eba0ac;
+  --color-red-500-rgb: 235 160 172;
+  --color-red-600: #d20f39;
+  --color-red-600-rgb: 210 15 57;
+  --color-red-700: #b00c2f;
+  --color-red-700-rgb: 176 12 47;
+  --color-red-800: #8e0825;
+  --color-red-800-rgb: 142 8 37;
+  --color-red-900: #6c051b;
+  --color-red-900-rgb: 108 5 27;
+  --color-red-950: #4a0211;
+  --color-red-950-rgb: 74 2 17;
+
+  /* Cyan Scale (Catppuccin - using teal/sky) */
+  --color-cyan-50: #e8fbf8;
+  --color-cyan-50-rgb: 232 251 248;
+  --color-cyan-100: #c5f5ee;
+  --color-cyan-100-rgb: 197 245 238;
+  --color-cyan-200: #94e2d5;
+  --color-cyan-200-rgb: 148 226 213;
+  --color-cyan-300: #89dceb;
+  --color-cyan-300-rgb: 137 220 235;
+  --color-cyan-400: #74c7ec;
+  --color-cyan-400-rgb: 116 199 236;
+  --color-cyan-500: #94e2d5;
+  --color-cyan-500-rgb: 148 226 213;
+  --color-cyan-600: #179299;
+  --color-cyan-600-rgb: 23 146 153;
+  --color-cyan-700: #12767c;
+  --color-cyan-700-rgb: 18 118 124;
+  --color-cyan-800: #0d5a5f;
+  --color-cyan-800-rgb: 13 90 95;
+  --color-cyan-900: #083e42;
+  --color-cyan-900-rgb: 8 62 66;
+  --color-cyan-950: #042225;
+  --color-cyan-950-rgb: 4 34 37;
+
+  /* Purple Scale (Catppuccin - using mauve) */
+  --color-purple-50: #f7edfc;
+  --color-purple-50-rgb: 247 237 252;
+  --color-purple-100: #ebd5f8;
+  --color-purple-100-rgb: 235 213 248;
+  --color-purple-200: #debdf4;
+  --color-purple-200-rgb: 222 189 244;
+  --color-purple-300: #cba6f7;
+  --color-purple-300-rgb: 203 166 247;
+  --color-purple-400: #cba6f7;
+  --color-purple-400-rgb: 203 166 247;
+  --color-purple-500: #b4befe;
+  --color-purple-500-rgb: 180 190 254;
+  --color-purple-600: #8839ef;
+  --color-purple-600-rgb: 136 57 239;
+  --color-purple-700: #6e2cc7;
+  --color-purple-700-rgb: 110 44 199;
+  --color-purple-800: #54209f;
+  --color-purple-800-rgb: 84 32 159;
+  --color-purple-900: #3a1477;
+  --color-purple-900-rgb: 58 20 119;
+  --color-purple-950: #20084f;
+  --color-purple-950-rgb: 32 8 79;
+
+  /* Violet Scale (Catppuccin - using lavender/mauve) */
+  --color-violet-50: #f7edfc;
+  --color-violet-50-rgb: 247 237 252;
+  --color-violet-100: #ebd5f8;
+  --color-violet-100-rgb: 235 213 248;
+  --color-violet-200: #debdf4;
+  --color-violet-200-rgb: 222 189 244;
+  --color-violet-300: #cba6f7;
+  --color-violet-300-rgb: 203 166 247;
+  --color-violet-400: #b4befe;
+  --color-violet-400-rgb: 180 190 254;
+  --color-violet-500: #b4befe;
+  --color-violet-500-rgb: 180 190 254;
+  --color-violet-600: #8839ef;
+  --color-violet-600-rgb: 136 57 239;
+  --color-violet-700: #6e2cc7;
+  --color-violet-700-rgb: 110 44 199;
+  --color-violet-800: #54209f;
+  --color-violet-800-rgb: 84 32 159;
+  --color-violet-900: #3a1477;
+  --color-violet-900-rgb: 58 20 119;
+  --color-violet-950: #20084f;
+  --color-violet-950-rgb: 32 8 79;
+
+  /* Yellow Scale (Catppuccin) */
+  --color-yellow-50: #fef9e8;
+  --color-yellow-50-rgb: 254 249 232;
+  --color-yellow-100: #fdf1c5;
+  --color-yellow-100-rgb: 253 241 197;
+  --color-yellow-200: #fce9a2;
+  --color-yellow-200-rgb: 252 233 162;
+  --color-yellow-300: #f9e2af;
+  --color-yellow-300-rgb: 249 226 175;
+  --color-yellow-400: #f9e2af;
+  --color-yellow-400-rgb: 249 226 175;
+  --color-yellow-500: #f5e0dc;
+  --color-yellow-500-rgb: 245 224 220;
+  --color-yellow-600: #df8e1d;
+  --color-yellow-600-rgb: 223 142 29;
+  --color-yellow-700: #b87314;
+  --color-yellow-700-rgb: 184 115 20;
+  --color-yellow-800: #91580d;
+  --color-yellow-800-rgb: 145 88 13;
+  --color-yellow-900: #6a3d07;
+  --color-yellow-900-rgb: 106 61 7;
+
+  --color-white: #cdd6f4;
+  --color-white-rgb: 205 214 244;
+
+  /* Tab Colors */
+  --color-tab-inactive-bg: transparent;
+  --color-tab-inactive-text: #6c7086;
+  --color-tab-inactive-hover-bg: rgba(69, 71, 90, 0.5);
+  --color-tab-inactive-hover-text: #bac2de;
+  --color-tab-active-bg: rgba(49, 50, 68, 0.5);
+  --color-tab-active-text: #cdd6f4;
+  --color-tab-active-indicator: #89b4fa;
+  --color-tab-close-bg: transparent;
+  --color-tab-close-hover-bg: rgba(69, 71, 90, 0.6);
+  --color-tab-close-color: #6c7086;
+  --color-tab-close-hover-color: #cdd6f4;
+  --color-tab-badge-bg: #f9e2af;
+  --color-tab-badge-text: #1e1e2e;
+  --color-tab-running-indicator: #89dceb;
+  --color-tab-running-glow: rgba(137, 220, 235, 0.3);
+
+  /* Tab Focus Colors (blue accent) */
+  --color-tab-focus-inactive-text: #89b4fa;
+  --color-tab-focus-inactive-hover-bg: rgba(137, 180, 250, 0.2);
+  --color-tab-focus-inactive-hover-text: #b4befe;
+  --color-tab-focus-active-bg: rgba(137, 180, 250, 0.3);
+  --color-tab-focus-active-text: #b4befe;
+
+  /* Icon Button Colors */
+  --icon-button-default-bg: #45475a;
+  --icon-button-default-hover-bg: #585b70;
+  --icon-button-default-text: #bac2de;
+  --icon-button-default-border: transparent;
+  --icon-button-default-hover-border: transparent;
+  --icon-button-success-bg: #2d5a3d;
+  --icon-button-success-hover-bg: #387049;
+  --icon-button-success-text: #a6e3a1;
+  --icon-button-success-border: transparent;
+  --icon-button-success-hover-border: transparent;
+  --icon-button-danger-bg: #5c2d3a;
+  --icon-button-danger-hover-bg: #703848;
+  --icon-button-danger-text: #f38ba8;
+  --icon-button-danger-border: transparent;
+  --icon-button-danger-hover-border: transparent;
+  --icon-button-warning-bg: #5a4a2d;
+  --icon-button-warning-hover-bg: #6e5a38;
+  --icon-button-warning-text: #fab387;
+  --icon-button-warning-border: transparent;
+  --icon-button-warning-hover-border: transparent;
+}

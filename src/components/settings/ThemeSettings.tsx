@@ -40,9 +40,20 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'catppuccin',
+    label: 'Catppuccin Mocha',
+    description: 'Soothing pastel theme (darkest)',
+    colors: {
+      bg: '#1e1e2e',
+      bgSecondary: '#313244',
+      text: '#cdd6f4',
+      accent: '#89b4fa',
+    },
+  },
+  {
     id: 'catppuccin-macchiato',
-    label: 'Catppuccin',
-    description: 'Soothing pastel theme for cozy coding',
+    label: 'Catppuccin Macchiato',
+    description: 'Soothing pastel theme (medium)',
     colors: {
       bg: '#24273a',
       bgSecondary: '#363a4f',
@@ -196,8 +207,10 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
   switch (resolved) {
     case 'tokyonight':
       return 'Tokyo Night'
+    case 'catppuccin':
+      return 'Catppuccin Mocha'
     case 'catppuccin-macchiato':
-      return 'Catppuccin'
+      return 'Catppuccin Macchiato'
     case 'light':
       return 'Light'
     default:

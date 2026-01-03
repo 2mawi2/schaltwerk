@@ -449,11 +449,11 @@ describe('Error Handling Architecture', () => {
 
 describe('Theme Consistency Architecture', () => {
   it('should have a theme preset for each resolved theme', async () => {
-    const { darkTheme, lightTheme, tokyonightTheme, catppuccinMacchiatoTheme } = await import('../common/themes/presets');
+    const { darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme } = await import('../common/themes/presets');
     const { buildTerminalTheme } = await import('../common/themes/terminalTheme');
 
-    const resolvedThemes = ['dark', 'light', 'tokyonight', 'catppuccin-macchiato'] as const;
-    const presets = { dark: darkTheme, light: lightTheme, tokyonight: tokyonightTheme, 'catppuccin-macchiato': catppuccinMacchiatoTheme };
+    const resolvedThemes = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato'] as const;
+    const presets = { dark: darkTheme, light: lightTheme, tokyonight: tokyonightTheme, catppuccin: catppuccinTheme, 'catppuccin-macchiato': catppuccinMacchiatoTheme };
 
     const missingPresets: string[] = [];
     const missingTerminalSupport: string[] = [];
@@ -521,6 +521,7 @@ describe('Theme Consistency Architecture', () => {
       dark: path.join(themesDir, 'dark.css'),
       light: path.join(themesDir, 'light.css'),
       tokyonight: path.join(themesDir, 'tokyonight.css'),
+      catppuccin: path.join(themesDir, 'catppuccin.css'),
       'catppuccin-macchiato': path.join(themesDir, 'catppuccin-macchiato.css'),
     } as const;
 
@@ -560,7 +561,7 @@ describe('Theme Consistency Architecture', () => {
     const fs = await import('node:fs');
     const themeAtomContent = fs.readFileSync(themeAtomPath, 'utf-8');
 
-    const themeIds = ['dark', 'light', 'tokyonight', 'catppuccin-macchiato', 'system'];
+    const themeIds = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato', 'system'];
     const missingValidation: string[] = [];
 
     for (const themeId of themeIds) {
@@ -585,6 +586,7 @@ describe('Theme Consistency Architecture', () => {
       dark: path.join(themesDir, 'dark.css'),
       light: path.join(themesDir, 'light.css'),
       tokyonight: path.join(themesDir, 'tokyonight.css'),
+      catppuccin: path.join(themesDir, 'catppuccin.css'),
       'catppuccin-macchiato': path.join(themesDir, 'catppuccin-macchiato.css'),
     } as const;
 
