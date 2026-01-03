@@ -1303,17 +1303,22 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	            <div className="flex flex-col h-full p-4 gap-4">
 	                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 	                    <div>
-	                        <label className="block text-sm text-slate-300 mb-1">Agent name</label>
-	                        <input 
+	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Agent name</label>
+	                        <input
 	                            ref={nameInputRef}
-	                            value={name} 
-	                            onChange={handleNameChange} 
+	                            value={name}
+	                            onChange={handleNameChange}
                             onFocus={() => { setWasEdited(true); wasEditedRef.current = true }}
                             onKeyDown={() => { setWasEdited(true); wasEditedRef.current = true }}
                             onInput={() => { setWasEdited(true); wasEditedRef.current = true }}
-                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border ${
-                                nameError ? 'border-red-500' : 'border-slate-700'
+                            className={`w-full rounded px-3 py-2 border ${
+                                nameError ? 'border-red-500' : ''
                             }`}
+                            style={{
+                                backgroundColor: 'var(--color-bg-elevated)',
+                                color: 'var(--color-text-primary)',
+                                borderColor: nameError ? undefined : 'var(--color-border-default)'
+                            }}
                             placeholder="eager_cosmos"
                             disabled={nameLocked}
                         />
@@ -1353,7 +1358,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	                    </div>
 	
 	                    <div>
-	                        <label className="block text-sm text-slate-300 mb-1">Epic</label>
+	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Epic</label>
 	                        <EpicSelect
 	                            value={selectedEpic}
 	                            onChange={setEpicId}
@@ -1376,12 +1381,12 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             }}
                             style={{ color: 'var(--color-accent-cyan)' }}
                         />
-                        <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
+                        <label htmlFor="createAsDraft" className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Create as spec (no agent will start)</label>
                     </div>
 
                     <div className="flex flex-col flex-1 min-h-0">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm text-slate-300">
+                            <label className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                                 {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
                             </label>
                             <div className="flex items-center gap-2">
@@ -1552,7 +1557,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 />
                             )}
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {promptSource === 'github_issue'
                                 ? 'Select an issue to pull its description and comments into the agent prompt.'
                                 : promptSource === 'github_pull_request'
