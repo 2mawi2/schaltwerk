@@ -166,7 +166,10 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
 
           {recentProjects.length > 0 && (
             <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2 text-slate-400">
+              <div
+                className="flex items-center gap-2"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
                 <VscHistory className="text-lg" />
                 <h2 className="text-sm font-medium uppercase tracking-wider">Recent Projects</h2>
               </div>
@@ -178,12 +181,30 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                 {recentProjects.map((project, index) => (
                   <div
                     key={project.path}
-                    className="bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-lg p-4 group relative"
+                    className="rounded-md px-3 py-2.5 group relative border transition-all duration-200 cursor-pointer"
+                    style={{
+                      backgroundColor: 'rgb(var(--color-bg-elevated-rgb) / 0.5)',
+                      borderColor: 'var(--color-border-subtle)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgb(var(--color-bg-hover-rgb) / 0.6)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-strong)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgb(var(--color-bg-elevated-rgb) / 0.5)'
+                      e.currentTarget.style.borderColor = 'var(--color-border-subtle)'
+                    }}
                   >
                     {index < 9 && (
                       <div className="absolute top-2 right-2 transition-opacity group-hover:opacity-0">
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
-                          {platform === 'mac' ? `⌘${index + 1}` : `Ctrl + ${index + 1}`}
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: 'rgb(var(--color-bg-hover-rgb) / 0.6)',
+                            color: 'var(--color-text-tertiary)'
+                          }}
+                        >
+                          {platform === 'mac' ? `⌘${index + 1}` : `Ctrl+${index + 1}`}
                         </span>
                       </div>
                     )}
@@ -201,13 +222,22 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                           onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)' }}
                         />
                         <div className="flex-1 min-w-0 pr-8">
-                          <h3 className="text-slate-200 font-medium truncate text-sm">
+                          <h3
+                            className="font-semibold truncate text-sm"
+                            style={{ color: 'var(--color-text-primary)' }}
+                          >
                             {project.name}
                           </h3>
-                          <p className="text-slate-500 text-xs truncate mt-1">
+                          <p
+                            className="text-xs truncate mt-1"
+                            style={{ color: 'var(--color-text-tertiary)' }}
+                          >
                             {project.path}
                           </p>
-                          <p className="text-slate-600 text-xs mt-2">
+                          <p
+                            className="text-xs mt-1.5"
+                            style={{ color: 'var(--color-text-muted)' }}
+                          >
                             {formatDateTime(project.lastOpened, RECENT_PROJECT_DATE_OPTIONS)}
                           </p>
                         </div>
@@ -215,7 +245,10 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                     </button>
                     <button
                       onClick={(e) => { void handleRemoveProject(project, e) }}
-                      className="absolute top-2 right-2 p-1 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      className="absolute top-2 right-2 p-1 transition-colors opacity-0 group-hover:opacity-100"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-red)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
                       title={`Remove ${project.name} from recent projects`}
                     >
                       <VscTrash className="text-sm" />

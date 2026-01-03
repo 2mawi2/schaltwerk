@@ -44,7 +44,7 @@ describe('ThemeSettings', () => {
   it('updates selection when a theme is chosen', async () => {
     const { user } = renderThemeSettings()
 
-    const tokyoNightButton = screen.getByRole('button', { name: 'Tokyo Night' })
+    const tokyoNightButton = screen.getByRole('button', { name: 'Tokyo Night Beta' })
 
     await user.click(tokyoNightButton)
 
