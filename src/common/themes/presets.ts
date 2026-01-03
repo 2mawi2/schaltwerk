@@ -123,6 +123,19 @@ const ayuAccent = {
   copilot: buildAccent('#D2A6FF', '#E0BFFF', '#A87ACC'),
 }
 
+const kanagawaAccent = {
+  blue: buildAccent('#7E9CD8', '#7FB4CA', '#2D4F67'),
+  green: buildAccent('#98BB6C', '#87A987', '#76946A'),
+  amber: buildAccent('#DCA561', '#E6C384', '#C0A36E'),
+  red: buildAccent('#C34043', '#E82424', '#8A3536'),
+  violet: buildAccent('#957FB8', '#938AA9', '#7E5DB2'),
+  purple: buildAccent('#957FB8', '#938AA9', '#7E5DB2'),
+  magenta: buildAccent('#D27E99', '#E46876', '#B25068'),
+  yellow: buildAccent('#E6C384', '#FF9E3B', '#C0A36E'),
+  cyan: buildAccent('#6A9589', '#7AA89F', '#597B70'),
+  copilot: buildAccent('#957FB8', '#938AA9', '#7E5DB2'),
+}
+
 export const tokyonightTheme: ThemeDefinition = {
   id: 'tokyonight',
   name: 'Tokyo Night',
@@ -467,6 +480,64 @@ export const everforestTheme: ThemeDefinition = {
       brightMagenta: '#d699b6',
       brightCyan: '#83c092',
       brightWhite: '#d3c6aa',
+    },
+  },
+}
+
+export const kanagawaTheme: ThemeDefinition = {
+  id: 'kanagawa',
+  name: 'Kanagawa',
+  isDark: true,
+  colors: {
+    background: {
+      primary: '#1F1F28',
+      secondary: '#16161D',
+      tertiary: '#2A2A37',
+      elevated: '#363646',
+      hover: '#2A2A37',
+      active: '#363646',
+    },
+    text: {
+      primary: '#DCD7BA',
+      secondary: '#C8C093',
+      tertiary: '#938AA9',
+      muted: '#727169',
+      inverse: '#1F1F28',
+    },
+    border: {
+      default: '#54546D',
+      subtle: '#363646',
+      strong: '#727169',
+      focus: kanagawaAccent.blue.DEFAULT,
+    },
+    accent: kanagawaAccent,
+    status: {
+      info: '#7E9CD8',
+      success: '#98BB6C',
+      warning: '#FF9E3B',
+      error: '#E82424',
+    },
+    terminal: {
+      background: '#1F1F28',
+      foreground: '#DCD7BA',
+      cursor: '#C8C093',
+      selection: withOpacity(kanagawaAccent.blue.DEFAULT, 0.3),
+      black: '#090618',
+      red: '#C34043',
+      green: '#76946A',
+      yellow: '#C0A36E',
+      blue: '#7E9CD8',
+      magenta: '#957FB8',
+      cyan: '#6A9589',
+      white: '#C8C093',
+      brightBlack: '#727169',
+      brightRed: '#E82424',
+      brightGreen: '#98BB6C',
+      brightYellow: '#E6C384',
+      brightBlue: '#7FB4CA',
+      brightMagenta: '#938AA9',
+      brightCyan: '#7AA89F',
+      brightWhite: '#DCD7BA',
     },
   },
 }

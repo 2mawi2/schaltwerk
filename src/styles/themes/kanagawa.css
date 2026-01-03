@@ -1,0 +1,472 @@
+/* ==========================================================================
+   Kanagawa Theme (Wave variant)
+   Palette derived from https://github.com/rebelot/kanagawa.nvim
+   Inspired by Katsushika Hokusai's famous painting "The Great Wave off Kanagawa"
+   Extended with Tailwind color scales and terminal colors
+   ========================================================================== */
+[data-theme="kanagawa"] {
+  /* Color Scheme for native widgets */
+  --color-scheme: dark;
+
+  /* Background Colors - Sumi Ink palette */
+  --color-bg-primary: #1F1F28;
+  --color-bg-primary-rgb: 31 31 40;
+  --color-bg-secondary: #16161D;
+  --color-bg-secondary-rgb: 22 22 29;
+  --color-bg-tertiary: #2A2A37;
+  --color-bg-tertiary-rgb: 42 42 55;
+  --color-bg-elevated: #363646;
+  --color-bg-elevated-rgb: 54 54 70;
+  --color-bg-hover: #2A2A37;
+  --color-bg-hover-rgb: 42 42 55;
+  --color-bg-active: #363646;
+  --color-bg-active-rgb: 54 54 70;
+
+  /* Panel aliases */
+  --color-panel: var(--color-bg-secondary);
+  --color-panel-rgb: var(--color-bg-secondary-rgb);
+  --color-panel-alt: var(--color-bg-tertiary);
+  --color-panel-alt-rgb: var(--color-bg-tertiary-rgb);
+
+  /* Text Colors - Fuji palette */
+  --color-text-primary: #DCD7BA;
+  --color-text-primary-rgb: 220 215 186;
+  --color-text-secondary: #C8C093;
+  --color-text-secondary-rgb: 200 192 147;
+  --color-text-tertiary: #938AA9;
+  --color-text-tertiary-rgb: 147 138 169;
+  --color-text-muted: #727169;
+  --color-text-muted-rgb: 114 113 105;
+  --color-text-inverse: #1F1F28;
+  --color-text-inverse-rgb: 31 31 40;
+
+  /* Border Colors */
+  --color-border-default: #54546D;
+  --color-border-default-rgb: 84 84 109;
+  --color-border-subtle: #363646;
+  --color-border-subtle-rgb: 54 54 70;
+  --color-border-strong: #727169;
+  --color-border-strong-rgb: 114 113 105;
+  --color-border-focus: #7E9CD8;
+  --color-border-focus-rgb: 126 156 216;
+
+  /* Accent Colors - Kanagawa palette */
+  --color-accent-blue: #7E9CD8;
+  --color-accent-blue-rgb: 126 156 216;
+  --color-accent-blue-light: #7FB4CA;
+  --color-accent-blue-dark: #2D4F67;
+  --color-accent-blue-bg: rgba(126, 156, 216, 0.1);
+  --color-accent-blue-border: rgba(126, 156, 216, 0.5);
+
+  --color-accent-green: #98BB6C;
+  --color-accent-green-rgb: 152 187 108;
+  --color-accent-green-light: #87A987;
+  --color-accent-green-dark: #76946A;
+  --color-accent-green-bg: rgba(152, 187, 108, 0.1);
+  --color-accent-green-border: rgba(152, 187, 108, 0.5);
+
+  --color-accent-amber: #DCA561;
+  --color-accent-amber-rgb: 220 165 97;
+  --color-accent-amber-light: #E6C384;
+  --color-accent-amber-dark: #C0A36E;
+  --color-accent-amber-bg: rgba(220, 165, 97, 0.1);
+  --color-accent-amber-border: rgba(220, 165, 97, 0.5);
+
+  --color-accent-red: #C34043;
+  --color-accent-red-rgb: 195 64 67;
+  --color-accent-red-light: #E82424;
+  --color-accent-red-dark: #8A3536;
+  --color-accent-red-bg: rgba(195, 64, 67, 0.1);
+  --color-accent-red-border: rgba(195, 64, 67, 0.5);
+
+  --color-accent-violet: #957FB8;
+  --color-accent-violet-rgb: 149 127 184;
+  --color-accent-violet-light: #938AA9;
+  --color-accent-violet-dark: #7E5DB2;
+  --color-accent-violet-bg: rgba(149, 127, 184, 0.1);
+  --color-accent-violet-border: rgba(149, 127, 184, 0.5);
+
+  --color-accent-purple: #957FB8;
+  --color-accent-purple-rgb: 149 127 184;
+  --color-accent-purple-light: #938AA9;
+  --color-accent-purple-dark: #7E5DB2;
+  --color-accent-purple-bg: rgba(149, 127, 184, 0.1);
+  --color-accent-purple-border: rgba(149, 127, 184, 0.5);
+
+  --color-accent-magenta: #D27E99;
+  --color-accent-magenta-rgb: 210 126 153;
+  --color-accent-magenta-light: #E46876;
+  --color-accent-magenta-dark: #B25068;
+  --color-accent-magenta-bg: rgba(210, 126, 153, 0.1);
+  --color-accent-magenta-border: rgba(210, 126, 153, 0.5);
+
+  --color-accent-yellow: #E6C384;
+  --color-accent-yellow-rgb: 230 195 132;
+  --color-accent-yellow-light: #FF9E3B;
+  --color-accent-yellow-dark: #C0A36E;
+  --color-accent-yellow-bg: rgba(230, 195, 132, 0.1);
+  --color-accent-yellow-border: rgba(230, 195, 132, 0.5);
+
+  --color-accent-cyan: #6A9589;
+  --color-accent-cyan-rgb: 106 149 137;
+  --color-accent-cyan-light: #7AA89F;
+  --color-accent-cyan-dark: #597B70;
+  --color-accent-cyan-bg: rgba(106, 149, 137, 0.1);
+  --color-accent-cyan-border: rgba(106, 149, 137, 0.5);
+
+  --color-accent-copilot: #957FB8;
+  --color-accent-copilot-rgb: 149 127 184;
+  --color-accent-copilot-light: #938AA9;
+  --color-accent-copilot-dark: #7E5DB2;
+  --color-accent-copilot-bg: rgba(149, 127, 184, 0.1);
+  --color-accent-copilot-border: rgba(149, 127, 184, 0.5);
+
+  /* Status Colors */
+  --color-status-info: #7E9CD8;
+  --color-status-info-rgb: 126 156 216;
+  --color-status-success: #98BB6C;
+  --color-status-success-rgb: 152 187 108;
+  --color-status-warning: #FF9E3B;
+  --color-status-warning-rgb: 255 158 59;
+  --color-status-error: #E82424;
+  --color-status-error-rgb: 232 36 36;
+
+  /* Diff Colors */
+  --color-diff-added-bg: rgba(152, 187, 108, 0.15);
+  --color-diff-added-text: #98BB6C;
+  --color-diff-removed-bg: rgba(195, 64, 67, 0.15);
+  --color-diff-removed-text: #C34043;
+  --color-diff-modified-bg: rgba(230, 195, 132, 0.15);
+  --color-diff-modified-text: #E6C384;
+
+  /* Scrollbar Colors */
+  --color-scrollbar-track: rgba(42, 42, 55, 0.5);
+  --color-scrollbar-thumb: rgba(84, 84, 109, 0.8);
+  --color-scrollbar-thumb-hover: rgba(114, 113, 105, 0.9);
+
+  /* Selection Colors */
+  --color-selection-bg: rgba(126, 156, 216, 0.3);
+
+  /* Overlay Colors */
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay-strong: rgba(0, 0, 0, 0.8);
+  --color-overlay-light: rgba(255, 255, 255, 0.1);
+  --color-overlay-dark: rgba(0, 0, 0, 0.3);
+
+  /* Graph Colors */
+  --color-graph-reference-default: #98BB6C;
+  --color-graph-reference-remote: #957FB8;
+  --color-graph-reference-base: #FF9E3B;
+  --color-graph-reference-tag: #E6C384;
+
+  /* Surface Colors */
+  --color-surface-modal: #2A2A37;
+  --color-surface-modal-rgb: 42 42 55;
+
+  /* Editor Colors */
+  --color-editor-background: #1F1F28;
+  --color-editor-background-rgb: 31 31 40;
+  --color-editor-text: #DCD7BA;
+  --color-editor-caret: #C8C093;
+  --color-editor-gutter-text: #54546D;
+  --color-editor-gutter-active-text: #C8C093;
+  --color-editor-active-line: rgba(255, 255, 255, 0.04);
+  --color-editor-inline-code-bg: rgba(54, 54, 70, 0.8);
+  --color-editor-code-block-bg: rgba(54, 54, 70, 0.5);
+  --color-editor-blockquote-border: #54546D;
+  --color-editor-line-rule: #54546D;
+  --color-editor-strikethrough: #727169;
+  --color-editor-selection: rgba(126, 156, 216, 0.3);
+  --color-editor-selection-focused: rgba(126, 156, 216, 0.4);
+  --color-editor-selection-alt: rgba(255, 255, 255, 0.04);
+  --color-editor-placeholder-border: #54546D;
+
+  /* Syntax Colors - Kanagawa style */
+  --color-syntax-default: #DCD7BA;
+  --color-syntax-comment: #727169;
+  --color-syntax-variable: #DCD7BA;
+  --color-syntax-number: #D27E99;
+  --color-syntax-type: #7AA89F;
+  --color-syntax-keyword: #957FB8;
+  --color-syntax-string: #98BB6C;
+  --color-syntax-function: #7E9CD8;
+  --color-syntax-operator: #C0A36E;
+  --color-syntax-punctuation: #9CABCA;
+  --color-syntax-tag: #E46876;
+  --color-syntax-attribute: #7FB4CA;
+  --color-syntax-selector: #957FB8;
+  --color-syntax-property: #6A9589;
+  --color-syntax-bracket: #C0A36E;
+  --color-syntax-class: #7AA89F;
+  --color-syntax-constant: #FFA066;
+  --color-syntax-decorator: #957FB8;
+  --color-syntax-regex: #E6C384;
+  --color-syntax-escape: #7FB4CA;
+  --color-syntax-emphasis: #D27E99;
+  --color-syntax-highlight: #DCD7BA;
+
+  /* Gray Scale (Kanagawa Sumi Ink style) */
+  --color-gray-50: #DCD7BA;
+  --color-gray-50-rgb: 220 215 186;
+  --color-gray-100: #C8C093;
+  --color-gray-100-rgb: 200 192 147;
+  --color-gray-200: #938AA9;
+  --color-gray-200-rgb: 147 138 169;
+  --color-gray-300: #727169;
+  --color-gray-300-rgb: 114 113 105;
+  --color-gray-400: #54546D;
+  --color-gray-400-rgb: 84 84 109;
+  --color-gray-500: #4A4A5E;
+  --color-gray-500-rgb: 74 74 94;
+  --color-gray-500-alt: #43436C;
+  --color-gray-500-alt-rgb: 67 67 108;
+  --color-gray-600: #363646;
+  --color-gray-600-rgb: 54 54 70;
+  --color-gray-700: #2A2A37;
+  --color-gray-700-rgb: 42 42 55;
+  --color-gray-800: #1F1F28;
+  --color-gray-800-rgb: 31 31 40;
+  --color-gray-900: #16161D;
+  --color-gray-900-rgb: 22 22 29;
+  --color-gray-950: #0D0C0C;
+  --color-gray-950-rgb: 13 12 12;
+
+  /* Blue Scale (Kanagawa Crystal Blue) */
+  --color-blue-50: #E8F0FA;
+  --color-blue-50-rgb: 232 240 250;
+  --color-blue-100: #C5D8F2;
+  --color-blue-100-rgb: 197 216 242;
+  --color-blue-200: #9CBFEA;
+  --color-blue-200-rgb: 156 191 234;
+  --color-blue-300: #7FB4CA;
+  --color-blue-300-rgb: 127 180 202;
+  --color-blue-400: #7E9CD8;
+  --color-blue-400-rgb: 126 156 216;
+  --color-blue-500: #7E9CD8;
+  --color-blue-500-rgb: 126 156 216;
+  --color-blue-600: #6580B8;
+  --color-blue-600-rgb: 101 128 184;
+  --color-blue-700: #4D6498;
+  --color-blue-700-rgb: 77 100 152;
+  --color-blue-800: #2D4F67;
+  --color-blue-800-rgb: 45 79 103;
+  --color-blue-900: #223B4F;
+  --color-blue-900-rgb: 34 59 79;
+  --color-blue-950: #152737;
+  --color-blue-950-rgb: 21 39 55;
+
+  /* Green Scale (Kanagawa Spring/Lotus Green) */
+  --color-green-50: #EBF5E3;
+  --color-green-50-rgb: 235 245 227;
+  --color-green-100: #D0E8BD;
+  --color-green-100-rgb: 208 232 189;
+  --color-green-200: #B0D890;
+  --color-green-200-rgb: 176 216 144;
+  --color-green-300: #98BB6C;
+  --color-green-300-rgb: 152 187 108;
+  --color-green-400: #98BB6C;
+  --color-green-400-rgb: 152 187 108;
+  --color-green-500: #87A987;
+  --color-green-500-rgb: 135 169 135;
+  --color-green-600: #76946A;
+  --color-green-600-rgb: 118 148 106;
+  --color-green-700: #5D7853;
+  --color-green-700-rgb: 93 120 83;
+  --color-green-800: #455C3D;
+  --color-green-800-rgb: 69 92 61;
+  --color-green-900: #2E4029;
+  --color-green-900-rgb: 46 64 41;
+  --color-green-950: #1A2518;
+  --color-green-950-rgb: 26 37 24;
+
+  /* Amber Scale (Kanagawa Boat/Carp Yellow) */
+  --color-amber-50: #FDF5E6;
+  --color-amber-50-rgb: 253 245 230;
+  --color-amber-100: #FAE8C4;
+  --color-amber-100-rgb: 250 232 196;
+  --color-amber-200: #F5D99C;
+  --color-amber-200-rgb: 245 217 156;
+  --color-amber-300: #E6C384;
+  --color-amber-300-rgb: 230 195 132;
+  --color-amber-400: #DCA561;
+  --color-amber-400-rgb: 220 165 97;
+  --color-amber-500: #DCA561;
+  --color-amber-500-rgb: 220 165 97;
+  --color-amber-600: #C0A36E;
+  --color-amber-600-rgb: 192 163 110;
+  --color-amber-700: #9A8255;
+  --color-amber-700-rgb: 154 130 85;
+  --color-amber-800: #74613F;
+  --color-amber-800-rgb: 116 97 63;
+  --color-amber-900: #4E412A;
+  --color-amber-900-rgb: 78 65 42;
+  --color-amber-950: #2A2216;
+  --color-amber-950-rgb: 42 34 22;
+
+  /* Red Scale (Kanagawa Autumn/Dragon Red) */
+  --color-red-50: #FAE6E6;
+  --color-red-50-rgb: 250 230 230;
+  --color-red-100: #F2C4C4;
+  --color-red-100-rgb: 242 196 196;
+  --color-red-200: #E89595;
+  --color-red-200-rgb: 232 149 149;
+  --color-red-300: #E46876;
+  --color-red-300-rgb: 228 104 118;
+  --color-red-400: #C34043;
+  --color-red-400-rgb: 195 64 67;
+  --color-red-500: #E82424;
+  --color-red-500-rgb: 232 36 36;
+  --color-red-600: #BF3030;
+  --color-red-600-rgb: 191 48 48;
+  --color-red-700: #8A3536;
+  --color-red-700-rgb: 138 53 54;
+  --color-red-800: #6B2829;
+  --color-red-800-rgb: 107 40 41;
+  --color-red-900: #4C1C1C;
+  --color-red-900-rgb: 76 28 28;
+  --color-red-950: #2E1010;
+  --color-red-950-rgb: 46 16 16;
+
+  /* Cyan Scale (Kanagawa Wave Aqua) */
+  --color-cyan-50: #E5F0EE;
+  --color-cyan-50-rgb: 229 240 238;
+  --color-cyan-100: #C4DED9;
+  --color-cyan-100-rgb: 196 222 217;
+  --color-cyan-200: #9ECBC2;
+  --color-cyan-200-rgb: 158 203 194;
+  --color-cyan-300: #7AA89F;
+  --color-cyan-300-rgb: 122 168 159;
+  --color-cyan-400: #6A9589;
+  --color-cyan-400-rgb: 106 149 137;
+  --color-cyan-500: #6A9589;
+  --color-cyan-500-rgb: 106 149 137;
+  --color-cyan-600: #597B70;
+  --color-cyan-600-rgb: 89 123 112;
+  --color-cyan-700: #476259;
+  --color-cyan-700-rgb: 71 98 89;
+  --color-cyan-800: #364943;
+  --color-cyan-800-rgb: 54 73 67;
+  --color-cyan-900: #25312D;
+  --color-cyan-900-rgb: 37 49 45;
+  --color-cyan-950: #141A18;
+  --color-cyan-950-rgb: 20 26 24;
+
+  /* Purple Scale (Kanagawa Oni Violet) */
+  --color-purple-50: #F2ECF8;
+  --color-purple-50-rgb: 242 236 248;
+  --color-purple-100: #DED3EB;
+  --color-purple-100-rgb: 222 211 235;
+  --color-purple-200: #C5B5DC;
+  --color-purple-200-rgb: 197 181 220;
+  --color-purple-300: #A999CB;
+  --color-purple-300-rgb: 169 153 203;
+  --color-purple-400: #957FB8;
+  --color-purple-400-rgb: 149 127 184;
+  --color-purple-500: #957FB8;
+  --color-purple-500-rgb: 149 127 184;
+  --color-purple-600: #7E5DB2;
+  --color-purple-600-rgb: 126 93 178;
+  --color-purple-700: #634890;
+  --color-purple-700-rgb: 99 72 144;
+  --color-purple-800: #4A366E;
+  --color-purple-800-rgb: 74 54 110;
+  --color-purple-900: #32254C;
+  --color-purple-900-rgb: 50 37 76;
+  --color-purple-950: #1C152B;
+  --color-purple-950-rgb: 28 21 43;
+
+  /* Violet Scale (same as Purple for Kanagawa) */
+  --color-violet-50: #F2ECF8;
+  --color-violet-50-rgb: 242 236 248;
+  --color-violet-100: #DED3EB;
+  --color-violet-100-rgb: 222 211 235;
+  --color-violet-200: #C5B5DC;
+  --color-violet-200-rgb: 197 181 220;
+  --color-violet-300: #A999CB;
+  --color-violet-300-rgb: 169 153 203;
+  --color-violet-400: #957FB8;
+  --color-violet-400-rgb: 149 127 184;
+  --color-violet-500: #957FB8;
+  --color-violet-500-rgb: 149 127 184;
+  --color-violet-600: #7E5DB2;
+  --color-violet-600-rgb: 126 93 178;
+  --color-violet-700: #634890;
+  --color-violet-700-rgb: 99 72 144;
+  --color-violet-800: #4A366E;
+  --color-violet-800-rgb: 74 54 110;
+  --color-violet-900: #32254C;
+  --color-violet-900-rgb: 50 37 76;
+  --color-violet-950: #1C152B;
+  --color-violet-950-rgb: 28 21 43;
+
+  /* Yellow Scale (Kanagawa Carp Yellow) */
+  --color-yellow-50: #FDF9ED;
+  --color-yellow-50-rgb: 253 249 237;
+  --color-yellow-100: #FAF0D4;
+  --color-yellow-100-rgb: 250 240 212;
+  --color-yellow-200: #F5E4B5;
+  --color-yellow-200-rgb: 245 228 181;
+  --color-yellow-300: #E6C384;
+  --color-yellow-300-rgb: 230 195 132;
+  --color-yellow-400: #E6C384;
+  --color-yellow-400-rgb: 230 195 132;
+  --color-yellow-500: #C0A36E;
+  --color-yellow-500-rgb: 192 163 110;
+  --color-yellow-600: #9A8255;
+  --color-yellow-600-rgb: 154 130 85;
+  --color-yellow-700: #74613F;
+  --color-yellow-700-rgb: 116 97 63;
+  --color-yellow-800: #4E412A;
+  --color-yellow-800-rgb: 78 65 42;
+  --color-yellow-900: #2A2216;
+  --color-yellow-900-rgb: 42 34 22;
+
+  --color-white: #DCD7BA;
+  --color-white-rgb: 220 215 186;
+
+  /* Tab Colors */
+  --color-tab-inactive-bg: transparent;
+  --color-tab-inactive-text: #727169;
+  --color-tab-inactive-hover-bg: rgba(84, 84, 109, 0.5);
+  --color-tab-inactive-hover-text: #C8C093;
+  --color-tab-active-bg: rgba(54, 54, 70, 0.5);
+  --color-tab-active-text: #DCD7BA;
+  --color-tab-active-indicator: #7E9CD8;
+  --color-tab-close-bg: transparent;
+  --color-tab-close-hover-bg: rgba(84, 84, 109, 0.6);
+  --color-tab-close-color: #727169;
+  --color-tab-close-hover-color: #DCD7BA;
+  --color-tab-badge-bg: #E6C384;
+  --color-tab-badge-text: #1F1F28;
+  --color-tab-running-indicator: #7E9CD8;
+  --color-tab-running-glow: rgba(126, 156, 216, 0.3);
+
+  /* Tab Focus Colors (blue accent) */
+  --color-tab-focus-inactive-text: #7E9CD8;
+  --color-tab-focus-inactive-hover-bg: rgba(45, 79, 103, 0.2);
+  --color-tab-focus-inactive-hover-text: #7FB4CA;
+  --color-tab-focus-active-bg: rgba(45, 79, 103, 0.3);
+  --color-tab-focus-active-text: #7FB4CA;
+
+  /* Icon Button Colors */
+  --icon-button-default-bg: #54546D;
+  --icon-button-default-hover-bg: #727169;
+  --icon-button-default-text: #C8C093;
+  --icon-button-default-border: transparent;
+  --icon-button-default-hover-border: transparent;
+  --icon-button-success-bg: #3D5938;
+  --icon-button-success-hover-bg: #4D6E47;
+  --icon-button-success-text: #98BB6C;
+  --icon-button-success-border: transparent;
+  --icon-button-success-hover-border: transparent;
+  --icon-button-danger-bg: #6B2829;
+  --icon-button-danger-hover-bg: #8A3536;
+  --icon-button-danger-text: #E82424;
+  --icon-button-danger-border: transparent;
+  --icon-button-danger-hover-border: transparent;
+  --icon-button-warning-bg: #6B4F25;
+  --icon-button-warning-hover-bg: #8A6530;
+  --icon-button-warning-text: #FF9E3B;
+  --icon-button-warning-border: transparent;
+  --icon-button-warning-hover-border: transparent;
+}

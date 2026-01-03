@@ -84,6 +84,17 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'kanagawa',
+    label: 'Kanagawa',
+    description: 'Inspired by Hokusai\'s Great Wave',
+    colors: {
+      bg: '#1F1F28',
+      bgSecondary: '#2A2A37',
+      text: '#DCD7BA',
+      accent: '#7E9CD8',
+    },
+  },
+  {
     id: 'light',
     label: 'Light',
     description: 'Light theme for bright environments',
@@ -237,6 +248,8 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
       return 'Everforest'
     case 'ayu':
       return 'Ayu Dark'
+    case 'kanagawa':
+      return 'Kanagawa'
     case 'light':
       return 'Light'
     default:

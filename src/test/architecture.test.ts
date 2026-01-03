@@ -449,11 +449,11 @@ describe('Error Handling Architecture', () => {
 
 describe('Theme Consistency Architecture', () => {
   it('should have a theme preset for each resolved theme', async () => {
-    const { darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme, everforestTheme } = await import('../common/themes/presets');
+    const { darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme, everforestTheme, ayuTheme, kanagawaTheme } = await import('../common/themes/presets');
     const { buildTerminalTheme } = await import('../common/themes/terminalTheme');
 
-    const resolvedThemes = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato', 'everforest'] as const;
-    const presets = { dark: darkTheme, light: lightTheme, tokyonight: tokyonightTheme, catppuccin: catppuccinTheme, 'catppuccin-macchiato': catppuccinMacchiatoTheme, everforest: everforestTheme };
+    const resolvedThemes = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato', 'everforest', 'ayu', 'kanagawa'] as const;
+    const presets = { dark: darkTheme, light: lightTheme, tokyonight: tokyonightTheme, catppuccin: catppuccinTheme, 'catppuccin-macchiato': catppuccinMacchiatoTheme, everforest: everforestTheme, ayu: ayuTheme, kanagawa: kanagawaTheme };
 
     const missingPresets: string[] = [];
     const missingTerminalSupport: string[] = [];
@@ -524,6 +524,8 @@ describe('Theme Consistency Architecture', () => {
       catppuccin: path.join(themesDir, 'catppuccin.css'),
       'catppuccin-macchiato': path.join(themesDir, 'catppuccin-macchiato.css'),
       everforest: path.join(themesDir, 'everforest.css'),
+      ayu: path.join(themesDir, 'ayu.css'),
+      kanagawa: path.join(themesDir, 'kanagawa.css'),
     } as const;
 
     const missingCssThemes: string[] = [];
@@ -562,7 +564,7 @@ describe('Theme Consistency Architecture', () => {
     const fs = await import('node:fs');
     const themeAtomContent = fs.readFileSync(themeAtomPath, 'utf-8');
 
-    const themeIds = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato', 'everforest', 'system'];
+    const themeIds = ['dark', 'light', 'tokyonight', 'catppuccin', 'catppuccin-macchiato', 'everforest', 'ayu', 'kanagawa', 'system'];
     const missingValidation: string[] = [];
 
     for (const themeId of themeIds) {
@@ -590,6 +592,8 @@ describe('Theme Consistency Architecture', () => {
       catppuccin: path.join(themesDir, 'catppuccin.css'),
       'catppuccin-macchiato': path.join(themesDir, 'catppuccin-macchiato.css'),
       everforest: path.join(themesDir, 'everforest.css'),
+      ayu: path.join(themesDir, 'ayu.css'),
+      kanagawa: path.join(themesDir, 'kanagawa.css'),
     } as const;
 
     const requiredColorScales = ['gray', 'blue', 'green', 'amber', 'red', 'cyan', 'purple', 'violet', 'yellow'];
