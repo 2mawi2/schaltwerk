@@ -15,9 +15,21 @@
   "author": "Schaltwerk Team",
   "license": "MIT",
   "devDependencies": {
-    "mintlify": "^4.2.256"
+    "mintlify": "^4.2.257"
   },
   "overrides": {
-    "qs": "^6.14.1"
+    "qs": "^6.14.1",
+    "express": "^4.21.2",
+    "body-parser": "^1.20.3",
+    "send": "^0.19.0",
+    "serve-static": "^1.16.2",
+    "cookie": "^0.7.2",
+    "js-yaml": "^4.1.1",
+    "axios": "^1.11.1",
+    "zod": "^3.24.0",
+    "tar": "^6.2.1",
+    "path-to-regexp": "^0.1.12",
+    "engine.io": "^6.6.4",
+    "socket.io": "^4.8.1"
   }
 }
