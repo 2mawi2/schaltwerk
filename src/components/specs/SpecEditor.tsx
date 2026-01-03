@@ -29,7 +29,6 @@ import { SpecReviewEditor } from './SpecReviewEditor'
 import { useSpecLineSelection } from '../../hooks/useSpecLineSelection'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
-import { buildSessionScopeId } from '../../common/sessionScope'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import type { SpecReviewComment } from '../../types/specReview'
 import { VscSend } from 'react-icons/vsc'
@@ -88,7 +87,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
   const projectFileIndex = useProjectFileIndex()
 
   const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
-  const { selection, terminals, setSelection } = useSelection()
+  const { setSelection } = useSelection()
   const { sessions, updateSessionSpecContent } = useSessions()
   const { setItemEpic } = useEpics()
   const [currentContent, setCurrentContent] = useAtom(specEditorContentAtomFamily(sessionName))
@@ -371,9 +370,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
       logger.error('[SpecEditor] Failed to get orchestrator agent type', err)
     }
 
-    const sessionKey = buildSessionScopeId({ kind: 'orchestrator', projectPath: selection.projectPath ?? null })
-    const baseTerminalId = terminals.top || 'orchestrator-top'
-    const terminalId = getActiveAgentTerminalId(sessionKey) ?? baseTerminalId
+    const terminalId = getActiveAgentTerminalId('orchestrator') ?? 'orchestrator-top'
 
     try {
       await invoke(TauriCommands.PasteAndSubmitTerminal, {
@@ -390,7 +387,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
       logger.error('[SpecEditor] Failed to paste review to terminal', err)
       setError('Failed to send review to orchestrator')
     }
-  }, [reviewComments, formatSpecReviewForPrompt, sessionName, displayName, getOrchestratorAgentType, selection.projectPath, terminals.top, setSelection, handleExitReviewMode])
+  }, [reviewComments, formatSpecReviewForPrompt, sessionName, displayName, getOrchestratorAgentType, setSelection, handleExitReviewMode])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

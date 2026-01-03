@@ -98,7 +98,6 @@ export interface TerminalProps {
     terminalId: string;
     className?: string;
     sessionName?: string;
-    sessionScopeId?: string;
     isCommander?: boolean;
     agentType?: string;
     readOnly?: boolean;
@@ -125,7 +124,7 @@ type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
 
 const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
 
-const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, sessionScopeId, isCommander = false, agentType, readOnly = false, onTerminalClick, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
+const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -374,7 +373,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const terminalIdRef = useRef(terminalId);
     terminalIdRef.current = terminalId;
     const sessionScopeRef = useRef<string | null>(null);
-    sessionScopeRef.current = sessionScopeId ?? (isCommander ? 'orchestrator' : (sessionName ?? null));
+    sessionScopeRef.current = isCommander ? 'orchestrator' : (sessionName ?? null);
 
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());

@@ -319,7 +319,7 @@ describe('SettingsModal initial tab handling', () => {
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
-      expect(runButton).toHaveClass('text-text-primary')
+      expect(runButton).toHaveClass('text-accent-blue')
     })
   })
 
@@ -333,7 +333,7 @@ describe('SettingsModal initial tab handling', () => {
 
     const projectSettingsButton = await screen.findByRole('button', { name: 'Project Settings' })
     await waitFor(() => {
-      expect(projectSettingsButton).toHaveClass('text-text-primary')
+      expect(projectSettingsButton).toHaveClass('text-accent-blue')
     })
   })
 
@@ -348,7 +348,7 @@ describe('SettingsModal initial tab handling', () => {
 
     await waitFor(() => {
       const appearanceButton = screen.getByRole('button', { name: 'Appearance' })
-      expect(appearanceButton).toHaveClass('text-text-primary')
+      expect(appearanceButton).toHaveClass('text-accent-blue')
     })
 
     rerender(
@@ -364,8 +364,8 @@ describe('SettingsModal initial tab handling', () => {
     await waitFor(() => {
       const runButton = screen.getByRole('button', { name: 'Run & Environment' })
       const appearanceButtonAfter = screen.getByRole('button', { name: 'Appearance' })
-      expect(runButton).toHaveClass('text-text-primary')
-      expect(appearanceButtonAfter).not.toHaveClass('text-text-primary')
+      expect(runButton).toHaveClass('text-accent-blue')
+      expect(appearanceButtonAfter).not.toHaveClass('text-accent-blue')
     })
   })
 

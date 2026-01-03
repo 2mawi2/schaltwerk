@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createStore } from 'jotai'
 import {
   terminalTabsAtomFamily,
-  buildTerminalTabsKey,
   terminalFocusAtom,
   setTerminalFocusActionAtom,
   runModeActiveAtomFamily,
@@ -39,8 +38,7 @@ describe('Terminal Atoms', () => {
 
   describe('terminalTabsAtomFamily', () => {
     it('returns default state for new terminal base ID', () => {
-      const compositeKey = buildTerminalTabsKey(null, 'session-test~abc123-bottom')
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily('session-test~abc123-bottom'))
       expect(state).toEqual({
         tabs: [],
         activeTabIndex: 0,
@@ -48,10 +46,8 @@ describe('Terminal Atoms', () => {
     })
 
     it('maintains separate state per terminal base ID', () => {
-      const compositeKey1 = buildTerminalTabsKey(null, 'session-a~abc-bottom')
-      const compositeKey2 = buildTerminalTabsKey(null, 'session-b~def-bottom')
-      const atom1 = terminalTabsAtomFamily(compositeKey1)
-      const atom2 = terminalTabsAtomFamily(compositeKey2)
+      const atom1 = terminalTabsAtomFamily('session-a~abc-bottom')
+      const atom2 = terminalTabsAtomFamily('session-b~def-bottom')
 
       store.set(atom1, {
         tabs: [{ terminalId: 'session-a~abc-bottom-0', index: 0 }],
@@ -69,11 +65,10 @@ describe('Terminal Atoms', () => {
   describe('addTabActionAtom', () => {
     it('initializes with default tab and adds a new tab when called on empty state', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       // First call initializes with default tab (index 0) and adds new tab (index 1)
       expect(state.tabs).toHaveLength(2)
       expect(state.tabs[0].terminalId).toBe('session-test~abc-bottom')
@@ -85,12 +80,11 @@ describe('Terminal Atoms', () => {
 
     it('increments tab index for subsequent tabs', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs).toHaveLength(3)
       expect(state.tabs[0].index).toBe(0)
       expect(state.tabs[1].index).toBe(1)
@@ -100,12 +94,11 @@ describe('Terminal Atoms', () => {
 
     it('sets new tab as active when activateNew is true', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId, activateNew: true })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId, activateNew: true })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       // activeTabIndex stores the actual tab.index value (2), not array position
       expect(state.activeTabIndex).toBe(2)
       // Verify the tab with index 2 exists
@@ -114,16 +107,15 @@ describe('Terminal Atoms', () => {
 
     it('respects maxTabs limit', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // First call: initializes with tab 0, then adds tab 1 -> 2 tabs
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId, maxTabs: 3 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId, maxTabs: 3 })
       // Second call: already has 2 tabs, adds tab 2 -> 3 tabs
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId, maxTabs: 3 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId, maxTabs: 3 })
       // Third call: already at limit, should not add
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId, maxTabs: 3 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId, maxTabs: 3 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs).toHaveLength(3)
     })
   })
@@ -131,31 +123,29 @@ describe('Terminal Atoms', () => {
   describe('removeTabActionAtom', () => {
     it('removes a tab by index', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(removeTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 0 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs).toHaveLength(2)
       expect(state.tabs[0].index).toBe(1)
     })
 
     it('keeps activeTabIndex unchanged when removing tab before active', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // First addTab: creates tabs [0, 1], second addTab: adds tab 2, third addTab: adds tab 3
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
       // Now we have tabs [0, 1, 2, 3], set active to tab index 3
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 3 })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 3 })
       // Remove tab at index 0
-      await store.set(removeTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 0 })
+      await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       // activeTabIndex stores the actual tab.index value, not array position
       // Tab 3 still exists, so activeTabIndex remains 3
       expect(state.activeTabIndex).toBe(3)
@@ -164,18 +154,17 @@ describe('Terminal Atoms', () => {
 
     it('selects next tab when removing the active tab', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // First addTab creates tabs [0, 1]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
       // Now tabs: [0, 1, 2]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
       // Set active to last tab (index 2)
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 2 })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 2 })
       // Remove the active tab
-      await store.set(removeTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 2 })
+      await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 2 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       // When removing the last active tab, select the new last tab (index 1)
       expect(state.activeTabIndex).toBe(1)
       expect(state.tabs.find(t => t.index === 1)).toBeDefined()
@@ -185,90 +174,85 @@ describe('Terminal Atoms', () => {
   describe('setActiveTabActionAtom', () => {
     it('sets the active tab index', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // Creates tabs [0, 1]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 1 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 1 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(1)
     })
 
     it('falls back to first tab when requested tab does not exist', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // Creates tabs [0, 1]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 100 })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 100 })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       // Tab 100 doesn't exist, so fall back to the first tab (index 0)
       expect(state.activeTabIndex).toBe(0)
     })
 
     it('handles non-sequential tab indices correctly', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
       // Create tabs [0, 1, 2]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
       // Remove tab 1, leaving [0, 2]
-      await store.set(removeTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 1 })
+      await store.set(removeTabActionAtom, { baseTerminalId: baseId, tabIndex: 1 })
       // Add new tab, creating [0, 2, 3]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
 
-      let state = store.get(terminalTabsAtomFamily(compositeKey))
+      let state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs.map(t => t.index)).toEqual([0, 2, 3])
 
       // Set active to tab 3
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 3 })
-      state = store.get(terminalTabsAtomFamily(compositeKey))
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 3 })
+      state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(3)
 
       // Set active to tab 2
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 2 })
-      state = store.get(terminalTabsAtomFamily(compositeKey))
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 2 })
+      state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(2)
 
       // Set active to tab 0
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 0 })
-      state = store.get(terminalTabsAtomFamily(compositeKey))
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
+      state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(0)
     })
 
     it('allows negative indices for special tabs like Run tab', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
       const RUN_TAB_INDEX = -1
 
       // Creates tabs [0, 1]
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: RUN_TAB_INDEX })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: RUN_TAB_INDEX })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.activeTabIndex).toBe(-1)
     })
 
     it('allows switching from Run tab to default tab when atom has no tabs', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
       const RUN_TAB_INDEX = -1
 
       // Start with empty atom state (no tabs in atom, but UI shows default tab at index 0)
       // Set active to Run tab first (simulates user using Run tab)
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: RUN_TAB_INDEX })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: RUN_TAB_INDEX })
 
-      let state = store.get(terminalTabsAtomFamily(compositeKey))
+      let state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs).toHaveLength(0)
       expect(state.activeTabIndex).toBe(-1)
 
       // Now switch to the default tab at index 0 (simulates user clicking first terminal tab)
-      await store.set(setActiveTabActionAtom, { projectPath: null, baseTerminalId: baseId, tabIndex: 0 })
+      await store.set(setActiveTabActionAtom, { baseTerminalId: baseId, tabIndex: 0 })
 
-      state = store.get(terminalTabsAtomFamily(compositeKey))
+      state = store.get(terminalTabsAtomFamily(baseId))
       // The atom should now have activeTabIndex 0 even though tabs array is empty
       // This allows the UI's default tab (index 0) to be shown as active
       expect(state.activeTabIndex).toBe(0)
@@ -278,13 +262,12 @@ describe('Terminal Atoms', () => {
   describe('resetTerminalTabsActionAtom', () => {
     it('resets tabs state to default', async () => {
       const baseId = 'session-test~abc-bottom'
-      const compositeKey = buildTerminalTabsKey(null, baseId)
 
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(addTabActionAtom, { projectPath: null, baseTerminalId: baseId })
-      await store.set(resetTerminalTabsActionAtom, { projectPath: null, baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(addTabActionAtom, { baseTerminalId: baseId })
+      await store.set(resetTerminalTabsActionAtom, { baseTerminalId: baseId })
 
-      const state = store.get(terminalTabsAtomFamily(compositeKey))
+      const state = store.get(terminalTabsAtomFamily(baseId))
       expect(state.tabs).toHaveLength(0)
       expect(state.activeTabIndex).toBe(0)
     })

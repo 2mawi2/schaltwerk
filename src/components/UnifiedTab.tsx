@@ -1,8 +1,5 @@
 import React, { useState } from 'react'
 import { theme } from '../common/theme'
-import type { TabDragHandlers } from '../hooks/useTabDragDrop'
-
-export type UnifiedTabDragHandlers = TabDragHandlers
 
 export interface UnifiedTabProps {
   id: string | number
@@ -21,9 +18,6 @@ export interface UnifiedTabProps {
   isRunTab?: boolean
   isRunning?: boolean
   statusIndicator?: React.ReactNode
-  dragHandlers?: UnifiedTabDragHandlers
-  isDraggedOver?: boolean
-  isDragging?: boolean
 }
 
 export function UnifiedTab({
@@ -42,9 +36,6 @@ export function UnifiedTab({
   isRunTab = false,
   isRunning = false,
   statusIndicator,
-  dragHandlers,
-  isDraggedOver = false,
-  isDragging = false,
 }: UnifiedTabProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isCloseHovered, setIsCloseHovered] = useState(false)
@@ -92,26 +83,17 @@ export function UnifiedTab({
         ${className}
       `}
       style={{
-        backgroundColor: isDraggedOver ? theme.colors.accent.blue.bg : getBackgroundColor(),
+        backgroundColor: getBackgroundColor(),
         color: getTextColor(),
         borderRight: '1px solid var(--color-border-subtle)',
-        borderLeft: isDraggedOver ? `3px solid ${theme.colors.accent.blue.DEFAULT}` : undefined,
-        paddingLeft: isDraggedOver ? '9px' : '12px',
+        paddingLeft: '12px',
         paddingRight: '8px',
         minWidth: style?.minWidth || '80px',
         maxWidth: style?.maxWidth || '150px',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
-        opacity: isDragging ? 0.6 : 1,
-        transform: isDragging ? 'scale(0.95)' : 'scale(1)',
-        boxShadow: isDragging
-          ? `0 4px 12px ${theme.colors.accent.blue.border}`
-          : isDraggedOver
-            ? `inset 0 0 0 1px ${theme.colors.accent.blue.border}`
-            : undefined,
-        transition: 'background-color 150ms ease-out, color 150ms ease-out, border-left 100ms ease-out, opacity 150ms ease-out, transform 150ms ease-out, box-shadow 150ms ease-out',
-        zIndex: isDragging ? 10 : undefined,
+        transition: 'background-color 150ms ease-out, color 150ms ease-out',
         ...style,
       }}
       onClick={handleClick}
@@ -119,13 +101,6 @@ export function UnifiedTab({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={title || label}
-      draggable={dragHandlers?.draggable}
-      onDragStart={dragHandlers?.onDragStart}
-      onDragEnd={dragHandlers?.onDragEnd}
-      onDragOver={dragHandlers?.onDragOver}
-      onDragEnter={dragHandlers?.onDragEnter}
-      onDragLeave={dragHandlers?.onDragLeave}
-      onDrop={dragHandlers?.onDrop}
     >
       {/* Bottom active indicator */}
       <div

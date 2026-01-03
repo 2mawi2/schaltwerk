@@ -16,7 +16,6 @@ vi.mock('../../hooks/useTerminalTabs', () => ({
     addTab: vi.fn(),
     closeTab: vi.fn(),
     setActiveTab: vi.fn(),
-    reorderTabs: vi.fn(),
   }),
 }))
 
@@ -50,7 +49,6 @@ describe('TerminalTabs', () => {
         headless={true}
         baseTerminalId="session-demo-bottom"
         workingDirectory="/tmp"
-        projectPath={null}
         className="initial"
       />,
     )
@@ -64,7 +62,6 @@ describe('TerminalTabs', () => {
         headless={true}
         baseTerminalId="session-demo-bottom"
         workingDirectory="/tmp"
-        projectPath={null}
         className="rerender"
       />,
     )

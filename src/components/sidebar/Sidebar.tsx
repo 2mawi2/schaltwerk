@@ -38,7 +38,6 @@ import { runSpecRefineWithOrchestrator } from '../../utils/specRefine'
 import { AGENT_TYPES, AgentType, EnrichedSession, type Epic } from '../../types/session'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
-import { buildSessionScopeId } from '../../common/sessionScope'
 import { useToast } from '../../common/toast/ToastProvider'
 import { useModal } from '../../contexts/ModalContext'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
@@ -166,17 +165,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
     const { getOrchestratorAgentType, getOrchestratorSkipPermissions } = useClaudeSession()
     const { updateEpic, deleteEpic } = useEpics()
-
-    const sessionScopeId = useMemo(() => {
-        if (selection.kind === 'session') {
-            return buildSessionScopeId({
-                kind: 'session',
-                projectPath,
-                sessionId: selection.payload,
-            })
-        }
-        return buildSessionScopeId({ kind: 'orchestrator', projectPath })
-    }, [projectPath, selection.kind, selection.payload])
 
     // Get dynamic shortcut for Orchestrator
     const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
@@ -1196,7 +1184,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }, 50)
         },
         onFocusClaude: () => {
-            setFocusForSession(sessionScopeId, 'claude')
+            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
+            setFocusForSession(sessionKey, 'claude')
             setCurrentFocus('claude')
         },
         onOpenDiffViewer: () => {
@@ -1213,7 +1202,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 return
             }
             
-            setFocusForSession(sessionScopeId, 'terminal')
+            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
+            setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')
             emitUiEvent(UiEvent.FocusTerminal)
         },
@@ -1337,8 +1327,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 worktreePath: session.info.worktree_path,
                 sessionState: mapSessionUiState(session.info)
             }, false, true)
-                const scopeId = buildSessionScopeId({ kind: 'session', projectPath, sessionId: session_name })
-                setFocusForSession(scopeId, 'claude')
+                setFocusForSession(session_name, 'claude')
                 setCurrentFocus('claude')
             }
 

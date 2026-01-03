@@ -24,7 +24,6 @@ import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts
 import { RightPanelTabsHeader } from './RightPanelTabsHeader'
 import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
-import { buildSessionScopeId } from '../../common/sessionScope'
 import { WebPreviewPanel } from './WebPreviewPanel'
 import { buildPreviewKey } from '../../store/atoms/preview'
 import { SPLIT_GUTTER_SIZE } from '../../common/splitLayout'
@@ -308,15 +307,13 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   }, [setRightPanelTab])
 
   const focusDiffArea = useCallback(() => {
-    const sessionKey = effectiveSelection.kind === 'session'
-      ? buildSessionScopeId({ kind: 'session', projectPath, sessionId: effectiveSelection.payload })
-      : buildSessionScopeId({ kind: 'orchestrator', projectPath })
+    const sessionKey = effectiveSelection.kind === 'orchestrator' ? 'orchestrator' : effectiveSelection.payload || 'unknown'
     setFocusForSession(sessionKey, 'diff')
     setLocalFocus(true)
     setTimeout(() => {
       diffContainerRef.current?.focus()
     }, 0)
-  }, [effectiveSelection.kind, effectiveSelection.payload, projectPath, setFocusForSession])
+  }, [effectiveSelection, setFocusForSession])
 
   useEffect(() => {
     const cleanup = listenUiEvent(UiEvent.OpenInlineDiffView, () => {

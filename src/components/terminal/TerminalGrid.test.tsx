@@ -187,8 +187,8 @@ vi.mock('./TerminalTabs', () => {
     return entry
   }
 
-  const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; projectPath?: string | null; isCommander?: boolean; onTerminalClick?: (event: ReactMouseEvent) => void }>(function TerminalTabsMock(props, ref) {
-    const { baseTerminalId, projectPath = null, isCommander, onTerminalClick } = props
+  const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; isCommander?: boolean; onTerminalClick?: (event: ReactMouseEvent) => void }>(function TerminalTabsMock(props, ref) {
+    const { baseTerminalId, isCommander, onTerminalClick } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
     const addTabAction = useSetAtom(addTabActionAtom)
@@ -211,9 +211,9 @@ vi.mock('./TerminalTabs', () => {
 
     useEffect(() => {
       tabFns.addTab.mockImplementation(() => {
-        addTabAction({ projectPath, baseTerminalId, activateNew: true, maxTabs: 6 })
+        addTabAction({ baseTerminalId, activateNew: true, maxTabs: 6 })
       })
-    }, [addTabAction, baseTerminalId, tabFns, projectPath])
+    }, [addTabAction, baseTerminalId, tabFns])
 
     useImperativeHandle(ref, () => ({ 
       focus: focusRef.current!,
@@ -392,7 +392,6 @@ import { TestProviders } from '../../tests/test-utils'
 import { useSelection } from '../../hooks/useSelection'
 import { useFocus } from '../../contexts/FocusContext'
 import * as TerminalTabsModule from './TerminalTabs'
-import { buildSessionScopeId } from '../../common/sessionScope'
 
 // Bridge to call context setters from tests sharing the same provider tree
 let bridge: {
@@ -414,11 +413,7 @@ function ControlBridge() {
       setCurrentFocus,
       setFocusForSession,
       getFocusForSession,
-      getSessionKey: () => (
-        selection.kind === 'session'
-          ? buildSessionScopeId({ kind: 'session', projectPath: selection.projectPath ?? null, sessionId: selection.payload })
-          : buildSessionScopeId({ kind: 'orchestrator', projectPath: selection.projectPath ?? null })
-      ),
+      getSessionKey: () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'),
       isReady,
       terminals,
     }
@@ -1340,9 +1335,8 @@ describe('TerminalGrid', () => {
       // Wait for component to be ready
       await act(async () => {
         // Simulate that we're on the Run tab with an active run
-        const sessionKey = bridge?.getSessionKey() ?? buildSessionScopeId({ kind: 'orchestrator', projectPath: null })
-        sessionStorage.setItem(`schaltwerk:active-tab:${sessionKey}`, '-1')
-        sessionStorage.setItem(`schaltwerk:has-run-scripts:${sessionKey}`, 'true')
+        sessionStorage.setItem('schaltwerk:active-tab:orchestrator', '-1')
+        sessionStorage.setItem('schaltwerk:has-run-scripts:orchestrator', 'true')
       })
       
       // Before the fix, toggleRun would have been called when switching to Terminal 1 tab
@@ -1400,8 +1394,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        const activeTabKey = `schaltwerk:active-tab:${bridge?.getSessionKey() ?? buildSessionScopeId({ kind: 'orchestrator', projectPath: null })}`
-        expect(sessionStorage.getItem(activeTabKey)).toBe(String(-1))
+        expect(sessionStorage.getItem('schaltwerk:active-tab:orchestrator')).toBe(String(-1))
       })
       await waitFor(() => {
         expect(runTerminalRefs.get('orchestrator')).toBeDefined()
@@ -1512,7 +1505,7 @@ describe('TerminalGrid', () => {
         cb?.(performance.now())
       }
 
-      const activeTabKey = `schaltwerk:active-tab:${activeBridge.getSessionKey()}`
+      const activeTabKey = 'schaltwerk:active-tab:orchestrator'
       expect(sessionStorage.getItem(activeTabKey)).toBe('0')
 
       const bottomId = activeBridge.terminals.bottomBase.includes('orchestrator')
@@ -1541,19 +1534,15 @@ describe('TerminalGrid', () => {
 
   describe('Run mode across sessions', () => {
     it('restores bottom terminals when switching to a session without run scripts', async () => {
-      const projectPath = '/test/project'
-      const alphaKey = buildSessionScopeId({ kind: 'session', projectPath, sessionId: 'alpha' })
-      const betaKey = buildSessionScopeId({ kind: 'session', projectPath, sessionId: 'beta' })
-
       loadRunScriptConfigurationMock.mockImplementation((sessionKey: string) => {
-        if (sessionKey === alphaKey) {
+        if (sessionKey === 'alpha') {
           return buildRunConfig({
             hasRunScripts: true,
             shouldActivateRunMode: true,
             savedActiveTab: -1,
           })
         }
-        if (sessionKey === betaKey) {
+        if (sessionKey === 'beta') {
           return buildRunConfig({
             hasRunScripts: false,
             shouldActivateRunMode: false,

@@ -10,7 +10,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { EnrichedSession } from '../../types/session'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
-import { buildSessionScopeId } from '../../common/sessionScope'
 
 const sessionName = 'test-session'
 const topTerminalId = stableSessionTerminalId(sessionName, 'top')
@@ -47,7 +46,7 @@ const setSelectionMock = vi.fn()
 
 vi.mock('../../hooks/useSelection', () => ({
   useSelection: () => ({
-    selection: { kind: 'session', payload: sessionName, sessionState: 'running', projectPath: '/tmp/project' },
+    selection: { kind: 'session', payload: sessionName, sessionState: 'running' },
     terminals: { top: topTerminalId, bottomBase: 'session-test-session-bottom', workingDirectory: '/tmp/project' },
     isReady: true,
     isSpec: false,
@@ -78,8 +77,7 @@ function SeedSessionReview() {
 
 function SeedSessionActiveAgentTab() {
   React.useEffect(() => {
-    const sessionKey = buildSessionScopeId({ kind: 'session', projectPath: '/tmp/project', sessionId: sessionName })
-    setActiveAgentTerminalId(sessionKey, `${topTerminalId}-1`)
+    setActiveAgentTerminalId(sessionName, `${topTerminalId}-1`)
   }, [])
 
   return null

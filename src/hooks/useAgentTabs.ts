@@ -13,7 +13,6 @@ import { displayNameForAgent } from '../components/shared/agentDefaults'
 import { AgentType } from '../types/session'
 import { clearTerminalStartState } from '../common/terminalStartState'
 import { removeTerminalInstance } from '../terminal/registry/terminalRegistry'
-import { reorderArray } from '../common/reorderArray'
 import {
     clearActiveAgentTerminalId,
     resolveActiveAgentTerminalId,
@@ -30,11 +29,10 @@ type StartAgentFn = (params: {
 export const useAgentTabs = (
     sessionId: string | null,
     baseTerminalId: string | null,
-    options?: { startAgent?: StartAgentFn; sessionNameForBackend?: string | null }
+    options?: { startAgent?: StartAgentFn }
 ) => {
     const [agentTabsMap, setAgentTabsMap] = useAtom(agentTabsStateAtom)
     const startAgent = options?.startAgent
-    const backendSessionName = options?.sessionNameForBackend ?? sessionId
 
     useLayoutEffect(() => {
         if (!sessionId || !baseTerminalId) return
@@ -49,16 +47,6 @@ export const useAgentTabs = (
         return fallback
     }, [])
 
-    const getPrimaryTab = useCallback((tabs: AgentTab[]): AgentTab | null => {
-        if (tabs.length === 0) return null
-        for (let i = 0; i < tabs.length; i += 1) {
-            if (parseTabNumericIndex(tabs[i], i) === 0) {
-                return tabs[i]
-            }
-        }
-        return tabs[0] ?? null
-    }, [parseTabNumericIndex])
-
     const ensureInitialized = useCallback(
         (initialAgentType: AgentType = 'claude') => {
             if (!sessionId || !baseTerminalId) return
@@ -69,7 +57,7 @@ export const useAgentTabs = (
                 const existing = prev.get(sessionId)
                 if (existing) {
                     nextActiveTerminalId = resolveActiveAgentTerminalId(existing, baseTerminalId)
-                    const currentBaseId = getPrimaryTab(existing.tabs)?.terminalId
+                    const currentBaseId = existing.tabs[0]?.terminalId
                     if (currentBaseId === baseTerminalId) return prev
 
                     const next = new Map(prev)
@@ -111,7 +99,7 @@ export const useAgentTabs = (
                 setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
             }
         },
-        [sessionId, baseTerminalId, setAgentTabsMap, parseTabNumericIndex, getPrimaryTab]
+        [sessionId, baseTerminalId, setAgentTabsMap, parseTabNumericIndex]
     )
 
     const getTabsState = useCallback(() => {
@@ -122,7 +110,6 @@ export const useAgentTabs = (
     const addTab = useCallback(
         (agentType: AgentType, options?: { skipPermissions?: boolean }) => {
             if (!sessionId || !baseTerminalId) return
-            if (!startAgent && !backendSessionName) return
 
             let newTerminalId = ''
             let newTabArrayIndex = 0
@@ -180,12 +167,11 @@ export const useAgentTabs = (
                 logger.info(
                     `[useAgentTabs] Starting new agent tab ${newTabArrayIndex} (idx=${newTabNumericIndex}) with ${agentType} in ${newTerminalId}, skipPermissions=${options?.skipPermissions}`
                 )
-                const resolvedSessionName = backendSessionName
                 const starter = startAgent
                     ? startAgent({ sessionId, terminalId: newTerminalId, agentType })
                     : invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                           params: {
-                              sessionName: resolvedSessionName as string,
+                              sessionName: sessionId,
                               forceRestart: forceRestartForNewTab,
                               terminalId: newTerminalId,
                               agentType: agentType,
@@ -225,7 +211,7 @@ export const useAgentTabs = (
                 })
             }
         },
-        [sessionId, baseTerminalId, setAgentTabsMap, startAgent, backendSessionName, parseTabNumericIndex]
+        [sessionId, baseTerminalId, setAgentTabsMap, startAgent, parseTabNumericIndex]
     )
 
     const setActiveTab = useCallback(
@@ -256,7 +242,7 @@ export const useAgentTabs = (
 
     const closeTab = useCallback(
         (index: number) => {
-            if (!sessionId || !baseTerminalId) return
+            if (!sessionId || !baseTerminalId || index === 0) return
 
             let nextActiveTerminalId: string | null = null
 
@@ -267,10 +253,6 @@ export const useAgentTabs = (
 
                 const tabToClose = current.tabs[index]
                 if (!tabToClose) return prev
-
-                if (parseTabNumericIndex(tabToClose, index) === 0) {
-                    return prev
-                }
 
                 logger.info(`[useAgentTabs] Closing tab ${index} (id: ${tabToClose.terminalId})`)
                 invoke(TauriCommands.CloseTerminal, { id: tabToClose.terminalId }).catch((err) => {
@@ -308,18 +290,17 @@ export const useAgentTabs = (
                 setActiveAgentTerminalId(sessionId, nextActiveTerminalId)
             }
         },
-        [sessionId, baseTerminalId, setAgentTabsMap, parseTabNumericIndex]
+        [sessionId, baseTerminalId, setAgentTabsMap]
     )
 
     const resetTabs = useCallback(() => {
         if (!sessionId || !baseTerminalId) return
 
         const current = agentTabsMap.get(sessionId)
-        const primaryTab = current ? getPrimaryTab(current.tabs) : null
-        const primaryTerminalId = primaryTab?.terminalId ?? baseTerminalId
+        const primaryTerminalId = current?.tabs[0]?.terminalId ?? baseTerminalId
         if (current) {
-            current.tabs.forEach((tab) => {
-                if (tab.id !== primaryTab?.id) {
+            current.tabs.forEach((tab, index) => {
+                if (index > 0) {
                     invoke(TauriCommands.CloseTerminal, { id: tab.terminalId }).catch((e) => {
                         logger.debug(
                             `[useAgentTabs] Failed to close terminal ${tab.terminalId}:`,
@@ -338,11 +319,7 @@ export const useAgentTabs = (
             const next = new Map(prev)
             if (next.has(sessionId)) {
                 const existing = next.get(sessionId)!
-                const primaryTab = getPrimaryTab(existing.tabs)
-                if (!primaryTab) {
-                    next.delete(sessionId)
-                    return next
-                }
+                const primaryTab = existing.tabs[0]
                 next.set(sessionId, {
                     tabs: [primaryTab],
                     activeTab: 0,
@@ -350,7 +327,7 @@ export const useAgentTabs = (
             }
             return next
         })
-    }, [sessionId, baseTerminalId, agentTabsMap, setAgentTabsMap, getPrimaryTab])
+    }, [sessionId, baseTerminalId, agentTabsMap, setAgentTabsMap])
 
     const updatePrimaryAgentType = useCallback(
         (agentType: AgentType) => {
@@ -360,22 +337,16 @@ export const useAgentTabs = (
                 const current = prev.get(sessionId)
                 if (!current || current.tabs.length === 0) return prev
 
-                const primaryTab = getPrimaryTab(current.tabs)
-                if (!primaryTab) return prev
+                const primaryTab = current.tabs[0]
                 if (primaryTab.agentType === agentType) return prev
 
                 const next = new Map(prev)
-                const updatedTabs = current.tabs.map((tab) =>
-                    tab.id === primaryTab.id
-                        ? {
-                              ...tab,
-                              agentType,
-                              label:
-                                  displayNameForAgent(agentType) ??
-                                  DEFAULT_AGENT_TAB_LABEL,
-                          }
-                        : tab
-                )
+                const updatedTabs = [...current.tabs]
+                updatedTabs[0] = {
+                    ...primaryTab,
+                    agentType,
+                    label: displayNameForAgent(agentType) ?? DEFAULT_AGENT_TAB_LABEL,
+                }
 
                 next.set(sessionId, {
                     ...current,
@@ -385,7 +356,7 @@ export const useAgentTabs = (
                 return next
             })
         },
-        [sessionId, setAgentTabsMap, getPrimaryTab]
+        [sessionId, setAgentTabsMap]
     )
 
     const getActiveTerminalId = useCallback(() => {
@@ -407,46 +378,6 @@ export const useAgentTabs = (
         })
     }, [sessionId, setAgentTabsMap])
 
-    const reorderTabs = useCallback(
-        (fromIndex: number, toIndex: number) => {
-            if (!sessionId) return
-
-            setAgentTabsMap((prev) => {
-                const current = prev.get(sessionId)
-                if (!current) return prev
-
-                if (
-                    fromIndex < 0 ||
-                    fromIndex >= current.tabs.length ||
-                    toIndex < 0 ||
-                    toIndex >= current.tabs.length ||
-                    fromIndex === toIndex
-                ) {
-                    return prev
-                }
-
-                const activeTabId = current.tabs[current.activeTab]?.id ?? null
-                const reorderedTabs = reorderArray(current.tabs, fromIndex, toIndex)
-                const nextActiveTab =
-                    activeTabId === null
-                        ? current.activeTab
-                        : Math.max(
-                              0,
-                              reorderedTabs.findIndex((tab) => tab.id === activeTabId)
-                          )
-
-                const next = new Map(prev)
-                next.set(sessionId, {
-                    ...current,
-                    tabs: reorderedTabs,
-                    activeTab: nextActiveTab,
-                })
-                return next
-            })
-        },
-        [sessionId, setAgentTabsMap]
-    )
-
     return {
         ensureInitialized,
         getTabsState,
@@ -457,6 +388,5 @@ export const useAgentTabs = (
         updatePrimaryAgentType,
         getActiveTerminalId,
         clearSession,
-        reorderTabs,
     }
 }

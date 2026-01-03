@@ -44,11 +44,11 @@ describe('ThemeSettings', () => {
   it('updates selection when a theme is chosen', async () => {
     const { user } = renderThemeSettings()
 
-    const lightButton = screen.getByRole('button', { name: 'Light' })
+    const tokyoNightButton = screen.getByRole('button', { name: 'Tokyo Night Beta' })
 
-    await user.click(lightButton)
+    await user.click(tokyoNightButton)
 
-    expect(lightButton).toHaveAttribute('aria-pressed', 'true')
+    expect(tokyoNightButton).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'false')
   })
 })
