@@ -213,9 +213,9 @@ export function ModelSelector({
                         aria-pressed={!skipPermissions}
                         className="flex-1 px-3 py-1.5 rounded border text-xs"
                         style={{
-                            backgroundColor: skipPermissions ? 'var(--color-bg-elevated)' : 'var(--color-bg-active)',
-                            borderColor: 'var(--color-border-default)',
-                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-secondary)' : 'var(--color-text-primary)')
+                            backgroundColor: skipPermissions ? 'var(--color-bg-elevated)' : 'var(--color-accent-blue)',
+                            borderColor: skipPermissions ? 'var(--color-border-default)' : 'var(--color-accent-blue)',
+                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-secondary)' : 'var(--color-accent-blue-text)')
                         }}
                         title="Require macOS permission prompts when starting the agent"
                     >
@@ -228,9 +228,9 @@ export function ModelSelector({
                         aria-pressed={!!skipPermissions}
                         className="flex-1 px-3 py-1.5 rounded border text-xs"
                         style={{
-                            backgroundColor: skipPermissions ? 'var(--color-bg-active)' : 'var(--color-bg-elevated)',
-                            borderColor: 'var(--color-border-default)',
-                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-primary)' : 'var(--color-text-secondary)')
+                            backgroundColor: skipPermissions ? 'var(--color-accent-blue)' : 'var(--color-bg-elevated)',
+                            borderColor: skipPermissions ? 'var(--color-accent-blue)' : 'var(--color-border-default)',
+                            color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-accent-blue-text)' : 'var(--color-text-secondary)')
                         }}
                         title="Skip macOS permission prompts when starting the agent"
                     >
