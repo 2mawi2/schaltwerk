@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildTerminalTheme } from './terminalTheme'
-import { darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme } from './presets'
+import { ayuTheme, darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme } from './presets'
 
 describe('buildTerminalTheme', () => {
   it('builds the dark terminal theme from presets', () => {
@@ -34,5 +34,12 @@ describe('buildTerminalTheme', () => {
     expect(theme.background).toBe(catppuccinMacchiatoTheme.colors.terminal.background)
     expect(theme.foreground).toBe(catppuccinMacchiatoTheme.colors.terminal.foreground)
     expect(theme.blue).toBe(catppuccinMacchiatoTheme.colors.terminal.blue)
+  })
+
+  it('builds the ayu terminal theme from presets', () => {
+    const theme = buildTerminalTheme('ayu')
+    expect(theme.background).toBe(ayuTheme.colors.terminal.background)
+    expect(theme.foreground).toBe(ayuTheme.colors.terminal.foreground)
+    expect(theme.blue).toBe(ayuTheme.colors.terminal.blue)
   })
 })

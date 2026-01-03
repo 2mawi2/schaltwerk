@@ -1,6 +1,6 @@
 import type { ITheme } from '@xterm/xterm'
 import { ResolvedTheme } from './types'
-import { darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme } from './presets'
+import { ayuTheme, darkTheme, lightTheme, tokyonightTheme, catppuccinTheme, catppuccinMacchiatoTheme } from './presets'
 
 function getTerminalColors(themeId: ResolvedTheme) {
   switch (themeId) {
@@ -10,6 +10,8 @@ function getTerminalColors(themeId: ResolvedTheme) {
       return catppuccinTheme.colors.terminal
     case 'catppuccin-macchiato':
       return catppuccinMacchiatoTheme.colors.terminal
+    case 'ayu':
+      return ayuTheme.colors.terminal
     case 'light':
       return lightTheme.colors.terminal
     default:

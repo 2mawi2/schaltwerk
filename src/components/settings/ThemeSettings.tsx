@@ -62,6 +62,17 @@ const themeOptions: ThemeOption[] = [
     },
   },
   {
+    id: 'ayu',
+    label: 'Ayu Dark',
+    description: 'Modern dark theme with warm accents',
+    colors: {
+      bg: '#0B0E14',
+      bgSecondary: '#11151C',
+      text: '#BFBDB6',
+      accent: '#E6B450',
+    },
+  },
+  {
     id: 'light',
     label: 'Light',
     description: 'Light theme for bright environments',
@@ -211,6 +222,8 @@ function getResolvedLabel(resolved: ResolvedTheme): string {
       return 'Catppuccin Mocha'
     case 'catppuccin-macchiato':
       return 'Catppuccin Macchiato'
+    case 'ayu':
+      return 'Ayu Dark'
     case 'light':
       return 'Light'
     default:
