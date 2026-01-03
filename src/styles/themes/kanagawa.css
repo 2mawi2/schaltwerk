@@ -21,6 +21,8 @@
   --color-bg-hover-rgb: 42 42 55;
   --color-bg-active: #363646;
   --color-bg-active-rgb: 54 54 70;
+  --color-bg-selected: rgba(255, 255, 255, 0.12);
+  --color-bg-selected-rgb: 255 255 255;
 
   /* Panel aliases */
   --color-panel: var(--color-bg-secondary);

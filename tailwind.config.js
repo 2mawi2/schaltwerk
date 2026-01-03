@@ -28,6 +28,7 @@ export default {
         'bg-elevated': withOpacityValue('--color-bg-elevated-rgb'),
         'bg-hover': withOpacityValue('--color-bg-hover-rgb'),
         'bg-active': withOpacityValue('--color-bg-active-rgb'),
+        'bg-selected': withOpacityValue('--color-bg-selected-rgb'),
 
         'text-primary': withOpacityValue('--color-text-primary-rgb'),
         'text-secondary': withOpacityValue('--color-text-secondary-rgb'),

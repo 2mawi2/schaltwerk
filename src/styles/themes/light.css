@@ -18,6 +18,8 @@
   --color-bg-hover-rgb: 234 238 242;
   --color-bg-active: #d1d9e0;
   --color-bg-active-rgb: 209 217 224;
+  --color-bg-selected: rgba(0, 0, 0, 0.08);
+  --color-bg-selected-rgb: 0 0 0;
 
   /* Panel aliases */
   --color-panel: var(--color-bg-secondary);
