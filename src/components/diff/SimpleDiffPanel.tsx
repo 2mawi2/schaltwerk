@@ -334,7 +334,8 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               </button>
               <button
                 onClick={() => { void handleFinishReview() }}
-                className="px-2 py-1 bg-cyan-600 hover:bg-cyan-700 rounded text-xs font-medium text-white transition-colors"
+                className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"
+                style={{ backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
                 title="Send review comments"
               >
                 Finish Review ({currentReview.comments.length})

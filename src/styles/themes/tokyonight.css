@@ -113,6 +113,13 @@
   --color-accent-cyan-bg: rgba(125, 207, 255, 0.1);
   --color-accent-cyan-border: rgba(125, 207, 255, 0.5);
 
+  /* Button text colors on accent backgrounds */
+  --color-accent-blue-text: #1a1b26;
+  --color-accent-amber-text: #1a1b26;
+  --color-accent-cyan-text: #1a1b26;
+  --color-accent-green-text: #1a1b26;
+  --color-accent-red-text: #1a1b26;
+
   --color-accent-copilot: #bb9af7;
   --color-accent-copilot-rgb: 187 154 247;
   --color-accent-copilot-light: #c9b0ff;

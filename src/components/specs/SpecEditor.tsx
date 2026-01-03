@@ -544,8 +544,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           <button
             onClick={() => { void handleCopy() }}
             disabled={copying || !currentContent}
-            className="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={specText.toolbarButton}
+            className="px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+            style={{ ...specText.toolbarButton, backgroundColor: 'var(--color-accent-blue)', color: 'var(--color-text-inverse)' }}
             title="Copy content"
           >
             <VscCopy />
@@ -688,8 +688,8 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 </button>
                 <button
                   onClick={() => { void handleFinishReview() }}
-                  className="px-2 py-1 bg-cyan-600 hover:bg-cyan-700 rounded font-medium text-white transition-colors"
-                  style={{ fontSize: theme.fontSize.caption }}
+                  className="px-2 py-1 rounded font-medium transition-colors hover:opacity-90"
+                  style={{ fontSize: theme.fontSize.caption, backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
                   title="Send review comments"
                 >
                   Finish Review ({reviewComments.length})

@@ -1269,16 +1269,17 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             <button
                 onClick={() => { void handleCreate() }}
                 disabled={isStartDisabled}
-                className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
+                className={`px-3 h-9 disabled:cursor-not-allowed rounded group relative inline-flex items-center gap-2 ${isStartDisabled ? 'opacity-60' : 'hover:opacity-90'}`}
                 style={{
                     backgroundColor: createAsDraft ? 'var(--color-accent-amber)' : 'var(--color-accent-blue)',
+                    color: 'var(--color-text-inverse)',
                     opacity: creating ? 0.9 : 1
                 }}
                 title={getStartButtonTitle()}
             >
                 {creating && (
                     <span
-                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
+                        className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current/60 border-t-transparent"
                         aria-hidden="true"
                     />
                 )}
