@@ -2496,7 +2496,7 @@ fi`}
                                     type="button"
                                     onClick={() => { void handleManualUpdateCheck() }}
                                     disabled={checkingUpdate}
-                                    className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover border border-border-subtle rounded text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {checkingUpdate ? t.settings.version.checking : t.settings.version.checkForUpdates}
                                 </button>
