@@ -28,8 +28,9 @@ Run GitHub Copilot CLI, Claude Code, Kilo Code, OpenCode, Codex, Gemini, Qwen, F
 
 ## Requirements
 
-- **macOS 11+** (Big Sur or later) - currently supported
-- **Linux** - alpha version coming soon (work in progress)
+- **macOS 11+** (Big Sur or later)
+- **Windows 10/11** (native; WSL not yet supported)
+- **Linux** - beta builds available via releases
 - **Git 2.30+**
 - At least one agentic coding CLI: GitHub Copilot CLI, Claude Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, or Amp (or use Terminal Only mode for manual work)
 
@@ -102,15 +103,23 @@ Looking for multi-agent orchestration patterns? Check out the **Scaffold → Swa
 
 ## Installation
 
-See [Quick Start](#quick-start-60-seconds) for the basic Homebrew installation.
+See [Quick Start](#quick-start-60-seconds) for the basic Homebrew installation (macOS).
 
-### First Launch
+### Windows
+
+Download the latest `.msi` installer from [GitHub Releases](https://github.com/2mawi2/schaltwerk/releases) and run it. WSL is not yet supported—use native Windows Git and terminals.
+
+### Linux
+
+Download the `.deb` or `.AppImage` from [GitHub Releases](https://github.com/2mawi2/schaltwerk/releases).
+
+### macOS First Launch
 
 Security approval required: System Settings → Privacy & Security → Open Anyway
 
-### Updating from 0.2.2 or earlier
+### Updating from 0.2.2 or earlier (macOS)
 
-The Homebrew cask now cleans up old installs automatically. If you’re on 0.2.2 or an older build that refuses to upgrade, do a one-time cleanup and reinstall:
+The Homebrew cask now cleans up old installs automatically. If you're on 0.2.2 or an older build that refuses to upgrade, do a one-time cleanup and reinstall:
 
 ```bash
 brew uninstall --cask --force schaltwerk
