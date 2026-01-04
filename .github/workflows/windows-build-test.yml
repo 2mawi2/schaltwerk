@@ -147,7 +147,7 @@ jobs:
         run: |
           cargo clippy --all-features -- -D warnings
           cargo shear
-          cargo nextest run --lib --profile ci --all-features --status-level fail --failure-output immediate
+          cargo test --lib --all-features
           cargo build --release
 
       - name: Save cargo cache
