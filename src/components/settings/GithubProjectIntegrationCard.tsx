@@ -23,10 +23,12 @@ const formatError = (error: unknown): string => {
 export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubProjectIntegrationCardProps) {
   const github = useGithubIntegrationContext()
   const [feedback, setFeedback] = useState<{ tone: 'info' | 'success' | 'error'; title: string; description?: string } | null>(null)
-  const [platform, setPlatform] = useState<'macos' | 'linux' | 'windows'>('macos')
+  const [platform, setPlatform] = useState<'macos' | 'linux' | 'windows' | null>(null)
 
   useEffect(() => {
-    void getPlatform().then(setPlatform)
+    void getPlatform().then(setPlatform).catch((err) => {
+      logger.error('Failed to detect platform', err)
+    })
   }, [])
 
   const formatFeedbackLines = useMemo(() => {
@@ -53,11 +55,13 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
   const ghInstallCommand = useMemo(() => {
     switch (platform) {
       case 'windows':
-        return 'scoop install gh or winget install GitHub.cli'
+        return 'winget install GitHub.cli'
       case 'linux':
         return 'see https://github.com/cli/cli/blob/trunk/docs/install_linux.md'
-      default:
+      case 'macos':
         return 'brew install gh'
+      default:
+        return 'see https://cli.github.com'
     }
   }, [platform])
 
