@@ -1978,11 +1978,11 @@ fi`}
                     <ThemeSettings />
                     <LanguageSettings />
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-4">Font Sizes</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-4">{t.settings.appearance.fontSizes}</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-text-secondary">Terminal Font Size</span>
+                                    <span className="text-body text-text-secondary">{t.settings.appearance.terminalFontSize}</span>
                                     <span className="text-body text-text-tertiary">{terminalFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
@@ -2001,14 +2001,14 @@ fi`}
                                         onClick={() => setTerminalFontSize(13)}
                                         className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
                                     >
-                                        Reset
+                                        {t.settings.common.reset}
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-text-secondary">UI Font Size</span>
+                                    <span className="text-body text-text-secondary">{t.settings.appearance.uiFontSize}</span>
                                     <span className="text-body text-text-tertiary">{uiFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
@@ -2027,26 +2027,26 @@ fi`}
                                         onClick={() => setUiFontSize(12)}
                                         className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
                                     >
-                                        Reset
+                                        {t.settings.common.reset}
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mt-6">
-                            <label className="block text-body text-text-secondary mb-2">Terminal Font Family</label>
+                            <label className="block text-body text-text-secondary mb-2">{t.settings.appearance.terminalFontFamily}</label>
                             <input
                                 type="text"
                                 value={terminalSettings.fontFamily || ''}
                                 onChange={(e) => setTerminalSettings({ ...terminalSettings, fontFamily: e.target.value || null })}
-                                placeholder='Examples: "JetBrains Mono, MesloLGS NF" or "Monaspace Neon"'
+                                placeholder={t.settings.appearance.fontFamilyPlaceholder}
                                 className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted font-mono text-body"
                             />
                             <div className="mt-2">
                                 <button
                                     onClick={() => setShowFontPicker(v => !v)}
                                     className="px-3 py-1.5 text-caption bg-bg-tertiary hover:bg-bg-hover rounded text-text-secondary"
-                                >Browse installed fonts</button>
+                                >{t.settings.appearance.browseFonts}</button>
                             </div>
                             {showFontPicker && (
                                 <FontPicker
@@ -2059,7 +2059,7 @@ fi`}
                                 />
                             )}
                             <div className="mt-2 text-caption text-text-muted">
-                                Uses your system-installed fonts. Powerline/ glyphs need a Nerd Font. A safe fallback chain is applied automatically.
+                                {t.settings.appearance.fontFamilyDesc}
                             </div>
                         </div>
 
@@ -2071,17 +2071,17 @@ fi`}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, webglEnabled: e.target.checked })}
                                     className="w-4 h-4 bg-bg-tertiary border border-white/10 rounded cursor-pointer"
                                 />
-                                <span className="text-body text-text-secondary">Enable GPU-accelerated rendering (WebGL)</span>
+                                <span className="text-body text-text-secondary">{t.settings.appearance.gpuAcceleration}</span>
                             </label>
                             <div className="mt-2 text-caption text-text-muted">
-                                Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to the DOM renderer if WebGL is unavailable.
+                                {t.settings.appearance.gpuAccelerationDesc}
                             </div>
                         </div>
 
                         <div className="mt-6">
-                            <h3 className="text-body font-medium text-text-primary mb-2">Development Diagnostics</h3>
+                            <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.appearance.devDiagnostics}</h3>
                             <div className="text-body text-text-tertiary mb-3">
-                                Surface popup toasts whenever frontend or backend errors occur while running Schaltwerk in development mode. Release builds ignore this toggle.
+                                {t.settings.appearance.devDiagnosticsDesc}
                             </div>
                             <label className="flex items-center gap-3 text-sm text-text-primary">
                                 <input
@@ -2092,17 +2092,17 @@ fi`}
                                     }}
                                     className="rounded border-border-strong bg-bg-elevated text-accent-blue focus:ring-accent-blue"
                                 />
-                                <span>Show error toasts automatically during dev runs</span>
+                                <span>{t.settings.appearance.showErrorToasts}</span>
                             </label>
                         </div>
 
                         <div className="mt-6 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong>Keyboard shortcuts:</strong>
+                                <strong>{t.settings.appearance.keyboardShortcuts}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">+</kbd> Increase both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">-</kbd> Decrease both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">0</kbd> Reset both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">+</kbd> {t.settings.appearance.increaseFontSize}</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">-</kbd> {t.settings.appearance.decreaseFontSize}</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">0</kbd> {t.settings.appearance.resetFontSize}</li>
                                 </ul>
                             </div>
                         </div>
@@ -2552,7 +2552,7 @@ fi`}
                 >
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
-                    <span>Settings</span>
+                    <span>{t.settings.title}</span>
                     <button
                         onClick={onClose}
                         className="text-text-tertiary hover:text-text-primary transition-colors"
@@ -2574,7 +2574,7 @@ fi`}
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
-                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Project</div>
+                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionProject}</div>
                                     </div>
                                     <nav className="space-y-1 px-2">
                                         {projectCategories.map(category => (
@@ -2594,13 +2594,13 @@ fi`}
                                         ))}
                                     </nav>
                                     <div className="px-3 mt-6 mb-2">
-                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Application</div>
+                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionApplication}</div>
                                     </div>
                                 </>
                             )}
                             {projectCategories.length === 0 && (
                                 <div className="px-3 mb-2">
-                                    <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Application</div>
+                                    <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionApplication}</div>
                                 </div>
                             )}
                             <nav className="space-y-1 px-2">
@@ -2654,7 +2654,7 @@ fi`}
                                 onClick={onClose}
                                 className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-secondary"
                             >
-                                Cancel
+                                {t.settings.common.cancel}
                             </button>
                             <button
                                 onClick={() => { void handleSave() }}
@@ -2684,7 +2684,7 @@ fi`}
                                 {saving ? (
                                     <span className="text-button text-white/80">Saving...</span>
                                 ) : (
-                                    'Save'
+                                    t.settings.common.save
                                 )}
                             </button>
                         </div>

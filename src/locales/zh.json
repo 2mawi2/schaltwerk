@@ -36,6 +36,9 @@
     }
   },
   "settings": {
+    "title": "设置",
+    "sectionApplication": "应用程序",
+    "sectionProject": "项目设置",
     "categories": {
       "appearance": "外观",
       "archives": "归档",
@@ -63,6 +66,24 @@
       "label": "语言",
       "english": "English",
       "chinese": "中文"
+    },
+    "appearance": {
+      "fontSizes": "字体大小",
+      "terminalFontSize": "终端字体大小",
+      "uiFontSize": "界面字体大小",
+      "terminalFontFamily": "终端字体",
+      "fontFamilyPlaceholder": "例如：「JetBrains Mono, MesloLGS NF」或「Monaspace Neon」",
+      "browseFonts": "浏览已安装字体",
+      "fontFamilyDesc": "使用系统已安装的字体。Powerline/≡ 图标需要 Nerd Font。会自动应用安全的后备字体链。",
+      "gpuAcceleration": "启用 GPU 加速渲染 (WebGL)",
+      "gpuAccelerationDesc": "使用硬件加速以提升多终端的性能。如果 WebGL 不可用，会自动回退到 DOM 渲染器。",
+      "devDiagnostics": "开发诊断",
+      "devDiagnosticsDesc": "在开发模式下运行 Schaltwerk 时，当前端或后端发生错误时显示弹窗提示。正式版本会忽略此设置。",
+      "showErrorToasts": "开发运行时自动显示错误提示",
+      "keyboardShortcuts": "键盘快捷键：",
+      "increaseFontSize": "增大字体大小",
+      "decreaseFontSize": "减小字体大小",
+      "resetFontSize": "重置字体大小"
     },
     "common": {
       "save": "保存",

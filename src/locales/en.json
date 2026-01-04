@@ -36,6 +36,9 @@
     }
   },
   "settings": {
+    "title": "Settings",
+    "sectionApplication": "APPLICATION",
+    "sectionProject": "Project Settings",
     "categories": {
       "appearance": "Appearance",
       "archives": "Archives",
@@ -63,6 +66,24 @@
       "label": "Language",
       "english": "English",
       "chinese": "中文"
+    },
+    "appearance": {
+      "fontSizes": "Font Sizes",
+      "terminalFontSize": "Terminal Font Size",
+      "uiFontSize": "UI Font Size",
+      "terminalFontFamily": "Terminal Font Family",
+      "fontFamilyPlaceholder": "Examples: \"JetBrains Mono, MesloLGS NF\" or \"Monaspace Neon\"",
+      "browseFonts": "Browse installed fonts",
+      "fontFamilyDesc": "Uses your system-installed fonts. Powerline/≡ glyphs need a Nerd Font. A safe fallback chain is applied automatically.",
+      "gpuAcceleration": "Enable GPU-accelerated rendering (WebGL)",
+      "gpuAccelerationDesc": "Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to the DOM renderer if WebGL is unavailable.",
+      "devDiagnostics": "Development Diagnostics",
+      "devDiagnosticsDesc": "Surface popup toasts whenever frontend or backend errors occur while running Schaltwerk in development mode. Release builds ignore this toggle.",
+      "showErrorToasts": "Show error toasts automatically during dev runs",
+      "keyboardShortcuts": "Keyboard shortcuts:",
+      "increaseFontSize": "Increase both font sizes",
+      "decreaseFontSize": "Decrease both font sizes",
+      "resetFontSize": "Reset both font sizes"
     },
     "common": {
       "save": "Save",

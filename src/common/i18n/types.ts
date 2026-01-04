@@ -38,6 +38,9 @@ export interface Translations {
     }
   }
   settings: {
+    title: string
+    sectionApplication: string
+    sectionProject: string
     categories: {
       appearance: string
       archives: string
@@ -65,6 +68,24 @@ export interface Translations {
       label: string
       english: string
       chinese: string
+    }
+    appearance: {
+      fontSizes: string
+      terminalFontSize: string
+      uiFontSize: string
+      terminalFontFamily: string
+      fontFamilyPlaceholder: string
+      browseFonts: string
+      fontFamilyDesc: string
+      gpuAcceleration: string
+      gpuAccelerationDesc: string
+      devDiagnostics: string
+      devDiagnosticsDesc: string
+      showErrorToasts: string
+      keyboardShortcuts: string
+      increaseFontSize: string
+      decreaseFontSize: string
+      resetFontSize: string
     }
     common: {
       save: string
