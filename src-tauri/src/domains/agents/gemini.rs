@@ -13,9 +13,8 @@ pub struct GeminiConfig {
     pub binary_path: Option<String>,
 }
 
-// Simple function to return binary name for external callers
 pub fn resolve_gemini_binary() -> String {
-    "gemini".to_string()
+    super::resolve_agent_binary("gemini")
 }
 
 /// Fast-path session detection: scans for Gemini session files in the project directory

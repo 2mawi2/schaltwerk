@@ -26,7 +26,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
   const [platform, setPlatform] = useState<'macos' | 'linux' | 'windows'>('macos')
 
   useEffect(() => {
-    void getPlatform().then(setPlatform)
+    getPlatform().then(setPlatform)
   }, [])
 
   const formatFeedbackLines = useMemo(() => {

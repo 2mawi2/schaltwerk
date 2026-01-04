@@ -7,9 +7,8 @@ pub struct QwenConfig {
     pub binary_path: Option<String>,
 }
 
-// Simple function to return binary name for external callers
 pub fn resolve_qwen_binary() -> String {
-    "qwen".to_string()
+    super::resolve_agent_binary("qwen")
 }
 
 pub fn find_qwen_session(path: &Path) -> Option<String> {
