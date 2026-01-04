@@ -1,6 +1,5 @@
 #![deny(dead_code)]
 
-pub mod api;
 pub mod domains;
 pub mod errors;
 pub mod infrastructure;

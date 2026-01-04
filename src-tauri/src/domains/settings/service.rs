@@ -701,11 +701,11 @@ mod tests {
     }
 
     #[test]
-    fn theme_defaults_to_system() {
+    fn theme_defaults_to_dark() {
         let repo = InMemoryRepository::default();
         let service = SettingsService::new(Box::new(repo));
 
-        assert_eq!(service.get_theme(), "system");
+        assert_eq!(service.get_theme(), "dark");
     }
 
     #[test]
