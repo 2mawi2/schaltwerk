@@ -796,7 +796,14 @@ fn run_command_spec(spec: CommandSpec) -> Result<(), String> {
     cmd.args(&spec.args);
     match cmd.status() {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(format!("{} exited with status: {status}", spec.program)),
+        Ok(status) => {
+            // Windows Explorer returns exit code 1 even on success - this is a known quirk
+            #[cfg(target_os = "windows")]
+            if spec.program.to_lowercase().contains("explorer") {
+                return Ok(());
+            }
+            Err(format!("{} exited with status: {status}", spec.program))
+        }
         Err(e) => Err(format!("Failed to open in {}: {e}", spec.program)),
     }
 }

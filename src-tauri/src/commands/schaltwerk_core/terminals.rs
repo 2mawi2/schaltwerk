@@ -11,17 +11,46 @@ pub use schaltwerk::shared::terminal_id::{
 };
 
 pub fn ensure_cwd_access<P: AsRef<Path>>(cwd: P) -> Result<(), String> {
-    match std::fs::read_dir(&cwd) {
+    let path = cwd.as_ref();
+    let path_str = path.to_string_lossy();
+
+    // Debug logging for Windows path issues
+    log::debug!(
+        "ensure_cwd_access: checking path '{}' (len={}, bytes={:?})",
+        path_str,
+        path_str.len(),
+        path_str.as_bytes().iter().take(50).collect::<Vec<_>>()
+    );
+
+    // Check for common path issues
+    if path_str.is_empty() {
+        return Err("Working directory path is empty".to_string());
+    }
+
+    // Check for NUL bytes which would cause ERROR_BAD_PATHNAME
+    if path_str.as_bytes().contains(&0) {
+        return Err(format!(
+            "Working directory path contains NUL byte: {:?}",
+            path_str
+        ));
+    }
+
+    match std::fs::read_dir(path) {
         Ok(_) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => Err(format!(
             "Permission required for folder: {}. Please grant access when prompted and then retry starting the agent.",
-            cwd.as_ref().display()
+            path.display()
         )),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(format!(
             "Working directory not found: {}",
-            cwd.as_ref().display()
+            path.display()
         )),
-        Err(e) => Err(format!("Error accessing working directory: {e}")),
+        Err(e) => Err(format!(
+            "Error accessing working directory '{}': {} (raw_os_error={:?})",
+            path.display(),
+            e,
+            e.raw_os_error()
+        )),
     }
 }
 
