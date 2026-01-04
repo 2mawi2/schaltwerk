@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - schaltwerk/windows-platform-support-aj
+      - windows-platform-support-aj
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: false
+        default: 'windows-platform-support-aj'
 
 jobs:
   windows-build:
