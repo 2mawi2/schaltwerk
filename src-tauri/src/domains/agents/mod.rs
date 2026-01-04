@@ -67,7 +67,7 @@ pub(crate) fn resolve_agent_binary_with_extra_paths(command: &str, extra_paths: 
             #[cfg(windows)]
             {
                 for ext in &[".cmd", ".exe", ".bat", ""] {
-                    let full_path = PathBuf::from(&path).join(format!("{}{}", command, ext));
+                    let full_path = PathBuf::from(&path).join(format!("{command}{ext}"));
                     if full_path.exists() {
                         log::info!("Found {} at {}", command, full_path.display());
                         return full_path.to_string_lossy().to_string();

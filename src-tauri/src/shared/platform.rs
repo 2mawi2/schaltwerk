@@ -13,17 +13,14 @@ pub fn resolve_windows_executable(path: &str) -> String {
     }
 
     for ext in &[".cmd", ".exe", ".bat"] {
-        let with_ext = format!("{}{}", path, ext);
+        let with_ext = format!("{path}{ext}");
         if PathBuf::from(&with_ext).exists() {
-            log::info!("Resolved Windows executable: {} -> {}", path, with_ext);
+            log::info!("Resolved Windows executable: {path} -> {with_ext}");
             return with_ext;
         }
     }
 
-    log::warn!(
-        "No Windows executable found for '{}', using as-is (may fail with error 193)",
-        path
-    );
+    log::warn!("No Windows executable found for '{path}', using as-is (may fail with error 193)");
     path.to_string()
 }
 
