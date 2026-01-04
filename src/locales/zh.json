@@ -73,5 +73,33 @@
       "confirm": "确认",
       "reset": "重置"
     }
+  },
+  "sidebar": {
+    "header": "代理",
+    "orchestrator": "协调器",
+    "filters": {
+      "specs": "规格",
+      "running": "运行中",
+      "reviewed": "已审核",
+      "specShort": "规格",
+      "runShort": "运行",
+      "revShort": "审核"
+    },
+    "search": {
+      "placeholder": "搜索会话...",
+      "title": "搜索会话",
+      "results": "个结果",
+      "result": "个结果"
+    },
+    "empty": "没有活动代理",
+    "ungrouped": "未分组"
+  },
+  "session": {
+    "idle": "⏸︎ 空闲",
+    "running": "运行中",
+    "reviewed": "✓ 已审核",
+    "blocked": "⚠ 已阻塞",
+    "spec": "规格",
+    "complete": "% 完成"
   }
 }

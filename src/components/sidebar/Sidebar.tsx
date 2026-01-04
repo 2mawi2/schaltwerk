@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useAtomValue } from 'jotai'
+import { useTranslation } from '../../common/i18n/useTranslation'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
@@ -132,6 +133,7 @@ const groupVersionGroupsByEpic = (sessionGroups: SessionVersionGroupType[]): Epi
 }
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, isCollapsed = false, onExpandRequest, onToggleSidebar }: SidebarProps) {
+    const { t } = useTranslation()
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const projectPath = useAtomValue(projectPathAtom)
     const { setFocusForSession, setCurrentFocus } = useFocus()
@@ -1369,7 +1371,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         >
             <div className={clsx('flex items-center shrink-0 h-9', isCollapsed ? 'justify-center px-0' : 'justify-between px-2 pt-2')}>
                 {!isCollapsed && (
-                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider ml-1">Agents</span>
+                    <span className="text-xs font-medium text-slate-400 uppercase tracking-wider ml-1">{t.sidebar.header}</span>
                 )}
                 {onToggleSidebar && (
                     <div className="flex items-center gap-2">
@@ -1424,7 +1426,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         {!isCollapsed && (
                             <>
                                 <div className="font-medium text-slate-100 flex items-center gap-2">
-                                    orchestrator
+                                    {t.sidebar.orchestrator}
                                     {orchestratorRunning && (
                                         <ProgressIndicator size="sm" />
                                     )}
@@ -1502,9 +1504,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         }}
                         title={`Filter: ${filterMode}`}
                     >
-                        {filterMode === FilterMode.Spec && 'SPEC'}
-                        {filterMode === FilterMode.Running && 'RUN'}
-                        {filterMode === FilterMode.Reviewed && 'REV'}
+                        {filterMode === FilterMode.Spec && t.sidebar.filters.specShort}
+                        {filterMode === FilterMode.Running && t.sidebar.filters.runShort}
+                        {filterMode === FilterMode.Reviewed && t.sidebar.filters.revShort}
                     </span>
                 </div>
             )}
@@ -1543,7 +1545,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         ? 'bg-[var(--color-bg-hover)] text-[var(--color-text-primary)] border-[var(--color-border-default)]'
                                         : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)]'
                                 )}
-                                title="Search sessions"
+                                title={t.sidebar.search.title}
                             >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
@@ -1560,7 +1562,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 onClick={() => setFilterMode(FilterMode.Spec)}
                                 title="Show spec agents"
                             >
-                                Specs <span className="text-[var(--color-text-muted)]">({specsCount})</span>
+                                {t.sidebar.filters.specs} <span className="text-[var(--color-text-muted)]">({specsCount})</span>
                             </button>
                             <button
                                 className={clsx(
@@ -1573,7 +1575,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 onClick={() => setFilterMode(FilterMode.Running)}
                                 title="Show running agents"
                             >
-                                Running <span className="text-[var(--color-text-muted)]">({runningCount})</span>
+                                {t.sidebar.filters.running} <span className="text-[var(--color-text-muted)]">({runningCount})</span>
                             </button>
                             <button
                                 className={clsx(
@@ -1586,7 +1588,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 onClick={() => setFilterMode(FilterMode.Reviewed)}
                                 title="Show reviewed agents"
                             >
-                                Reviewed <span className="text-[var(--color-text-muted)]">({reviewedCount})</span>
+                                {t.sidebar.filters.reviewed} <span className="text-[var(--color-text-muted)]">({reviewedCount})</span>
                             </button>
                         </div>
                     </div>
@@ -1621,13 +1623,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search type)', e)
                                 }
                             }}
-                            placeholder="Search sessions..."
+                            placeholder={t.sidebar.search.placeholder}
                             className="flex-1 bg-transparent text-xs text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
                             autoFocus
                         />
                         {searchQuery && (
                             <span className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">
-                                {sessions.length} result{sessions.length !== 1 ? 's' : ''}
+                                {sessions.length} {sessions.length !== 1 ? t.sidebar.search.results : t.sidebar.search.result}
                             </span>
                         )}
                         <button
@@ -1671,7 +1673,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 data-onboarding="session-list"
             >
                 {sessions.length === 0 && !loading ? (
-                    <div className="text-center text-slate-500 py-4">No active agents</div>
+                    <div className="text-center text-slate-500 py-4">{t.sidebar.empty}</div>
                 ) : (
                     isCollapsed ? (
                         <CollapsedSidebarRail
@@ -1853,7 +1855,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}
                                     >
                                         <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border-subtle)' }} />
-                                        <span>Ungrouped</span>
+                                        <span>{t.sidebar.ungrouped}</span>
                                         <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-border-subtle)' }} />
                                     </div>
                                 )

@@ -73,5 +73,33 @@
       "confirm": "Confirm",
       "reset": "Reset"
     }
+  },
+  "sidebar": {
+    "header": "Agents",
+    "orchestrator": "orchestrator",
+    "filters": {
+      "specs": "Specs",
+      "running": "Running",
+      "reviewed": "Reviewed",
+      "specShort": "SPEC",
+      "runShort": "RUN",
+      "revShort": "REV"
+    },
+    "search": {
+      "placeholder": "Search sessions...",
+      "title": "Search sessions",
+      "results": "results",
+      "result": "result"
+    },
+    "empty": "No active agents",
+    "ungrouped": "Ungrouped"
+  },
+  "session": {
+    "idle": "⏸︎ Idle",
+    "running": "Running",
+    "reviewed": "✓ Reviewed",
+    "blocked": "⚠ blocked",
+    "spec": "Spec",
+    "complete": "% complete"
   }
 }

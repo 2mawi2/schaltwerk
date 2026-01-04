@@ -14,6 +14,7 @@ import { useMultipleShortcutDisplays } from "../../keyboardShortcuts/useShortcut
 import { KeyboardShortcutAction } from "../../keyboardShortcuts/config";
 import { detectPlatformSafe } from "../../keyboardShortcuts/helpers";
 import { useEpics } from "../../hooks/useEpics";
+import { useTranslation } from "../../common/i18n/useTranslation";
 
 interface SessionCardProps {
   session: {
@@ -245,6 +246,7 @@ export const SessionCard = memo<SessionCardProps>(
     onRename,
     onLinkPr,
   }) => {
+    const { t } = useTranslation();
     const { setItemEpic } = useEpics();
     const shortcuts = useMultipleShortcutDisplays([
       KeyboardShortcutAction.OpenDiffViewer,
@@ -400,7 +402,7 @@ export const SessionCard = memo<SessionCardProps>(
                       color: "var(--color-accent-yellow-light)",
                     }}
                   >
-                    ⏸︎ Idle
+                    {t.session.idle}
                   </span>
                 )}
                 {isRunning && isReviewedState && (
@@ -413,7 +415,7 @@ export const SessionCard = memo<SessionCardProps>(
                       borderColor: "var(--color-accent-magenta-border)",
                     }}
                   >
-                    Running
+                    {t.session.running}
                   </span>
                 )}
               </div>
@@ -426,7 +428,7 @@ export const SessionCard = memo<SessionCardProps>(
                   color: "var(--color-accent-green-light)",
                 }}
               >
-                ✓ Reviewed
+                {t.session.reviewed}
               </span>
             )}
             {isBlocked && (
@@ -437,7 +439,7 @@ export const SessionCard = memo<SessionCardProps>(
                   color: "var(--color-accent-red-light)",
                 }}
               >
-                ⚠ blocked
+                {t.session.blocked}
               </span>
             )}
 
@@ -528,7 +530,7 @@ export const SessionCard = memo<SessionCardProps>(
                 borderColor: "var(--color-accent-amber-border)",
               }}
             >
-              Spec
+              {t.session.spec}
             </span>
           ) : (
             <>
@@ -577,7 +579,7 @@ export const SessionCard = memo<SessionCardProps>(
               />
             </div>
             <div className="mt-1" style={sessionText.meta}>
-              {progressPercent}% complete
+              {progressPercent}{t.session.complete}
             </div>
           </>
         )}

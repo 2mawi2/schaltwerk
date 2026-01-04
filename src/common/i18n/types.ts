@@ -76,4 +76,32 @@ export interface Translations {
       reset: string
     }
   }
+  sidebar: {
+    header: string
+    orchestrator: string
+    filters: {
+      specs: string
+      running: string
+      reviewed: string
+      specShort: string
+      runShort: string
+      revShort: string
+    }
+    search: {
+      placeholder: string
+      title: string
+      results: string
+      result: string
+    }
+    empty: string
+    ungrouped: string
+  }
+  session: {
+    idle: string
+    running: string
+    reviewed: string
+    blocked: string
+    spec: string
+    complete: string
+  }
 }
