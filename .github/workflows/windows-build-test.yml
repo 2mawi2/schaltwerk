@@ -147,7 +147,8 @@ jobs:
         run: |
           cargo clippy --all-features -- -D warnings
           cargo shear
-          cargo test --lib --all-features
+          # Skip tests - requires WebView2 runtime not available in CI
+          # Tests run on Linux CI instead
           cargo build --release
 
       - name: Save cargo cache
