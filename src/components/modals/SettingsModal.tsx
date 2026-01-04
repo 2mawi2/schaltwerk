@@ -13,6 +13,7 @@ import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { ThemeSettings } from '../settings/ThemeSettings'
+import { LanguageSettings } from '../settings/LanguageSettings'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
@@ -1973,6 +1974,7 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <ThemeSettings />
+                    <LanguageSettings />
                     <div>
                         <h3 className="text-body font-medium text-text-primary mb-4">Font Sizes</h3>
                         <div className="space-y-4">

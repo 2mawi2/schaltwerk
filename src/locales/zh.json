@@ -1,0 +1,40 @@
+{
+  "settings": {
+    "categories": {
+      "appearance": "外观",
+      "archives": "归档",
+      "keyboard": "键盘快捷键",
+      "environment": "代理配置",
+      "projectGeneral": "项目设置",
+      "projectMerge": "合并偏好",
+      "projectActions": "操作按钮",
+      "projectSessions": "会话",
+      "github": "GitHub",
+      "updates": "更新",
+      "mcp": "MCP 配置"
+    },
+    "theme": {
+      "label": "主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "系统",
+      "currentLight": "当前为浅色",
+      "currentDark": "当前为深色",
+      "followsSystem": "跟随系统"
+    },
+    "language": {
+      "label": "语言",
+      "english": "English",
+      "chinese": "中文"
+    },
+    "common": {
+      "save": "保存",
+      "cancel": "取消",
+      "delete": "删除",
+      "close": "关闭",
+      "ok": "确定",
+      "confirm": "确认",
+      "reset": "重置"
+    }
+  }
+}

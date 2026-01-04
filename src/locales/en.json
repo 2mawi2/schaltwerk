@@ -1,0 +1,40 @@
+{
+  "settings": {
+    "categories": {
+      "appearance": "Appearance",
+      "archives": "Archives",
+      "keyboard": "Keyboard Shortcuts",
+      "environment": "Agent Configuration",
+      "projectGeneral": "Project Settings",
+      "projectMerge": "Merge Preferences",
+      "projectActions": "Action Buttons",
+      "projectSessions": "Sessions",
+      "github": "GitHub",
+      "updates": "Updates",
+      "mcp": "MCP Configuration"
+    },
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "currentLight": "Currently Light",
+      "currentDark": "Currently Dark",
+      "followsSystem": "Follows system"
+    },
+    "language": {
+      "label": "Language",
+      "english": "English",
+      "chinese": "中文"
+    },
+    "common": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "close": "Close",
+      "ok": "OK",
+      "confirm": "Confirm",
+      "reset": "Reset"
+    }
+  }
+}

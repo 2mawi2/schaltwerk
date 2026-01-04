@@ -256,6 +256,26 @@ pub async fn schaltwerk_core_set_theme(theme: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_get_language() -> Result<String, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_language())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_set_language(language: String) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_language(&language)
+}
+
+#[tauri::command]
 pub async fn get_project_default_base_branch() -> Result<Option<String>, String> {
     let core = get_core_read().await?;
     core.db

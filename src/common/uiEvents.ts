@@ -1,5 +1,6 @@
 import type { SettingsCategory } from '../types/settings'
 import type { ResolvedTheme, ThemeId } from './themes/types'
+import type { Language } from './i18n/types'
 
 export enum UiEvent {
   PermissionError = 'schaltwerk:permission-error',
@@ -33,6 +34,7 @@ export enum UiEvent {
   InsertTerminalText = 'insertTerminalText',
   FontSizeChanged = 'font-size-changed',
   ThemeChanged = 'theme-changed',
+  LanguageChanged = 'language-changed',
   GlobalNewSessionShortcut = 'global-new-session-shortcut',
   GlobalMarkReadyShortcut = 'global-mark-ready-shortcut',
   NoProjectError = 'schaltwerk:no-project-error',
@@ -135,6 +137,10 @@ export interface ThemeChangedDetail {
   resolved: ResolvedTheme
 }
 
+export interface LanguageChangedDetail {
+  language: Language
+}
+
 export interface TerminalErrorDetail {
   error: string
   terminalId: string
@@ -228,6 +234,7 @@ export type UiEventPayloads = {
   [UiEvent.TerminalRendererUpdated]: TerminalRendererUpdatedDetail
   [UiEvent.FontSizeChanged]: FontSizeChangedDetail
   [UiEvent.ThemeChanged]: ThemeChangedDetail
+  [UiEvent.LanguageChanged]: LanguageChangedDetail
   [UiEvent.GlobalNewSessionShortcut]: undefined
   [UiEvent.GlobalMarkReadyShortcut]: undefined
   [UiEvent.NoProjectError]: TerminalErrorDetail
