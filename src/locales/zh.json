@@ -11,7 +11,7 @@
     },
     "deleteSpec": {
       "title": "删除规格：{name}？",
-      "body": "这将归档规格提示，您可以稍后从"设置 → 归档"中恢复。",
+      "body": "这将归档规格提示，您可以稍后从「设置 → 归档」中恢复。",
       "bodyNote": "如需要，您可以从归档中永久删除。",
       "confirm": "归档规格",
       "confirmTitle": "归档规格 (Enter)",
@@ -101,5 +101,14 @@
     "blocked": "⚠ 已阻塞",
     "spec": "规格",
     "complete": "% 完成"
+  },
+  "shortcuts": {
+    "sections": {
+      "appearance": "字体控制",
+      "navigation": "导航",
+      "sessionManagement": "会话管理",
+      "review": "审核与差异",
+      "terminal": "终端控制"
+    }
   }
 }

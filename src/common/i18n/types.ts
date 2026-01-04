@@ -104,4 +104,13 @@ export interface Translations {
     spec: string
     complete: string
   }
+  shortcuts: {
+    sections: {
+      appearance: string
+      navigation: string
+      sessionManagement: string
+      review: string
+      terminal: string
+    }
+  }
 }

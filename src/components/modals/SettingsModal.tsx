@@ -2124,7 +2124,7 @@ fi`}
                 {KEYBOARD_SHORTCUT_SECTIONS.map(section => (
                     <div key={section.id} className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-body font-medium text-text-primary">{section.title}</h3>
+                            <h3 className="text-body font-medium text-text-primary">{t.shortcuts.sections[section.id as keyof typeof t.shortcuts.sections] ?? section.title}</h3>
                         </div>
                         <div className="keyboard-shortcuts-list bg-bg-elevated rounded-xl">
                             {section.items.map((item, index) => {

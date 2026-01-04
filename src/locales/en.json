@@ -101,5 +101,14 @@
     "blocked": "⚠ blocked",
     "spec": "Spec",
     "complete": "% complete"
+  },
+  "shortcuts": {
+    "sections": {
+      "appearance": "Font Controls",
+      "navigation": "Navigation",
+      "sessionManagement": "Session Management",
+      "review": "Review & Diff",
+      "terminal": "Terminal Controls"
+    }
   }
 }
