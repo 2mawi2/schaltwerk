@@ -10,7 +10,7 @@ use log::{debug, info, warn};
 use serde::Deserialize;
 
 #[cfg(windows)]
-use crate::domains::agents::resolve_windows_executable;
+use crate::shared::resolve_windows_executable;
 
 use super::branches::branch_exists;
 use super::operations::{commit_all_changes, has_uncommitted_changes};

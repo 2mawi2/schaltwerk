@@ -1,4 +1,5 @@
 use super::format_binary_invocation;
+use crate::shared::resolve_windows_executable;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
@@ -280,7 +281,7 @@ pub fn build_claude_command_with_config(
         if let Some(ref path) = cfg.binary_path {
             let trimmed = path.trim();
             if !trimmed.is_empty() {
-                super::resolve_windows_executable(trimmed)
+                resolve_windows_executable(trimmed)
             } else {
                 "claude".to_string()
             }

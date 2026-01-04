@@ -16,6 +16,9 @@ pub mod unified;
 
 use std::path::PathBuf;
 
+#[cfg(windows)]
+use crate::shared::resolve_windows_executable;
+
 pub use adapter::{AgentAdapter, AgentLaunchContext};
 pub use command_parser::parse_agent_command;
 pub use launch_spec::AgentLaunchSpec;
@@ -112,36 +115,6 @@ pub(crate) fn resolve_agent_binary_with_extra_paths(command: &str, extra_paths: 
     command.to_string()
 }
 
-#[cfg(windows)]
-pub(crate) fn resolve_windows_executable(path: &str) -> String {
-    let path_lower = path.to_lowercase();
-    if path_lower.ends_with(".exe")
-        || path_lower.ends_with(".cmd")
-        || path_lower.ends_with(".bat")
-        || path_lower.ends_with(".com")
-    {
-        return path.to_string();
-    }
-
-    for ext in &[".cmd", ".exe", ".bat"] {
-        let with_ext = format!("{}{}", path, ext);
-        if PathBuf::from(&with_ext).exists() {
-            log::info!("Resolved Windows executable: {} -> {}", path, with_ext);
-            return with_ext;
-        }
-    }
-
-    log::warn!(
-        "No Windows executable found for '{}', using as-is (may fail with error 193)",
-        path
-    );
-    path.to_string()
-}
-
-#[cfg(not(windows))]
-pub(crate) fn resolve_windows_executable(path: &str) -> String {
-    path.to_string()
-}
 pub(crate) fn escape_prompt_for_shell(prompt: &str) -> String {
     let mut escaped = String::with_capacity(prompt.len());
     for ch in prompt.chars() {
