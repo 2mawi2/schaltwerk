@@ -45,6 +45,9 @@ mod tests {
         #[cfg(target_os = "linux")]
         assert_eq!(default, "nautilus");
 
+        #[cfg(target_os = "windows")]
+        assert_eq!(default, "explorer");
+
         set_default_open_app_in_db(&db, "vscode").expect("failed to persist default open app");
 
         let updated =

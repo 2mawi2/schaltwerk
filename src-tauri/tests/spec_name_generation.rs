@@ -1,3 +1,6 @@
+// This test uses Unix-specific APIs (shell scripts, chmod) and is not applicable on Windows
+#![cfg(unix)]
+
 use chrono::Utc;
 use schaltwerk::domains::agents::naming::{NameGenerationArgs, generate_spec_display_name};
 use schaltwerk::domains::sessions::entity::Spec;

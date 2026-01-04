@@ -219,6 +219,7 @@ fn build_windows_path(
     let appdata = std::env::var("APPDATA").unwrap_or_default();
     let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
+    let programfiles_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_default();
 
     if !userprofile.is_empty() {
         envs.push(("USERPROFILE".to_string(), userprofile.clone()));
@@ -227,18 +228,55 @@ fn build_windows_path(
     let mut seen = HashSet::new();
     let mut path_components = Vec::new();
 
-    let priority_paths: Vec<String> = [
-        format!("{userprofile}\\.cargo\\bin"),
-        format!("{appdata}\\npm"),
-        format!("{localappdata}\\Microsoft\\WindowsApps"),
-        format!("{programfiles}\\Git\\cmd"),
-        format!("{programfiles}\\nodejs"),
-        format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"),
-        format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"),
-    ]
-    .into_iter()
-    .filter(|p| !p.starts_with('\\') && !p.is_empty())
-    .collect();
+    // Build priority paths including common package managers and Node.js installations
+    let mut priority_paths: Vec<String> = Vec::new();
+
+    // Scoop package manager (very common on Windows for dev tools)
+    priority_paths.push(format!("{userprofile}\\scoop\\shims"));
+    priority_paths.push(format!("{userprofile}\\scoop\\apps\\nodejs-lts\\current"));
+    priority_paths.push(format!("{userprofile}\\scoop\\apps\\nodejs\\current"));
+
+    // Cargo/Rust
+    priority_paths.push(format!("{userprofile}\\.cargo\\bin"));
+
+    // npm global packages
+    priority_paths.push(format!("{appdata}\\npm"));
+
+    // nvm-windows (common Node.js version manager)
+    priority_paths.push(format!("{appdata}\\nvm"));
+    if let Ok(nvm_home) = std::env::var("NVM_HOME") {
+        priority_paths.push(nvm_home);
+    }
+    if let Ok(nvm_symlink) = std::env::var("NVM_SYMLINK") {
+        priority_paths.push(nvm_symlink);
+    }
+
+    // Volta (another Node.js version manager)
+    priority_paths.push(format!("{localappdata}\\Volta\\bin"));
+
+    // fnm (Fast Node Manager)
+    priority_paths.push(format!("{appdata}\\fnm"));
+
+    // Standard Node.js installation paths
+    priority_paths.push(format!("{programfiles}\\nodejs"));
+    if !programfiles_x86.is_empty() {
+        priority_paths.push(format!("{programfiles_x86}\\nodejs"));
+    }
+
+    // Windows Apps and other standard paths
+    priority_paths.push(format!("{localappdata}\\Microsoft\\WindowsApps"));
+    priority_paths.push(format!("{programfiles}\\Git\\cmd"));
+
+    // Python paths
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"));
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"));
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python312\\Scripts"));
+
+    // Filter out invalid paths
+    let priority_paths: Vec<String> = priority_paths
+        .into_iter()
+        .filter(|p| !p.starts_with('\\') && !p.is_empty())
+        .collect();
 
     for path in priority_paths {
         if seen.insert(path.clone()) {

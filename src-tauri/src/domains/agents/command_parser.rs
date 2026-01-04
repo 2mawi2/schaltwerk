@@ -11,7 +11,8 @@ pub(crate) fn normalize_cwd(raw: &str) -> String {
         if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
             let inner = &trimmed[1..trimmed.len() - 1];
             return if first == '"' {
-                inner.replace("\\\"", "\"")
+                // Unescape both \" and \\ for proper Windows path handling
+                inner.replace("\\\"", "\"").replace("\\\\", "\\")
             } else {
                 inner.replace("\\'", "'")
             };

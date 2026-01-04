@@ -49,19 +49,43 @@ impl BinaryDetector {
     fn detect_windows_binaries(agent_name: &str) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
+        let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
         let appdata = std::env::var("APPDATA").unwrap_or_default();
         let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
         let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
         let programfiles_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_default();
 
-        let windows_paths = vec![
-            format!("{appdata}\\npm"),
-            format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"),
-            format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"),
-            format!("{localappdata}\\Microsoft\\WindowsApps"),
-            format!("{programfiles}\\nodejs"),
-            format!("{programfiles_x86}\\nodejs"),
-        ];
+        let mut windows_paths = Vec::new();
+
+        // Scoop package manager (very common on Windows)
+        windows_paths.push(format!("{userprofile}\\scoop\\shims"));
+        windows_paths.push(format!("{userprofile}\\scoop\\apps\\{agent_name}\\current"));
+
+        // npm global packages
+        windows_paths.push(format!("{appdata}\\npm"));
+
+        // nvm-windows
+        if let Ok(nvm_symlink) = std::env::var("NVM_SYMLINK") {
+            windows_paths.push(nvm_symlink);
+        }
+        if let Ok(nvm_home) = std::env::var("NVM_HOME") {
+            windows_paths.push(nvm_home);
+        }
+
+        // Volta
+        windows_paths.push(format!("{localappdata}\\Volta\\bin"));
+
+        // Standard Node.js installation paths
+        windows_paths.push(format!("{programfiles}\\nodejs"));
+        windows_paths.push(format!("{programfiles_x86}\\nodejs"));
+
+        // Python paths
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"));
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"));
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python312\\Scripts"));
+
+        // Windows Apps
+        windows_paths.push(format!("{localappdata}\\Microsoft\\WindowsApps"));
 
         for base_path in windows_paths {
             if base_path.is_empty() {
@@ -303,8 +327,31 @@ impl BinaryDetector {
         binaries
     }
 
+    /// Check if a path has a Windows-native executable extension (.exe, .cmd, .bat, .com)
+    #[cfg(windows)]
+    fn is_windows_executable(path: &str) -> bool {
+        let lower = path.to_lowercase();
+        lower.ends_with(".exe")
+            || lower.ends_with(".cmd")
+            || lower.ends_with(".bat")
+            || lower.ends_with(".com")
+    }
+
     fn deduplicate_and_rank(mut binaries: Vec<DetectedBinary>) -> Vec<DetectedBinary> {
         binaries.sort_by(|a, b| {
+            // On Windows, prefer .cmd and .exe over bare binaries (which are often shell scripts)
+            #[cfg(windows)]
+            {
+                let a_executable = Self::is_windows_executable(&a.path);
+                let b_executable = Self::is_windows_executable(&b.path);
+                if a_executable != b_executable {
+                    return if b_executable {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        std::cmp::Ordering::Less
+                    };
+                }
+            }
             a.installation_method
                 .priority()
                 .cmp(&b.installation_method.priority())
@@ -333,12 +380,13 @@ impl BinaryDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[cfg(unix)]
     use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use tempfile::TempDir;
 
     #[cfg(unix)]
     fn create_test_binary(dir: &Path, name: &str, executable: bool) -> PathBuf {

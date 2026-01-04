@@ -46,6 +46,11 @@ pub(crate) fn format_binary_invocation(binary: &str) -> String {
         return trimmed.to_string();
     }
 
+    // On Windows, backslashes are path separators and should not trigger quoting
+    // On Unix, backslashes are escape characters and need special handling
+    #[cfg(windows)]
+    let needs_quoting = trimmed.chars().any(|c| c.is_whitespace() || c == '"');
+    #[cfg(not(windows))]
     let needs_quoting = trimmed
         .chars()
         .any(|c| c.is_whitespace() || matches!(c, '"' | '\\'));
@@ -59,6 +64,8 @@ pub(crate) fn format_binary_invocation(binary: &str) -> String {
     for ch in trimmed.chars() {
         match ch {
             '"' => escaped.push_str("\\\""),
+            // On Windows, don't escape backslashes - they're path separators
+            #[cfg(not(windows))]
             '\\' => escaped.push_str("\\\\"),
             _ => escaped.push(ch),
         }

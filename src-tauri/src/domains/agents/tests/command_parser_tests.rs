@@ -221,3 +221,56 @@ fn test_normalize_cwd_preserves_unquoted() {
     let result = normalize_cwd("/simple/path");
     assert_eq!(result, "/simple/path");
 }
+
+#[test]
+fn test_parse_agent_command_windows_path() {
+    let cmd = r#"cd C:\Users\test\project && claude --version"#;
+    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+    assert_eq!(cwd, r#"C:\Users\test\project"#);
+    assert_eq!(agent, "claude");
+    assert_eq!(args, vec!["--version"]);
+}
+
+#[test]
+fn test_parse_agent_command_windows_path_with_spaces() {
+    let cmd = r#"cd "C:\Users\test\My Project" && claude --version"#;
+    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+    assert_eq!(cwd, r#"C:\Users\test\My Project"#);
+    assert_eq!(agent, "claude");
+    assert_eq!(args, vec!["--version"]);
+}
+
+#[test]
+fn test_normalize_cwd_windows_path_unquoted() {
+    let result = normalize_cwd(r#"C:\Users\test\project"#);
+    assert_eq!(result, r#"C:\Users\test\project"#);
+}
+
+#[test]
+fn test_normalize_cwd_windows_path_quoted() {
+    let result = normalize_cwd(r#""C:\Users\test\My Project""#);
+    assert_eq!(result, r#"C:\Users\test\My Project"#);
+}
+
+#[test]
+fn test_normalize_cwd_unescapes_double_backslashes() {
+    // When format_binary_invocation escapes backslashes (on non-Windows), normalize should unescape
+    let result = normalize_cwd(r#""C:\\Users\\test\\project""#);
+    assert_eq!(result, r#"C:\Users\test\project"#);
+}
+
+#[test]
+fn test_parse_agent_command_realistic_windows_orchestrator() {
+    // This simulates what happens on Windows for orchestrator sessions
+    // The path format from worktree_path.display() on Windows
+    let cmd = r#"cd C:\Users\mariusw\schaltwerk && claude --dangerously-skip-permissions"#;
+    let result = parse_agent_command(cmd);
+    assert!(result.is_ok(), "Failed to parse: {:?}", result);
+    let (cwd, agent, args) = result.unwrap();
+    assert_eq!(cwd, r#"C:\Users\mariusw\schaltwerk"#);
+    assert_eq!(agent, "claude");
+    assert_eq!(args, vec!["--dangerously-skip-permissions"]);
+
+    // Also verify that the path is valid by checking it doesn't contain double backslashes
+    assert!(!cwd.contains(r"\\"), "Path should not contain escaped backslashes");
+}

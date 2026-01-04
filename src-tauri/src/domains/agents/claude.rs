@@ -7,6 +7,54 @@ use std::time::SystemTime;
 
 const CLAUDE_SESSION_SCAN_LIMIT: usize = 64;
 
+/// On Windows, resolve a binary path to prefer .cmd/.exe versions over bare scripts.
+/// This is needed because Windows can't directly execute shell scripts.
+#[cfg(windows)]
+fn resolve_windows_binary(path: &str) -> String {
+    let path_lower = path.to_lowercase();
+    // If it already has a Windows executable extension, use as-is
+    if path_lower.ends_with(".exe")
+        || path_lower.ends_with(".cmd")
+        || path_lower.ends_with(".bat")
+        || path_lower.ends_with(".com")
+    {
+        return path.to_string();
+    }
+
+    // Try to find .cmd version first (most common for npm packages)
+    let cmd_path = format!("{}.cmd", path);
+    if std::path::Path::new(&cmd_path).exists() {
+        log::debug!("Resolved Windows binary: {} -> {}", path, cmd_path);
+        return cmd_path;
+    }
+
+    // Try .exe version
+    let exe_path = format!("{}.exe", path);
+    if std::path::Path::new(&exe_path).exists() {
+        log::debug!("Resolved Windows binary: {} -> {}", path, exe_path);
+        return exe_path;
+    }
+
+    // Try .bat version
+    let bat_path = format!("{}.bat", path);
+    if std::path::Path::new(&bat_path).exists() {
+        log::debug!("Resolved Windows binary: {} -> {}", path, bat_path);
+        return bat_path;
+    }
+
+    // Return original if no Windows version found
+    log::warn!(
+        "No Windows executable found for '{}', using as-is (may fail)",
+        path
+    );
+    path.to_string()
+}
+
+#[cfg(not(windows))]
+fn resolve_windows_binary(path: &str) -> String {
+    path.to_string()
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeConfig {
     pub binary_path: Option<String>,
@@ -255,17 +303,17 @@ pub fn build_claude_command_with_config(
         if let Some(ref path) = cfg.binary_path {
             let trimmed = path.trim();
             if !trimmed.is_empty() {
-                trimmed
+                resolve_windows_binary(trimmed)
             } else {
-                "claude"
+                "claude".to_string()
             }
         } else {
-            "claude"
+            "claude".to_string()
         }
     } else {
-        "claude"
+        "claude".to_string()
     };
-    let binary_invocation = format_binary_invocation(binary_name);
+    let binary_invocation = format_binary_invocation(&binary_name);
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 

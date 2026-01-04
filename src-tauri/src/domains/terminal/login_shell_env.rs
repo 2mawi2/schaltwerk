@@ -441,6 +441,14 @@ mod tests {
         assert!(env.is_ok(), "Should capture environment: {:?}", env);
         let env = env.unwrap();
         assert!(env.contains_key("PATH"), "Should have PATH");
+
+        // Windows uses USERPROFILE instead of HOME
+        #[cfg(unix)]
         assert!(env.contains_key("HOME"), "Should have HOME");
+        #[cfg(windows)]
+        assert!(
+            env.contains_key("USERPROFILE") || env.contains_key("HOME"),
+            "Should have USERPROFILE or HOME"
+        );
     }
 }
