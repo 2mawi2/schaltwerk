@@ -39,3 +39,13 @@ jobs:
       - name: Rust build
         working-directory: src-tauri
         run: cargo build --release
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --lib --bins
+
+      - name: Smoke test - verify binary starts
+        working-directory: src-tauri
+        run: |
+          ./target/release/schaltwerk.exe --version
+          echo "Binary started and exited successfully"
