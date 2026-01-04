@@ -88,7 +88,7 @@ pub async fn build_command_spec(
     })
 }
 
-fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
+fn build_environment(cols: u16, rows: u16, #[cfg_attr(windows, allow(unused))] cwd: &str) -> Vec<(String, String)> {
     let login_env = super::login_shell_env::get_login_shell_env();
 
     let mut envs = vec![
@@ -254,13 +254,8 @@ fn build_windows_path(
 
     const MAX_PATH_LENGTH: usize = 8192;
     let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
-    let mut truncated = false;
 
     for component in source_path.split(';') {
-        if truncated {
-            break;
-        }
-
         let trimmed = component.trim();
         if !trimmed.is_empty() && seen.insert(trimmed.to_string()) {
             let new_length = current_length + trimmed.len() + 1;
@@ -268,7 +263,6 @@ fn build_windows_path(
                 log::warn!(
                     "PATH truncated at {current_length} bytes to prevent 'path too long' error"
                 );
-                truncated = true;
                 break;
             }
             current_length = new_length;
@@ -292,7 +286,7 @@ async fn get_shell_config() -> (String, Vec<String>) {
     (shell, args)
 }
 
-fn resolve_command(command: &str, cwd: &str) -> String {
+fn resolve_command(command: &str, #[cfg_attr(windows, allow(unused))] cwd: &str) -> String {
     #[cfg(unix)]
     if command.contains('/') {
         return command.to_string();
