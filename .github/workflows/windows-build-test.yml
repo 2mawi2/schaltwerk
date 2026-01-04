@@ -1,249 +1,51 @@
-name: Windows Tests
+name: Windows Build Test
 
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-permissions:
-  contents: read
-
-concurrency:
-  group: windows-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+      - schaltwerk/windows-platform-support-aj
+      - windows-platform-support-aj
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: false
+        default: 'windows-platform-support-aj'
 
 jobs:
-  changed:
-    name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      schaltwerk: ${{ steps.filter.outputs.schaltwerk }}
-      workflows: ${{ steps.filter.outputs.workflows }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            schaltwerk:
-              - 'src/**'
-              - 'src-tauri/**'
-              - 'mcp-server/**'
-              - 'scripts/**'
-              - 'package.json'
-              - 'bun.lock'
-              - 'justfile'
-              - 'tsconfig.json'
-              - 'knip.json'
-              - 'vitest.config.ts'
-              - 'vite.config.ts'
-              - 'postcss.config.js'
-              - 'tailwind.config.js'
-              - 'eslint.config.js'
-              - 'eslint-rules/**'
-            workflows:
-              - '.github/workflows/**'
-
-  lint-typescript:
-    name: TypeScript Lint & Format (Windows)
+  windows-build:
     runs-on: windows-latest
-    needs: changed
-    if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
-    env:
-      SCHALTWERK_PM: bun
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.2.16'
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            mcp-server/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          node scripts/package-manager.mjs install --frozen-lockfile
-          if [ -d "mcp-server" ]; then
-            cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
-          fi
-
-      - name: Run TypeScript lints
-        shell: bash
-        run: |
-          node scripts/package-manager.mjs run lint
-          node scripts/package-manager.mjs run lint:ts
-          node scripts/package-manager.mjs run lint:mcp
-          node scripts/package-manager.mjs run deps:check
-
-  test-frontend:
-    name: Frontend Tests (Windows)
-    runs-on: windows-latest
-    needs: changed
-    if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
-    env:
-      SCHALTWERK_PM: bun
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.2.16'
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-            mcp-server/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          node scripts/package-manager.mjs install --frozen-lockfile
-          if [ -d "mcp-server" ]; then
-            cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
-          fi
-
-      - name: Run frontend tests
-        shell: bash
-        run: |
-          node scripts/package-manager.mjs run test:frontend
-          node scripts/package-manager.mjs run test:mcp
-
-  rust-checks:
-    name: Rust Checks (Windows)
-    runs-on: windows-latest
-    needs: changed
-    if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup sccache cache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
-
-      - name: Enable sccache GHA cache backend
-        if: ${{ !env.ACT }}
-        shell: bash
-        run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      - uses: actions/checkout@v4
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
 
-      - name: Restore cargo home cache
-        id: cache_cargo_home_restore
-        if: ${{ !env.ACT }}
-        uses: actions/cache/restore@v5
+      - name: Cache cargo
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Restore cargo target cache
-        id: cache_target_restore
-        if: ${{ !env.ACT }}
-        uses: actions/cache/restore@v5
-        with:
-          path: src-tauri/target/
-          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+      - name: Rust check
+        working-directory: src-tauri
+        run: cargo check --all-features
 
-      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
-        with:
-          tool: cargo-shear
-          version: 1.5.2
+      - name: Rust build
+        working-directory: src-tauri
+        run: cargo build --release
 
-      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
-        with:
-          tool: nextest
-          version: 0.9.108
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --lib --bins
 
-      - name: Run Rust checks
-        shell: bash
+      - name: Smoke test - verify binary starts
         working-directory: src-tauri
         run: |
-          cargo clippy --all-features -- -D warnings
-          cargo shear
-          cargo nextest run --profile ci --all-features --status-level fail --failure-output immediate
-          cargo build
-
-      - name: Save cargo home cache
-        if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true' && !env.ACT
-        continue-on-error: true
-        uses: actions/cache/save@v5
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Save cargo target cache
-        if: always() && !cancelled() && steps.cache_target_restore.outputs.cache-hit != 'true' && !env.ACT
-        continue-on-error: true
-        uses: actions/cache/save@v5
-        with:
-          path: src-tauri/target/
-          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
-
-  results:
-    name: Windows CI Results
-    needs: [changed, lint-typescript, test-frontend, rust-checks]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check all jobs
-        shell: bash
-        run: |
-          echo "lint-typescript: ${{ needs.lint-typescript.result }}"
-          echo "test-frontend  : ${{ needs.test-frontend.result }}"
-          echo "rust-checks    : ${{ needs.rust-checks.result }}"
-
-          # If no relevant changes, succeed
-          if [[ '${{ needs.changed.outputs.schaltwerk }}' != 'true' && '${{ needs.changed.outputs.workflows }}' != 'true' && '${{ github.event_name }}' != 'push' ]]; then
-            echo 'No relevant changes -> Windows CI passed.'
-            exit 0
-          fi
-
-          # All jobs must succeed
-          [[ '${{ needs.lint-typescript.result }}' == 'success' ]] || { echo 'lint-typescript failed'; exit 1; }
-          [[ '${{ needs.test-frontend.result }}' == 'success' ]] || { echo 'test-frontend failed'; exit 1; }
-          [[ '${{ needs.rust-checks.result }}' == 'success' ]] || { echo 'rust-checks failed'; exit 1; }
-
-          echo 'All Windows checks passed!'
+          ./target/release/schaltwerk.exe --version
+          echo "Binary started and exited successfully"

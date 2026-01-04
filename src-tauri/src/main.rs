@@ -1432,14 +1432,13 @@ fn main() {
                         log::info!("Window title set to: {title}");
                     }
 
-                    // On Linux and Windows we disable native decorations so the custom top bar renders correctly.
-                    // macOS uses the Overlay titleBarStyle which integrates traffic lights with our custom bar.
-                    #[cfg(any(target_os = "linux", target_os = "windows"))]
+                    // On Linux we disable native decorations so the custom top bar renders correctly.
+                    #[cfg(target_os = "linux")]
                     {
                         if let Err(e) = window.set_decorations(false) {
                             log::warn!("Failed to disable window decorations: {e}");
                         } else {
-                            log::info!("Window decorations disabled for non-macOS platform");
+                            log::info!("Window decorations disabled for Linux");
                         }
                     }
                 }
