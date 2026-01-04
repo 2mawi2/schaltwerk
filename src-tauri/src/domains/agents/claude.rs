@@ -91,7 +91,7 @@ pub fn resolve_claude_binary() -> String {
     log::warn!(
         "Could not resolve path for 'claude', using as-is. This may fail in installed apps."
     );
-    command.to_string()
+    resolve_windows_binary(command)
 }
 
 /// On Windows, resolve a binary path to prefer .cmd/.exe versions over bare scripts.
