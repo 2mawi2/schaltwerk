@@ -111,7 +111,7 @@ fn default_true() -> bool {
 }
 
 fn default_theme() -> String {
-    "system".to_string()
+    "dark".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
