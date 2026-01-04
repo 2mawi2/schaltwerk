@@ -359,5 +359,109 @@
       "review": "Review & Diff",
       "terminal": "Terminal Controls"
     }
+  },
+  "windowControls": {
+    "minimize": "Minimize",
+    "minimizeWindow": "Minimize window",
+    "maximize": "Maximize",
+    "maximizeWindow": "Maximize window",
+    "restore": "Restore",
+    "restoreWindow": "Restore window",
+    "close": "Close",
+    "closeWindow": "Close window"
+  },
+  "topBar": {
+    "home": "Home",
+    "homeLabel": "Home",
+    "settings": "Settings",
+    "settingsLabel": "Settings",
+    "showRightPanel": "Show right panel",
+    "hideRightPanel": "Hide right panel",
+    "closeSearch": "Close search"
+  },
+  "newProject": {
+    "title": "New Project",
+    "selectParentDir": "Select Parent Directory",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "my-awesome-project",
+    "parentDirectory": "Parent Directory",
+    "parentDirPlaceholder": "Select parent directory...",
+    "browse": "Browse",
+    "createInfo": "This will create a new folder and initialize a Git repository.",
+    "cancel": "Cancel",
+    "createProject": "Create Project",
+    "creating": "Creating..."
+  },
+  "cloneProject": {
+    "title": "Clone Git Repository",
+    "subtitle": "Clone a remote repository into a new Schaltwerk project",
+    "selectDestination": "Select Destination Folder",
+    "remoteUrl": "Remote URL",
+    "remoteUrlPlaceholder": "https://github.com/user/repo.git or git@github.com:user/repo.git",
+    "sshDetected": "SSH remote detected. Ensure your ssh-agent is running with the appropriate key loaded.",
+    "httpsDetected": "HTTPS remote detected. Credentials will be requested through your Git credential helper.",
+    "invalidUrl": "Enter a valid SSH or HTTPS Git URL.",
+    "parentDirectory": "Parent Directory",
+    "browse": "Browse",
+    "destinationFolder": "Destination Folder",
+    "selectValidRemote": "Select a valid remote and parent directory",
+    "folderNameNote": "The folder name is derived from the repository name. You can rename it later if needed.",
+    "cancel": "Cancel",
+    "cloneProject": "Clone Project",
+    "cloning": "Cloning…"
+  },
+  "webPreview": {
+    "invalidUrl": "Enter a valid http(s) URL, hostname, or port.",
+    "back": "Back",
+    "forward": "Forward",
+    "hardReload": "Hard reload",
+    "hardReloadTitle": "Hard reload (clears cache)",
+    "openInBrowser": "Open in browser",
+    "openInBrowserTitle": "Open in browser (for DevTools/logs)",
+    "selectElement": "Select element",
+    "selectElementTitle": "Select an element to paste its HTML into the terminal",
+    "previewUrl": "Preview URL",
+    "urlPlaceholder": "Enter URL (e.g. http://localhost:3000)",
+    "navigate": "Navigate",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
+    "zoomIn": "Zoom in",
+    "pausedDialog": "Preview paused while dialog is open…",
+    "pausedResizing": "Preview paused while resizing…",
+    "browserTitle": "Browser",
+    "browserHint": "Enter a URL above to load your preview."
+  },
+  "confirmModal": {
+    "cancelDefault": "Cancel (Esc)",
+    "confirmDefault": "Confirm (Enter)",
+    "escKey": "Esc",
+    "enterKey": "↵"
+  },
+  "promoteVersion": {
+    "title": "Promote \"{session}\" as best version?",
+    "deleteOthers": "This will permanently delete the following sessions:",
+    "remainRunning": "The selected session will remain in Running state for continued work.",
+    "dontAskAgain": "Don't ask again",
+    "confirmText": "Delete Others",
+    "cancelText": "Cancel"
+  },
+  "terminalSearch": {
+    "placeholder": "Search...",
+    "previousMatch": "Previous match (Shift+Enter)",
+    "nextMatch": "Next match (Enter)",
+    "closeSearch": "Close search (Escape)"
+  },
+  "epicGroup": {
+    "editEpic": "Edit epic",
+    "deleteEpic": "Delete epic",
+    "epicActions": "Epic actions"
+  },
+  "openInSplit": {
+    "openIn": "Open in {app}",
+    "open": "Open",
+    "opening": "Opening..."
+  },
+  "sessionCard": {
+    "newFollowUp": "New follow-up message received"
   }
 }

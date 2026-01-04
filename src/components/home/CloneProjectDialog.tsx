@@ -7,6 +7,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { logger } from '../../utils/logger'
 import { parseGitRemote, sanitizeFolderName } from '../../utils/gitRemote'
+import { useTranslation } from '../../common/i18n'
 
 const REMOTE_PLACEHOLDER = 'git@github.com:org/repo.git or https://github.com/org/repo.git'
 
@@ -25,6 +26,7 @@ interface CloneProjectDialogProps {
 }
 
 export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: CloneProjectDialogProps) {
+  const { t } = useTranslation()
   const [remoteUrl, setRemoteUrl] = useState('')
   const [parentDirectory, setParentDirectory] = useState('')
   const [isCloning, setIsCloning] = useState(false)
@@ -137,7 +139,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
       const selected = await open({
         directory: true,
         multiple: false,
-        title: 'Select Destination Folder'
+        title: t.cloneProject.selectDestination
       })
 
       if (selected) {
@@ -199,10 +201,10 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
   }
 
   const helperText = remoteMeta.kind === 'ssh'
-    ? 'SSH remote detected. Ensure your ssh-agent is running with the appropriate key loaded.'
+    ? t.cloneProject.sshDetected
     : remoteMeta.kind === 'https'
-      ? 'HTTPS remote detected. Credentials will be requested through your Git credential helper.'
-      : 'Enter a valid SSH or HTTPS Git URL.'
+      ? t.cloneProject.httpsDetected
+      : t.cloneProject.invalidUrl
 
   return (
     <div
@@ -217,8 +219,8 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           <div className="flex items-center gap-3">
             <VscRepoClone className="text-2xl" style={{ color: 'var(--color-accent-blue)' }} />
             <div>
-              <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Clone Git Repository</h2>
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Clone a remote repository into a new Schaltwerk project</p>
+              <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>{t.cloneProject.title}</h2>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{t.cloneProject.subtitle}</p>
             </div>
           </div>
           <button
@@ -251,7 +253,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
               style={{ color: 'var(--color-text-secondary)' }}
               htmlFor="clone-remote-url"
             >
-              Remote URL
+              {t.cloneProject.remoteUrl}
             </label>
             <input
               type="text"
@@ -280,7 +282,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
               style={{ color: 'var(--color-text-secondary)' }}
               htmlFor="clone-parent-directory"
             >
-              Parent Directory
+              {t.cloneProject.parentDirectory}
             </label>
             <div className="flex gap-2 flex-col md:flex-row">
               <input
@@ -306,7 +308,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
                 disabled={isCloning}
               >
                 <VscFolderOpened className="text-lg" />
-                Browse
+                {t.cloneProject.browse}
               </button>
             </div>
           </div>
@@ -319,13 +321,13 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             }}
           >
             <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--color-text-muted)' }}>
-              Destination Folder
+              {t.cloneProject.destinationFolder}
             </p>
             <p className="font-mono text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
-              {targetPath || 'Select a valid remote and parent directory'}
+              {targetPath || t.cloneProject.selectValidRemote}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              The folder name is derived from the repository name. You can rename it later if needed.
+              {t.cloneProject.folderNameNote}
             </p>
           </div>
 
@@ -353,7 +355,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             }}
             disabled={isCloning}
           >
-            Cancel
+            {t.cloneProject.cancel}
           </button>
           <button
             onClick={() => { void handleClone() }}
@@ -366,7 +368,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
             }}
             disabled={!isFormValid || isCloning}
           >
-            {isCloning ? 'Cloning…' : 'Clone Project'}
+            {isCloning ? t.cloneProject.cloning : t.cloneProject.cloneProject}
           </button>
         </div>
       </div>

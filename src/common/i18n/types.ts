@@ -362,4 +362,108 @@ export interface Translations {
       terminal: string
     }
   }
+  windowControls: {
+    minimize: string
+    minimizeWindow: string
+    maximize: string
+    maximizeWindow: string
+    restore: string
+    restoreWindow: string
+    close: string
+    closeWindow: string
+  }
+  topBar: {
+    home: string
+    homeLabel: string
+    settings: string
+    settingsLabel: string
+    showRightPanel: string
+    hideRightPanel: string
+    closeSearch: string
+  }
+  newProject: {
+    title: string
+    selectParentDir: string
+    projectName: string
+    projectNamePlaceholder: string
+    parentDirectory: string
+    parentDirPlaceholder: string
+    browse: string
+    createInfo: string
+    cancel: string
+    createProject: string
+    creating: string
+  }
+  cloneProject: {
+    title: string
+    subtitle: string
+    selectDestination: string
+    remoteUrl: string
+    remoteUrlPlaceholder: string
+    sshDetected: string
+    httpsDetected: string
+    invalidUrl: string
+    parentDirectory: string
+    browse: string
+    destinationFolder: string
+    selectValidRemote: string
+    folderNameNote: string
+    cancel: string
+    cloneProject: string
+    cloning: string
+  }
+  webPreview: {
+    invalidUrl: string
+    back: string
+    forward: string
+    hardReload: string
+    hardReloadTitle: string
+    openInBrowser: string
+    openInBrowserTitle: string
+    selectElement: string
+    selectElementTitle: string
+    previewUrl: string
+    urlPlaceholder: string
+    navigate: string
+    zoomOut: string
+    resetZoom: string
+    zoomIn: string
+    pausedDialog: string
+    pausedResizing: string
+    browserTitle: string
+    browserHint: string
+  }
+  confirmModal: {
+    cancelDefault: string
+    confirmDefault: string
+    escKey: string
+    enterKey: string
+  }
+  promoteVersion: {
+    title: string
+    deleteOthers: string
+    remainRunning: string
+    dontAskAgain: string
+    confirmText: string
+    cancelText: string
+  }
+  terminalSearch: {
+    placeholder: string
+    previousMatch: string
+    nextMatch: string
+    closeSearch: string
+  }
+  epicGroup: {
+    editEpic: string
+    deleteEpic: string
+    epicActions: string
+  }
+  openInSplit: {
+    openIn: string
+    open: string
+    opening: string
+  }
+  sessionCard: {
+    newFollowUp: string
+  }
 }

@@ -359,5 +359,109 @@
       "review": "审核与差异",
       "terminal": "终端控制"
     }
+  },
+  "windowControls": {
+    "minimize": "最小化",
+    "minimizeWindow": "最小化窗口",
+    "maximize": "最大化",
+    "maximizeWindow": "最大化窗口",
+    "restore": "还原",
+    "restoreWindow": "还原窗口",
+    "close": "关闭",
+    "closeWindow": "关闭窗口"
+  },
+  "topBar": {
+    "home": "主页",
+    "homeLabel": "主页",
+    "settings": "设置",
+    "settingsLabel": "设置",
+    "showRightPanel": "显示右侧面板",
+    "hideRightPanel": "隐藏右侧面板",
+    "closeSearch": "关闭搜索"
+  },
+  "newProject": {
+    "title": "新建项目",
+    "selectParentDir": "选择父目录",
+    "projectName": "项目名称",
+    "projectNamePlaceholder": "my-awesome-project",
+    "parentDirectory": "父目录",
+    "parentDirPlaceholder": "选择父目录...",
+    "browse": "浏览",
+    "createInfo": "这将创建一个新文件夹并初始化 Git 仓库。",
+    "cancel": "取消",
+    "createProject": "创建项目",
+    "creating": "创建中..."
+  },
+  "cloneProject": {
+    "title": "克隆 Git 仓库",
+    "subtitle": "将远程仓库克隆到新的 Schaltwerk 项目",
+    "selectDestination": "选择目标文件夹",
+    "remoteUrl": "远程 URL",
+    "remoteUrlPlaceholder": "https://github.com/user/repo.git 或 git@github.com:user/repo.git",
+    "sshDetected": "检测到 SSH 远程地址。请确保 ssh-agent 正在运行并加载了相应的密钥。",
+    "httpsDetected": "检测到 HTTPS 远程地址。凭据将通过 Git 凭据助手请求。",
+    "invalidUrl": "请输入有效的 SSH 或 HTTPS Git URL。",
+    "parentDirectory": "父目录",
+    "browse": "浏览",
+    "destinationFolder": "目标文件夹",
+    "selectValidRemote": "请选择有效的远程地址和父目录",
+    "folderNameNote": "文件夹名称从仓库名称派生。您可以稍后重命名。",
+    "cancel": "取消",
+    "cloneProject": "克隆项目",
+    "cloning": "克隆中…"
+  },
+  "webPreview": {
+    "invalidUrl": "请输入有效的 http(s) URL、主机名或端口。",
+    "back": "后退",
+    "forward": "前进",
+    "hardReload": "强制刷新",
+    "hardReloadTitle": "强制刷新（清除缓存）",
+    "openInBrowser": "在浏览器中打开",
+    "openInBrowserTitle": "在浏览器中打开（用于开发工具/日志）",
+    "selectElement": "选择元素",
+    "selectElementTitle": "选择一个元素以将其 HTML 粘贴到终端",
+    "previewUrl": "预览 URL",
+    "urlPlaceholder": "输入 URL（例如 http://localhost:3000）",
+    "navigate": "导航",
+    "zoomOut": "缩小",
+    "resetZoom": "重置缩放",
+    "zoomIn": "放大",
+    "pausedDialog": "对话框打开时预览已暂停…",
+    "pausedResizing": "调整大小时预览已暂停…",
+    "browserTitle": "浏览器",
+    "browserHint": "在上方输入 URL 以加载预览。"
+  },
+  "confirmModal": {
+    "cancelDefault": "取消 (Esc)",
+    "confirmDefault": "确认 (Enter)",
+    "escKey": "Esc",
+    "enterKey": "↵"
+  },
+  "promoteVersion": {
+    "title": "将「{session}」提升为最佳版本？",
+    "deleteOthers": "这将永久删除以下会话：",
+    "remainRunning": "所选会话将保持运行状态以便继续工作。",
+    "dontAskAgain": "不再询问",
+    "confirmText": "删除其他",
+    "cancelText": "取消"
+  },
+  "terminalSearch": {
+    "placeholder": "搜索...",
+    "previousMatch": "上一个匹配项 (Shift+Enter)",
+    "nextMatch": "下一个匹配项 (Enter)",
+    "closeSearch": "关闭搜索 (Escape)"
+  },
+  "epicGroup": {
+    "editEpic": "编辑史诗",
+    "deleteEpic": "删除史诗",
+    "epicActions": "史诗操作"
+  },
+  "openInSplit": {
+    "openIn": "在 {app} 中打开",
+    "open": "打开",
+    "opening": "打开中..."
+  },
+  "sessionCard": {
+    "newFollowUp": "收到新的后续消息"
   }
 }
