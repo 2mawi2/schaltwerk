@@ -6,12 +6,11 @@
       "keyboard": "Keyboard Shortcuts",
       "environment": "Agent Configuration",
       "projectGeneral": "Project Settings",
-      "projectMerge": "Merge Preferences",
+      "projectRun": "Run & Environment",
       "projectActions": "Action Buttons",
-      "projectSessions": "Sessions",
-      "github": "GitHub",
-      "updates": "Updates",
-      "mcp": "MCP Configuration"
+      "terminal": "Terminal",
+      "sessions": "Sessions",
+      "version": "Version"
     },
     "theme": {
       "label": "Theme",

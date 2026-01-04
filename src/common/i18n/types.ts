@@ -8,12 +8,11 @@ export interface Translations {
       keyboard: string
       environment: string
       projectGeneral: string
-      projectMerge: string
+      projectRun: string
       projectActions: string
-      projectSessions: string
-      github: string
-      updates: string
-      mcp: string
+      terminal: string
+      sessions: string
+      version: string
     }
     theme: {
       label: string

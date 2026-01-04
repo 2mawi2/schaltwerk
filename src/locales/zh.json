@@ -6,12 +6,11 @@
       "keyboard": "键盘快捷键",
       "environment": "代理配置",
       "projectGeneral": "项目设置",
-      "projectMerge": "合并偏好",
+      "projectRun": "运行与环境",
       "projectActions": "操作按钮",
-      "projectSessions": "会话",
-      "github": "GitHub",
-      "updates": "更新",
-      "mcp": "MCP 配置"
+      "terminal": "终端",
+      "sessions": "会话",
+      "version": "版本"
     },
     "theme": {
       "label": "主题",

@@ -14,6 +14,7 @@ import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { ThemeSettings } from '../settings/ThemeSettings'
 import { LanguageSettings } from '../settings/LanguageSettings'
+import { useTranslation } from '../../common/i18n/useTranslation'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
@@ -295,6 +296,7 @@ interface SessionPreferences {
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
     const { registerModal, unregisterModal } = useModal()
+    const { t } = useTranslation()
     const [terminalFontSize, setTerminalFontSize] = useAtom(terminalFontSizeAtom)
     const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
@@ -2587,7 +2589,7 @@ fi`}
                                                 style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
                                             >
                                                 {category.icon}
-                                                <span>{category.label}</span>
+                                                <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
                                             </button>
                                         ))}
                                     </nav>
@@ -2614,7 +2616,7 @@ fi`}
                                         style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
                                     >
                                         {category.icon}
-                                        <span>{category.label}</span>
+                                        <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
                                     </button>
                                 ))}
                             </nav>
