@@ -537,6 +537,7 @@ fn contains_short_flag(candidate: &str, flag: char) -> bool {
     false
 }
 
+#[cfg(unix)]
 fn normalize_path_component(raw: &str) -> Vec<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -583,12 +584,15 @@ fn normalize_path_component(raw: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_environment, normalize_path_component};
+    use super::build_environment;
+    #[cfg(unix)]
+    use super::normalize_path_component;
     use crate::domains::terminal::{put_terminal_shell_override, testing};
     use crate::utils::env_adapter::EnvAdapter;
     use serial_test::serial;
     use std::fs;
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_splits_whitespace_delimited_segments() {
         let result = normalize_path_component("/foo/bin /bar/bin /baz/bin");
@@ -602,6 +606,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_preserves_regular_segments() {
         let result = normalize_path_component("/Applications/Ghostty.app/Contents/MacOS");
@@ -611,6 +616,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_strips_quotes() {
         let result = normalize_path_component(

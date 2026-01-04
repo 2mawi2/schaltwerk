@@ -87,7 +87,7 @@ pub use shell_invocation::{
 };
 
 use std::sync::RwLock;
-use std::{env, fs, path::Path, path::PathBuf};
+use std::{env, path::Path, path::PathBuf};
 
 #[cfg(unix)]
 const UNIX_FALLBACK_SHELLS: &[&str] = &[
@@ -306,6 +306,7 @@ fn path_is_executable(path: &Path) -> bool {
 
     #[cfg(unix)]
     {
+        use std::fs;
         use std::os::unix::fs::PermissionsExt;
 
         fs::metadata(path)

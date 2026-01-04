@@ -1,6 +1,8 @@
 use log::{debug, info};
+#[cfg(unix)]
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Command;
 
 pub use crate::utils::binary_utils::{DetectedBinary, InstallationMethod, check_binary};
