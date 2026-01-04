@@ -30,8 +30,7 @@ pub fn ensure_cwd_access<P: AsRef<Path>>(cwd: P) -> Result<(), String> {
     // Check for NUL bytes which would cause ERROR_BAD_PATHNAME
     if path_str.as_bytes().contains(&0) {
         return Err(format!(
-            "Working directory path contains NUL byte: {:?}",
-            path_str
+            "Working directory path contains NUL byte: {path_str:?}"
         ));
     }
 

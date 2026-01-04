@@ -72,10 +72,7 @@ pub async fn launch_in_terminal(
         );
         let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
         log::info!(
-            "[AGENT_LAUNCH_TRACE] Parsed cwd='{}' agent='{}' args={:?}",
-            cwd,
-            agent_name,
-            agent_args
+            "[AGENT_LAUNCH_TRACE] Parsed cwd='{cwd}' agent='{agent_name}' args={agent_args:?}"
         );
         terminals::ensure_cwd_access(&cwd)?;
 
