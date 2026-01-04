@@ -111,7 +111,7 @@ fn default_true() -> bool {
 }
 
 fn default_theme() -> String {
-    "system".to_string()
+    "dark".to_string()
 }
 
 fn default_language() -> String {
