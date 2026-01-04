@@ -7,6 +7,93 @@ use std::time::SystemTime;
 
 const CLAUDE_SESSION_SCAN_LIMIT: usize = 64;
 
+fn get_home_dir() -> Option<String> {
+    #[cfg(unix)]
+    {
+        std::env::var("HOME").ok()
+    }
+    #[cfg(windows)]
+    {
+        std::env::var("USERPROFILE").ok()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        dirs::home_dir().map(|p| p.to_string_lossy().to_string())
+    }
+}
+
+/// Resolve the Claude binary path in a cross-platform way.
+/// Order:
+/// 1. User-specific directories (~/.local/bin, ~/.cargo/bin, ~/bin, ~/.claude/bin)
+/// 2. Common system directories (/usr/local/bin, /opt/homebrew/bin, /usr/bin, /bin)
+/// 3. Use `which` crate to find it in PATH
+/// 4. Fallback to `claude` (expecting it on PATH)
+pub fn resolve_claude_binary() -> String {
+    let command = "claude";
+
+    if let Some(home) = get_home_dir() {
+        #[cfg(unix)]
+        let user_paths = vec![
+            format!("{}/.local/bin", home),
+            format!("{}/.cargo/bin", home),
+            format!("{}/bin", home),
+            format!("{}/.claude/bin", home),
+        ];
+
+        #[cfg(windows)]
+        let user_paths = vec![
+            format!("{}\\.cargo\\bin", home),
+            format!("{}\\AppData\\Local\\Claude\\bin", home),
+            format!("{}\\AppData\\Roaming\\npm", home),
+        ];
+
+        for path in user_paths {
+            #[cfg(windows)]
+            {
+                for ext in &[".cmd", ".exe", ".bat"] {
+                    let full_path = PathBuf::from(&path).join(format!("{}{}", command, ext));
+                    if full_path.exists() {
+                        log::info!("Found claude at {}", full_path.display());
+                        return full_path.to_string_lossy().to_string();
+                    }
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                let full_path = PathBuf::from(&path).join(command);
+                if full_path.exists() {
+                    log::info!("Found claude at {}", full_path.display());
+                    return full_path.to_string_lossy().to_string();
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    let common_paths = vec!["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"];
+    #[cfg(windows)]
+    let common_paths: Vec<&str> = vec![];
+
+    for path in common_paths {
+        let full_path = PathBuf::from(path).join(command);
+        if full_path.exists() {
+            log::info!("Found claude at {}", full_path.display());
+            return full_path.to_string_lossy().to_string();
+        }
+    }
+
+    if let Ok(path) = which::which(command) {
+        let path_str = path.to_string_lossy().to_string();
+        log::info!("Found claude via which crate: {path_str}");
+        return path_str;
+    }
+
+    log::warn!(
+        "Could not resolve path for 'claude', using as-is. This may fail in installed apps."
+    );
+    command.to_string()
+}
+
 /// On Windows, resolve a binary path to prefer .cmd/.exe versions over bare scripts.
 /// This is needed because Windows can't directly execute shell scripts.
 #[cfg(windows)]
