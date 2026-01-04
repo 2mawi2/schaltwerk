@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FaGithub } from 'react-icons/fa'
 import { VscRefresh, VscWarning, VscCheck, VscInfo } from 'react-icons/vsc'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { logger } from '../../utils/logger'
+import { getPlatform } from '../../utils/platform'
 
 interface GithubProjectIntegrationCardProps {
   projectPath: string
@@ -22,6 +23,11 @@ const formatError = (error: unknown): string => {
 export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubProjectIntegrationCardProps) {
   const github = useGithubIntegrationContext()
   const [feedback, setFeedback] = useState<{ tone: 'info' | 'success' | 'error'; title: string; description?: string } | null>(null)
+  const [platform, setPlatform] = useState<'macos' | 'linux' | 'windows'>('macos')
+
+  useEffect(() => {
+    getPlatform().then(setPlatform)
+  }, [])
 
   const formatFeedbackLines = useMemo(() => {
     return (description?: string): string[] => {
@@ -44,12 +50,23 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
 
   type StatusTone = 'info' | 'warning' | 'danger' | 'success'
 
+  const ghInstallCommand = useMemo(() => {
+    switch (platform) {
+      case 'windows':
+        return 'scoop install gh or winget install GitHub.cli'
+      case 'linux':
+        return 'see https://github.com/cli/cli/blob/trunk/docs/install_linux.md'
+      default:
+        return 'brew install gh'
+    }
+  }, [platform])
+
   const statusDetails = useMemo((): { tone: StatusTone; title: string; description: string } => {
     if (!installed) {
       return {
         tone: 'danger',
         title: 'GitHub CLI not installed',
-        description: 'Install the GitHub CLI (brew install gh) to enable pull request automation.',
+        description: `Install the GitHub CLI (${ghInstallCommand}) to enable pull request automation.`,
       }
     }
     if (!authenticated) {

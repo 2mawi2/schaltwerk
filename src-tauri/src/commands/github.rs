@@ -1025,7 +1025,18 @@ fn repo_not_connected_error() -> String {
 fn format_cli_error(err: GitHubCliError) -> String {
     match err {
         GitHubCliError::NotInstalled => {
-            "GitHub CLI (gh) is not installed. Install it via `brew install gh`.".to_string()
+            #[cfg(target_os = "macos")]
+            {
+                "GitHub CLI (gh) is not installed. Install it via `brew install gh`.".to_string()
+            }
+            #[cfg(target_os = "windows")]
+            {
+                "GitHub CLI (gh) is not installed. Install it via `scoop install gh` or `winget install GitHub.cli`.".to_string()
+            }
+            #[cfg(target_os = "linux")]
+            {
+                "GitHub CLI (gh) is not installed. See https://github.com/cli/cli/blob/trunk/docs/install_linux.md".to_string()
+            }
         }
         GitHubCliError::CommandFailed {
             program,
