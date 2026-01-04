@@ -110,34 +110,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install WebView2 Fixed Runtime
+      - name: Install WebView2 Runtime
         shell: pwsh
-        run: |
-          $ProgressPreference = 'SilentlyContinue'
-          # Download fixed version runtime (contains DLLs we can add to PATH)
-          $webview2Url = 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/93a92643-8b66-41e4-b773-f0a7d79bdede/MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
-          Invoke-WebRequest -Uri $webview2Url -OutFile 'webview2-installer.exe'
-          # Install WebView2 runtime system-wide
-          Start-Process -FilePath '.\webview2-installer.exe' -ArgumentList '/silent', '/install' -Wait -NoNewWindow
-          # Add common WebView2 locations to PATH
-          $wv2Paths = @(
-            "$env:ProgramFiles\Microsoft\EdgeWebView\Application",
-            "$env:LOCALAPPDATA\Microsoft\EdgeWebView\Application"
-          )
-          foreach ($path in $wv2Paths) {
-            if (Test-Path $path) {
-              $version = Get-ChildItem $path -Directory | Select-Object -First 1
-              if ($version) {
-                $dllPath = Join-Path $version.FullName "EBWebView"
-                if (Test-Path $dllPath) {
-                  echo "$dllPath" >> $env:GITHUB_PATH
-                  Write-Host "Added to PATH: $dllPath"
-                }
-              }
-            }
-          }
-          # Verify installation
-          Get-ChildItem "$env:ProgramFiles\Microsoft\EdgeWebView" -Recurse -ErrorAction SilentlyContinue | Select-Object FullName | Write-Host
+        run: choco install webview2-runtime -y
 
       - name: Setup sccache
         uses: Mozilla-Actions/sccache-action@v0.0.9
