@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FaGithub } from 'react-icons/fa'
 import { VscRefresh, VscWarning, VscCheck, VscInfo } from 'react-icons/vsc'
+import { useTranslation } from '../../common/i18n/useTranslation'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { logger } from '../../utils/logger'
 
@@ -20,6 +21,7 @@ const formatError = (error: unknown): string => {
 }
 
 export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubProjectIntegrationCardProps) {
+  const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const [feedback, setFeedback] = useState<{ tone: 'info' | 'success' | 'error'; title: string; description?: string } | null>(null)
 
@@ -38,8 +40,8 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
   const authenticated = installed && (github.status?.authenticated ?? false)
   const repository = github.status?.repository ?? null
 
-  const authenticateLabel = github.isAuthenticating ? 'Authenticating…' : 'Authenticate'
-  const connectLabel = github.isConnecting ? 'Connecting…' : 'Connect project'
+  const authenticateLabel = github.isAuthenticating ? t.settings.github.authenticating : t.settings.github.authenticate
+  const connectLabel = github.isConnecting ? t.settings.github.connecting : t.settings.github.connectProject
   const canConnectProject = installed && authenticated && !repository && Boolean(projectPath)
 
   type StatusTone = 'info' | 'warning' | 'danger' | 'success'
@@ -48,37 +50,37 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
     if (!installed) {
       return {
         tone: 'danger',
-        title: 'GitHub CLI not installed',
-        description: 'Install the GitHub CLI (brew install gh) to enable pull request automation.',
+        title: t.settings.github.cliNotInstalled,
+        description: t.settings.github.cliNotInstalledDesc,
       }
     }
     if (!authenticated) {
       return {
         tone: 'warning',
-        title: 'GitHub CLI authentication required',
-        description: 'Run gh auth login in your terminal, then click Authenticate or Refresh to sync Schaltwerk.',
+        title: t.settings.github.authRequired,
+        description: t.settings.github.authRequiredDesc,
       }
     }
     if (!projectPath) {
       return {
         tone: 'info',
-        title: 'Open a project to finish setup',
-        description: 'Open a Schaltwerk project so GitHub integration can connect it to the right repository.',
+        title: t.settings.github.openProject,
+        description: t.settings.github.openProjectDesc,
       }
     }
     if (repository) {
       return {
         tone: 'success',
-        title: `Connected to ${repository.nameWithOwner}`,
-        description: `Default branch ${repository.defaultBranch}. Reviewed sessions will target this repository.`,
+        title: t.settings.github.connected.replace('{repo}', repository.nameWithOwner),
+        description: t.settings.github.connectedDesc.replace('{branch}', repository.defaultBranch),
       }
     }
     return {
       tone: 'info',
-      title: 'Ready to connect project',
-      description: 'Connect this project so reviewed sessions push to the correct GitHub repository.',
+      title: t.settings.github.readyToConnect,
+      description: t.settings.github.readyToConnectDesc,
     }
-  }, [installed, authenticated, projectPath, repository])
+  }, [installed, authenticated, projectPath, repository, t])
 
   const tonePalette =
     statusDetails.tone === 'success'
@@ -173,7 +175,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-body font-medium" style={{ color: 'var(--color-text-primary)' }}>
             <FaGithub className="text-base" />
-            <span>GitHub Integration</span>
+            <span>{t.settings.github.title}</span>
           </div>
           <div
             data-testid="github-auth-status"
@@ -233,7 +235,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
             }}
           >
             <VscRefresh className="text-[13px]" />
-            <span>Refresh</span>
+            <span>{t.settings.common.refresh}</span>
           </button>
         </div>
       </div>
@@ -279,9 +281,9 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
         </div>
       )}
       <div className="mt-3 text-caption flex flex-wrap gap-x-6 gap-y-1" style={{ color: 'var(--color-text-secondary)' }}>
-        <span>CLI installed: <strong>{installed ? 'Yes' : 'No'}</strong></span>
-        <span>Authenticated: <strong>{authenticated ? 'Yes' : 'No'}</strong></span>
-        <span>Project path: <strong>{projectPath || 'None'}</strong></span>
+        <span>{t.settings.github.cliInstalled} <strong>{installed ? t.settings.common.yes : t.settings.common.no}</strong></span>
+        <span>{t.settings.github.authenticated} <strong>{authenticated ? t.settings.common.yes : t.settings.common.no}</strong></span>
+        <span>{t.settings.github.projectPath} <strong>{projectPath || t.settings.common.none}</strong></span>
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { TauriCommands } from '../../common/tauriCommands'
 import { formatDateTime } from '../../utils/dateTime'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 type NotificationType = 'success' | 'error' | 'info'
 
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotify }: Props) {
+    const { t } = useTranslation()
     const [archives, setArchives] = useState<ArchivedSpec[]>([])
     const [archiveMax, setArchiveMax] = useState<number>(50)
     const [archivesLoading, setArchivesLoading] = useState(true)
@@ -121,7 +123,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
         }
 
         if (archives.length === 0) {
-            return <div className="text-slate-400 text-body">No archived specs.</div>
+            return <div className="text-slate-400 text-body">{t.settings.archives.noArchived}</div>
         }
 
         return (
@@ -145,30 +147,30 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                                 onClick={() => { void handleRestore(item) }}
                                 className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700"
                             >
-                                Restore
+                                {t.settings.common.restore}
                             </button>
                             <button
                                 onClick={() => { void handleDelete(item) }}
                                 className="px-2 py-1 border border-red-700 rounded text-red-200 text-caption bg-red-900/30 hover:bg-red-900/50"
                             >
-                                Delete
+                                {t.settings.common.delete}
                             </button>
                         </div>
                     </div>
                 ))}
             </div>
         )
-    }, [archives, archivesLoading, handleDelete, handleRestore, loadError, onOpenSpec])
+    }, [archives, archivesLoading, handleDelete, handleRestore, loadError, onOpenSpec, t])
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Archived Specs</h3>
-                        <div className="text-body text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">{t.settings.archives.title}</h3>
+                        <div className="text-body text-slate-400 mb-4">{t.settings.archives.description}</div>
                         <div className="mb-4 flex items-center gap-3">
-                            <label className="text-body text-slate-300">Max entries</label>
+                            <label className="text-body text-slate-300">{t.settings.archives.maxEntries}</label>
                             <input
                                 type="number"
                                 value={archiveMax}
@@ -183,7 +185,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                                 disabled={savingLimit}
                                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-body disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                Save
+                                {t.settings.common.save}
                             </button>
                         </div>
                         {archiveDisplay}
