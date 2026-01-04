@@ -1,4 +1,40 @@
 {
+  "dialogs": {
+    "cancelSession": {
+      "title": "Cancel Session: {name} ({branch})?",
+      "body": "This will move the session to the archive.",
+      "warningUncommitted": "Warning: This session has uncommitted changes that will be lost!",
+      "allCommitted": "All changes in this session have been committed.",
+      "forceCancel": "Force Cancel",
+      "cancelSession": "Cancel Session",
+      "keepSession": "Keep Session"
+    },
+    "deleteSpec": {
+      "title": "Delete Spec: {name}?",
+      "body": "This will archive the spec prompt so you can recover it later from Settings → Archives.",
+      "bodyNote": "You can permanently delete it from the archive if desired.",
+      "confirm": "Archive Spec",
+      "confirmTitle": "Archive spec (Enter)",
+      "cancel": "Keep Spec",
+      "cancelTitle": "Keep spec (Esc)"
+    },
+    "convertToSpec": {
+      "title": "Convert Session to Spec",
+      "body": "Convert {name} back to a spec agent?",
+      "warningTitle": "⚠ Warning: Uncommitted changes will be lost",
+      "warningBody": "This session has uncommitted changes in the worktree. Converting to spec will:",
+      "warningItem1": "Remove the worktree and all uncommitted changes",
+      "warningItem2": "Archive the branch",
+      "warningItem3": "Preserve the agent description as a spec",
+      "normalBody": "This will:",
+      "normalItem1": "Remove the worktree",
+      "footnote": "The agent content will be preserved and can be started again later.",
+      "confirm": "Convert to Spec",
+      "confirmTitle": "Convert to spec (Enter)",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel (Esc)"
+    }
+  },
   "settings": {
     "categories": {
       "appearance": "Appearance",

@@ -1,6 +1,42 @@
 export type Language = 'en' | 'zh'
 
 export interface Translations {
+  dialogs: {
+    cancelSession: {
+      title: string
+      body: string
+      warningUncommitted: string
+      allCommitted: string
+      forceCancel: string
+      cancelSession: string
+      keepSession: string
+    }
+    deleteSpec: {
+      title: string
+      body: string
+      bodyNote: string
+      confirm: string
+      confirmTitle: string
+      cancel: string
+      cancelTitle: string
+    }
+    convertToSpec: {
+      title: string
+      body: string
+      warningTitle: string
+      warningBody: string
+      warningItem1: string
+      warningItem2: string
+      warningItem3: string
+      normalBody: string
+      normalItem1: string
+      footnote: string
+      confirm: string
+      confirmTitle: string
+      cancel: string
+      cancelTitle: string
+    }
+  }
   settings: {
     categories: {
       appearance: string

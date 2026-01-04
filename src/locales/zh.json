@@ -1,4 +1,40 @@
 {
+  "dialogs": {
+    "cancelSession": {
+      "title": "取消会话：{name} ({branch})？",
+      "body": "此操作将会把会话移至归档。",
+      "warningUncommitted": "警告：此会话有未提交的更改，将会丢失！",
+      "allCommitted": "此会话的所有更改都已提交。",
+      "forceCancel": "强制取消",
+      "cancelSession": "取消会话",
+      "keepSession": "保留会话"
+    },
+    "deleteSpec": {
+      "title": "删除规格：{name}？",
+      "body": "这将归档规格提示，您可以稍后从"设置 → 归档"中恢复。",
+      "bodyNote": "如需要，您可以从归档中永久删除。",
+      "confirm": "归档规格",
+      "confirmTitle": "归档规格 (Enter)",
+      "cancel": "保留规格",
+      "cancelTitle": "保留规格 (Esc)"
+    },
+    "convertToSpec": {
+      "title": "将会话转换为规格",
+      "body": "将 {name} 转换回规格代理？",
+      "warningTitle": "⚠ 警告：未提交的更改将丢失",
+      "warningBody": "此会话在工作树中有未提交的更改。转换为规格将：",
+      "warningItem1": "移除工作树及所有未提交的更改",
+      "warningItem2": "归档分支",
+      "warningItem3": "保留代理描述作为规格",
+      "normalBody": "这将：",
+      "normalItem1": "移除工作树",
+      "footnote": "代理内容将被保留，可以稍后再次启动。",
+      "confirm": "转换为规格",
+      "confirmTitle": "转换为规格 (Enter)",
+      "cancel": "取消",
+      "cancelTitle": "取消 (Esc)"
+    }
+  },
   "settings": {
     "categories": {
       "appearance": "外观",
