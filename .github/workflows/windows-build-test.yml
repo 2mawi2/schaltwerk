@@ -1,0 +1,34 @@
+name: Windows Build Test
+
+on:
+  push:
+    branches:
+      - schaltwerk/windows-platform-support-aj
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Rust check
+        working-directory: src-tauri
+        run: cargo check --all-features
+
+      - name: Rust build
+        working-directory: src-tauri
+        run: cargo build --release

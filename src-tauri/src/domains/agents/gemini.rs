@@ -172,10 +172,26 @@ fn gemini_home_directory() -> Option<PathBuf> {
         }
     }
 
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
+    #[cfg(unix)]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var("USERPROFILE")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        dirs::home_dir()
+    }
 }
 
 pub fn find_gemini_session(path: &Path) -> Option<String> {

@@ -4,7 +4,8 @@
 Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, GitHub Copilot CLI, Kilo Code, Gemini, OpenCode, Codex, Factory Droid, etc.) can work without affecting the main codebase.
 
 ## Platform Support
-- macOS 11+ supported; Linux beta builds ship via releases. Windows unsupported.
+- macOS 11+ supported; Linux beta builds ship via releases.
+- Windows 10 version 1903+ supported (ConPTY required).
 
 > **Tooling Note:** Examples in this guide default to `bun`. Replace them with the equivalent `npm` commands (`npm install`, `npm run …`, etc.) if you prefer npm.
 

@@ -182,11 +182,20 @@ pub(crate) fn prewarm() {
     }
 
     std::thread::spawn(|| {
-        if let Some(home) = std::env::var("HOME")
+        #[cfg(unix)]
+        let home = std::env::var("HOME")
             .ok()
             .map(PathBuf::from)
-            .or_else(dirs::home_dir)
-        {
+            .or_else(dirs::home_dir);
+        #[cfg(windows)]
+        let home = std::env::var("USERPROFILE")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir);
+        #[cfg(not(any(unix, windows)))]
+        let home = dirs::home_dir();
+
+        if let Some(home) = home {
             let sessions_dir = home.join(".codex").join("sessions");
             let _ = CODEX_SESSION_INDEX.ensure_snapshot(&sessions_dir);
         }

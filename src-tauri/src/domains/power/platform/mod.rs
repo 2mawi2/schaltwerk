@@ -6,11 +6,15 @@ use crate::errors::SchaltError;
 pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 #[cfg(target_os = "linux")]
 pub use linux::LinuxAdapter as PlatformAdapterImpl;
 #[cfg(target_os = "macos")]
 pub use macos::MacOsAdapter as PlatformAdapterImpl;
+#[cfg(target_os = "windows")]
+pub use windows::WindowsAdapter as PlatformAdapterImpl;
 
 pub trait PlatformAdapter: Send + Sync {
     /// Build the inhibitor command specific to the platform.

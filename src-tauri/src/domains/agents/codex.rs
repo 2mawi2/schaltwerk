@@ -7,6 +7,27 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 
+fn get_home_dir() -> Option<PathBuf> {
+    #[cfg(unix)]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+    #[cfg(windows)]
+    {
+        std::env::var("USERPROFILE")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        dirs::home_dir()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct DirSignature {
     root_millis: Option<u128>,
@@ -452,10 +473,7 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
         path.display()
     );
 
-    let home = std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir);
+    let home = get_home_dir();
 
     let home = match home {
         Some(home) => home,
@@ -581,10 +599,7 @@ pub fn find_codex_session(path: &Path) -> Option<String> {
 
 /// Returns the newest matching Codex session JSONL path for this worktree, if any.
 pub fn find_codex_resume_path(path: &Path) -> Option<PathBuf> {
-    let home = std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)?;
+    let home = get_home_dir()?;
 
     let sessions_dir = home.join(".codex").join("sessions");
     let target_path = path.to_string_lossy().to_string();

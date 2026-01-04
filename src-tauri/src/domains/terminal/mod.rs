@@ -89,7 +89,8 @@ pub use shell_invocation::{
 use std::sync::RwLock;
 use std::{env, fs, path::Path, path::PathBuf};
 
-const MACOS_FALLBACK_SHELLS: &[&str] = &[
+#[cfg(unix)]
+const UNIX_FALLBACK_SHELLS: &[&str] = &[
     "/bin/zsh",
     "/usr/bin/zsh",
     "/bin/bash",
@@ -97,10 +98,20 @@ const MACOS_FALLBACK_SHELLS: &[&str] = &[
     "/bin/sh",
     "/usr/bin/sh",
 ];
+
+#[cfg(windows)]
+const WINDOWS_FALLBACK_SHELLS: &[&str] = &["pwsh", "powershell", "cmd"];
+
 static TERMINAL_SHELL_STATE: RwLock<Option<(String, Vec<String>)>> = RwLock::new(None);
 
+#[cfg(unix)]
 fn fallback_shell_candidates() -> &'static [&'static str] {
-    MACOS_FALLBACK_SHELLS
+    UNIX_FALLBACK_SHELLS
+}
+
+#[cfg(windows)]
+fn fallback_shell_candidates() -> &'static [&'static str] {
+    WINDOWS_FALLBACK_SHELLS
 }
 
 pub fn put_terminal_shell_override(shell: String, args: Vec<String>) {
@@ -110,9 +121,8 @@ pub fn put_terminal_shell_override(shell: String, args: Vec<String>) {
 }
 
 /// Determine the effective shell command and arguments, honoring user preferences set by the binary.
-/// Falls back to the process `$SHELL` or a platform default when unset.
+/// Falls back to the process `$SHELL` (Unix) or `%COMSPEC%` (Windows) or a platform default when unset.
 pub fn get_effective_shell() -> (String, Vec<String>) {
-    // Use runtime override if present and valid
     if let Ok(guard) = TERMINAL_SHELL_STATE.read()
         && let Some((shell, args)) = guard.clone()
     {
@@ -125,13 +135,29 @@ pub fn get_effective_shell() -> (String, Vec<String>) {
         }
     }
 
-    if let Ok(env_shell) = env::var("SHELL") {
-        if let Some(resolved) = resolve_shell_candidate(&env_shell) {
-            return (resolved, Vec::new());
-        } else {
-            log::warn!(
-                "Environment variable SHELL={env_shell:?} is unavailable; falling back to defaults"
-            );
+    #[cfg(unix)]
+    {
+        if let Ok(env_shell) = env::var("SHELL") {
+            if let Some(resolved) = resolve_shell_candidate(&env_shell) {
+                return (resolved, Vec::new());
+            } else {
+                log::warn!(
+                    "Environment variable SHELL={env_shell:?} is unavailable; falling back to defaults"
+                );
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        if let Ok(env_shell) = env::var("COMSPEC") {
+            if let Some(resolved) = resolve_shell_candidate(&env_shell) {
+                return (resolved, Vec::new());
+            } else {
+                log::warn!(
+                    "Environment variable COMSPEC={env_shell:?} is unavailable; falling back to defaults"
+                );
+            }
         }
     }
 
@@ -141,8 +167,17 @@ pub fn get_effective_shell() -> (String, Vec<String>) {
         }
     }
 
-    log::warn!("No configured shells available; falling back to bare 'sh'");
-    ("sh".to_string(), Vec::new())
+    #[cfg(unix)]
+    {
+        log::warn!("No configured shells available; falling back to bare 'sh'");
+        ("sh".to_string(), Vec::new())
+    }
+
+    #[cfg(windows)]
+    {
+        log::warn!("No configured shells available; falling back to bare 'cmd'");
+        ("cmd".to_string(), Vec::new())
+    }
 }
 
 #[cfg(test)]
@@ -221,13 +256,22 @@ fn resolve_shell_candidate(shell: &str) -> Option<String> {
 }
 
 fn expand_home(shell: &str) -> String {
-    if let Some(stripped) = shell.strip_prefix("~/")
-        && let Ok(home) = env::var("HOME")
-    {
-        return PathBuf::from(home)
-            .join(stripped)
-            .to_string_lossy()
-            .into_owned();
+    if let Some(stripped) = shell.strip_prefix("~/") {
+        #[cfg(unix)]
+        if let Ok(home) = env::var("HOME") {
+            return PathBuf::from(home)
+                .join(stripped)
+                .to_string_lossy()
+                .into_owned();
+        }
+
+        #[cfg(windows)]
+        if let Ok(home) = env::var("USERPROFILE") {
+            return PathBuf::from(home)
+                .join(stripped)
+                .to_string_lossy()
+                .into_owned();
+        }
     }
 
     shell.to_string()
@@ -239,6 +283,16 @@ fn search_on_path(shell: &str) -> Option<String> {
             let candidate = entry.join(shell);
             if path_is_executable(&candidate) {
                 return Some(candidate.to_string_lossy().into_owned());
+            }
+
+            #[cfg(windows)]
+            {
+                for ext in &[".exe", ".cmd", ".bat", ".com"] {
+                    let with_ext = entry.join(format!("{shell}{ext}"));
+                    if path_is_executable(&with_ext) {
+                        return Some(with_ext.to_string_lossy().into_owned());
+                    }
+                }
             }
         }
     }

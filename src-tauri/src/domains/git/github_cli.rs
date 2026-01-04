@@ -1580,18 +1580,10 @@ fn resolve_github_cli_program_uncached() -> String {
         }
     }
 
-    if let Ok(output) = StdCommand::new("which").arg(command).output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let trimmed = path.trim();
-                if !trimmed.is_empty() {
-                    log::info!("[GitHubCli] Found gh via which: {trimmed}");
-                    return trimmed.to_string();
-                }
-            }
-        } else if let Ok(err) = String::from_utf8(output.stderr) {
-            warn!("[GitHubCli] 'which gh' failed: {err}");
-        }
+    if let Ok(path) = which::which(command) {
+        let path_str = path.to_string_lossy().to_string();
+        log::info!("[GitHubCli] Found gh via which crate: {path_str}");
+        return path_str;
     }
 
     warn!("[GitHubCli] Falling back to plain 'gh' - binary may not be found");

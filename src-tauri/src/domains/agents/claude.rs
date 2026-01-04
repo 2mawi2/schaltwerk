@@ -161,7 +161,7 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
 }
 
 fn sanitize_path_for_claude(path: &Path) -> String {
-    path.to_string_lossy().replace(['/', '.', '_'], "-")
+    path.to_string_lossy().replace(['/', '\\', '.', '_'], "-")
 }
 
 fn claude_home_directory() -> Option<PathBuf> {
@@ -172,10 +172,26 @@ fn claude_home_directory() -> Option<PathBuf> {
         }
     }
 
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
+    #[cfg(unix)]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var("USERPROFILE")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        dirs::home_dir()
+    }
 }
 
 fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str) -> bool {
