@@ -96,11 +96,51 @@ pub(crate) fn resolve_agent_binary_with_extra_paths(command: &str, extra_paths: 
     if let Ok(path) = which::which(command) {
         let path_str = path.to_string_lossy().to_string();
         log::info!("Found {command} via which crate: {path_str}");
+
+        #[cfg(windows)]
+        {
+            let resolved = resolve_windows_executable(&path_str);
+            log::info!("Windows executable resolution: {path_str} -> {resolved}");
+            return resolved;
+        }
+
+        #[cfg(not(windows))]
         return path_str;
     }
 
     log::warn!("Could not resolve path for '{command}', using as-is");
     command.to_string()
+}
+
+#[cfg(windows)]
+pub(crate) fn resolve_windows_executable(path: &str) -> String {
+    let path_lower = path.to_lowercase();
+    if path_lower.ends_with(".exe")
+        || path_lower.ends_with(".cmd")
+        || path_lower.ends_with(".bat")
+        || path_lower.ends_with(".com")
+    {
+        return path.to_string();
+    }
+
+    for ext in &[".cmd", ".exe", ".bat"] {
+        let with_ext = format!("{}{}", path, ext);
+        if PathBuf::from(&with_ext).exists() {
+            log::info!("Resolved Windows executable: {} -> {}", path, with_ext);
+            return with_ext;
+        }
+    }
+
+    log::warn!(
+        "No Windows executable found for '{}', using as-is (may fail with error 193)",
+        path
+    );
+    path.to_string()
+}
+
+#[cfg(not(windows))]
+pub(crate) fn resolve_windows_executable(path: &str) -> String {
+    path.to_string()
 }
 pub(crate) fn escape_prompt_for_shell(prompt: &str) -> String {
     let mut escaped = String::with_capacity(prompt.len());
