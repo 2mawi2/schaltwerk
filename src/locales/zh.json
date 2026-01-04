@@ -14,12 +14,14 @@
     },
     "theme": {
       "label": "主题",
-      "light": "浅色",
       "dark": "深色",
+      "darkDesc": "默认深色主题",
+      "light": "浅色",
+      "lightDesc": "适合明亮环境的浅色主题",
       "system": "系统",
-      "currentLight": "当前为浅色",
-      "currentDark": "当前为深色",
-      "followsSystem": "跟随系统"
+      "systemDesc": "跟随系统偏好设置",
+      "beta": "测试版",
+      "moreThemes": "更多主题即将推出：Nord 等。"
     },
     "language": {
       "label": "语言",

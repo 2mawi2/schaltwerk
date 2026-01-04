@@ -16,12 +16,14 @@ export interface Translations {
     }
     theme: {
       label: string
-      light: string
       dark: string
+      darkDesc: string
+      light: string
+      lightDesc: string
       system: string
-      currentLight: string
-      currentDark: string
-      followsSystem: string
+      systemDesc: string
+      beta: string
+      moreThemes: string
     }
     language: {
       label: string

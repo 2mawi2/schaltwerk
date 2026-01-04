@@ -14,12 +14,14 @@
     },
     "theme": {
       "label": "Theme",
-      "light": "Light",
       "dark": "Dark",
+      "darkDesc": "Default dark theme",
+      "light": "Light",
+      "lightDesc": "Light theme for bright environments",
       "system": "System",
-      "currentLight": "Currently Light",
-      "currentDark": "Currently Dark",
-      "followsSystem": "Follows system"
+      "systemDesc": "Follows your OS preference",
+      "beta": "Beta",
+      "moreThemes": "More themes coming soon: Nord, and more."
     },
     "language": {
       "label": "Language",
