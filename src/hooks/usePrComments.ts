@@ -9,6 +9,7 @@ import { useClaudeSession } from './useClaudeSession'
 import { stableSessionTerminalId } from '../common/terminalIdentity'
 import { getActiveAgentTerminalId } from '../common/terminalTargeting'
 import { logger } from '../utils/logger'
+import { useTranslation } from '../common/i18n'
 import {
   type PrReviewComment,
   formatPrReviewCommentsForTerminal,
@@ -26,6 +27,7 @@ interface UsePrCommentsResult {
 }
 
 export function usePrComments(): UsePrCommentsResult {
+  const { t } = useTranslation()
   const { pushToast } = useToast()
   const { selection, setSelection, terminals } = useSelection()
   const { setCurrentFocus, setFocusForSession } = useFocus()
@@ -53,7 +55,7 @@ export function usePrComments(): UsePrCommentsResult {
       const comments = await fetchPrReviewComments(prNumber)
 
       if (comments.length === 0) {
-        pushToast({ tone: 'info', title: 'No comments', description: 'This PR has no review comments' })
+        pushToast({ tone: 'info', title: t.toasts.noComments, description: t.toasts.noCommentsDesc })
         return
       }
 
@@ -97,16 +99,16 @@ export function usePrComments(): UsePrCommentsResult {
 
       pushToast({
         tone: 'success',
-        title: 'Comments sent',
-        description: `${comments.length} comment${comments.length === 1 ? '' : 's'} sent to terminal`
+        title: t.toasts.commentsSent,
+        description: t.toasts.commentsSentDesc.replace('{count}', String(comments.length))
       })
     } catch (error) {
       logger.error(`Failed to fetch PR comments for PR #${prNumber}`, error)
-      pushToast({ tone: 'error', title: 'Failed to fetch comments', description: String(error) })
+      pushToast({ tone: 'error', title: t.toasts.fetchCommentsFailed, description: String(error) })
     } finally {
       setFetchingComments(false)
     }
-  }, [pushToast, selection, terminals, setSelection, setCurrentFocus, setFocusForSession, determineAgentType])
+  }, [t, pushToast, selection, terminals, setSelection, setCurrentFocus, setFocusForSession, determineAgentType])
 
   const fetchAndCopyToClipboard = useCallback(async (prNumber: number) => {
     setFetchingComments(true)
@@ -114,7 +116,7 @@ export function usePrComments(): UsePrCommentsResult {
       const comments = await fetchPrReviewComments(prNumber)
 
       if (comments.length === 0) {
-        pushToast({ tone: 'info', title: 'No comments', description: 'This PR has no review comments' })
+        pushToast({ tone: 'info', title: t.toasts.noComments, description: t.toasts.noCommentsDesc })
         return
       }
 
@@ -123,17 +125,17 @@ export function usePrComments(): UsePrCommentsResult {
 
       pushToast({
         tone: 'success',
-        title: 'Comments copied',
-        description: `${comments.length} comment${comments.length === 1 ? '' : 's'} copied to clipboard`
+        title: t.toasts.commentsCopied,
+        description: t.toasts.commentsCopiedDesc.replace('{count}', String(comments.length))
       })
     } catch (error) {
       logger.error(`Failed to fetch PR comments for PR #${prNumber}`, error)
       const message = error instanceof Error ? error.message : String(error)
-      pushToast({ tone: 'error', title: 'Failed to fetch comments', description: message })
+      pushToast({ tone: 'error', title: t.toasts.fetchCommentsFailed, description: message })
     } finally {
       setFetchingComments(false)
     }
-  }, [pushToast])
+  }, [t, pushToast])
 
   return {
     fetchingComments,

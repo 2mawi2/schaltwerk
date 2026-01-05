@@ -1122,7 +1122,14 @@
     "noPrLinkedDesc": "请先关联 PR 再获取评论",
     "prCreated": "拉取请求已创建",
     "prCreatedBranch": "分支：{branch}",
-    "prModalFailed": "无法打开 PR 对话框"
+    "prModalFailed": "无法打开 PR 对话框",
+    "noComments": "无评论",
+    "noCommentsDesc": "此 PR 没有审查评论",
+    "fetchCommentsFailed": "获取评论失败",
+    "commentsSent": "评论已发送",
+    "commentsSentDesc": "已发送 {count} 条评论到终端",
+    "commentsCopied": "评论已复制",
+    "commentsCopiedDesc": "已复制 {count} 条评论到剪贴板"
   },
   "ariaLabels": {
     "close": "关闭",
@@ -1135,5 +1142,10 @@
     "gitRemoteUrl": "git@github.com:org/repo.git 或 https://github.com/org/repo.git",
     "sessionName": "eager_cosmos",
     "describeChanges": "描述更改内容"
+  },
+  "projectSelector": {
+    "title": "打开项目",
+    "openRepository": "打开仓库",
+    "recentProjects": "最近的项目"
   }
 }

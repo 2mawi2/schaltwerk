@@ -107,7 +107,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
       >
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderBottomColor: 'var(--color-border-default)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Open Project
+            {t.projectSelector.title}
           </h2>
           <button
             onClick={onClose}
@@ -151,14 +151,14 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
               }}
             >
               <VscFolderOpened className="text-xl" />
-              <span className="font-medium">Open Repository</span>
+              <span className="font-medium">{t.projectSelector.openRepository}</span>
             </button>
           </div>
 
           {availableProjects.length > 0 && (
             <div>
               <h3 className="text-sm font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                Recent Projects
+                {t.projectSelector.recentProjects}
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

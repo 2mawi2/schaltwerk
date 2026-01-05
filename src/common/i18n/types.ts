@@ -1132,6 +1132,14 @@ export interface Translations {
     prCreated: string
     prCreatedBranch: string
     prModalFailed: string
+    // PR comments (usePrComments)
+    noComments: string
+    noCommentsDesc: string
+    fetchCommentsFailed: string
+    commentsSent: string
+    commentsSentDesc: string
+    commentsCopied: string
+    commentsCopiedDesc: string
   }
   ariaLabels: {
     close: string
@@ -1144,5 +1152,10 @@ export interface Translations {
     gitRemoteUrl: string
     sessionName: string
     describeChanges: string
+  }
+  projectSelector: {
+    title: string
+    openRepository: string
+    recentProjects: string
   }
 }
