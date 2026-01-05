@@ -475,6 +475,21 @@
     "nextMatch": "下一个匹配项 (Enter)",
     "closeSearch": "关闭搜索 (Escape)"
   },
+  "terminalComponents": {
+    "addAgentTab": "添加代理标签页 (⌘⇧A)",
+    "addNewTerminal": "添加新终端",
+    "resetSession": "重置会话",
+    "focusClaude": "聚焦 Claude ({shortcut})",
+    "focusTerminal": "聚焦终端 ({shortcut})",
+    "scrollToBottom": "滚动到底部",
+    "expandPanel": "展开终端面板",
+    "collapsePanel": "折叠终端面板",
+    "changeAgent": "更改协调器代理",
+    "configureAgent": "配置代理…",
+    "orchestratorTitle": "协调器 — 主仓库",
+    "agentTitle": "代理 — {name}",
+    "loading": "终端加载中"
+  },
   "epicGroup": {
     "editEpic": "编辑史诗",
     "deleteEpic": "删除史诗",

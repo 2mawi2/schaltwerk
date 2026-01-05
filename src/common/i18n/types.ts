@@ -477,6 +477,21 @@ export interface Translations {
     nextMatch: string
     closeSearch: string
   }
+  terminalComponents: {
+    addAgentTab: string
+    addNewTerminal: string
+    resetSession: string
+    focusClaude: string
+    focusTerminal: string
+    scrollToBottom: string
+    expandPanel: string
+    collapsePanel: string
+    changeAgent: string
+    configureAgent: string
+    orchestratorTitle: string
+    agentTitle: string
+    loading: string
+  }
   epicGroup: {
     editEpic: string
     deleteEpic: string

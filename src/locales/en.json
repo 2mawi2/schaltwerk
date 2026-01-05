@@ -475,6 +475,21 @@
     "nextMatch": "Next match (Enter)",
     "closeSearch": "Close search (Escape)"
   },
+  "terminalComponents": {
+    "addAgentTab": "Add Agent Tab (⌘⇧A)",
+    "addNewTerminal": "Add new terminal",
+    "resetSession": "Reset session",
+    "focusClaude": "Focus Claude ({shortcut})",
+    "focusTerminal": "Focus Terminal ({shortcut})",
+    "scrollToBottom": "Scroll to bottom",
+    "expandPanel": "Expand terminal panel",
+    "collapsePanel": "Collapse terminal panel",
+    "changeAgent": "Change orchestrator agent",
+    "configureAgent": "Configure agent…",
+    "orchestratorTitle": "Orchestrator — main repo",
+    "agentTitle": "Agent — {name}",
+    "loading": "Terminal loading"
+  },
   "epicGroup": {
     "editEpic": "Edit epic",
     "deleteEpic": "Delete epic",

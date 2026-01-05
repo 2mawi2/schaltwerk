@@ -63,6 +63,7 @@ import { CustomAgentModal } from '../modals/CustomAgentModal'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { startOrchestratorTop } from '../../common/agentSpawn'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { useTranslation } from '../../common/i18n'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -76,6 +77,7 @@ const needsDelayedSubmitForAgent = (agent?: string | null) => agent === 'claude'
 
 
 const TerminalGridComponent = () => {
+    const { t } = useTranslation()
     const { selection, terminals, isReady, isSpec, clearTerminalTracking } = useSelection()
     const selectionIsSpec = selection.kind === 'session' && (isSpec || selection.sessionState === 'spec')
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
@@ -1440,7 +1442,7 @@ const TerminalGridComponent = () => {
 
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
-                            {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Agent — ${selection.payload ?? ''}`}
+                            {selection.kind === 'orchestrator' ? t.terminalComponents.orchestratorTitle : t.terminalComponents.agentTitle.replace('{name}', selection.payload ?? '')}
                         </span>
 
                         {/* Right side: Configure/Reset + ⌘T indicator */}
@@ -1449,17 +1451,17 @@ const TerminalGridComponent = () => {
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfigureAgentsOpen(true) }}
                                     className="px-2 py-1 text-[10px] rounded border border-subtle hover:bg-elevated"
-                                    title="Change orchestrator agent"
+                                    title={t.terminalComponents.changeAgent}
                                 >
-                                    Configure agent…
+                                    {t.terminalComponents.configureAgent}
                                 </button>
                             )}
                             {selection.kind === 'session' && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
                                     className="p-1 rounded hover:bg-elevated"
-                                    title="Reset session"
-                                    aria-label="Reset session"
+                                    title={t.terminalComponents.resetSession}
+                                    aria-label={t.terminalComponents.resetSession}
                                 >
                                     <VscDiscard className="text-base" />
                                 </button>
@@ -1471,7 +1473,7 @@ const TerminalGridComponent = () => {
                                 color: localFocus === 'claude' ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
                             }}
                             className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded`}
-                            title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
+                            title={t.terminalComponents.focusClaude.replace('{shortcut}', focusClaudeShortcut || '⌘T')}
                         >{focusClaudeShortcut || '⌘T'}</span>
                     </div>
                     )}
