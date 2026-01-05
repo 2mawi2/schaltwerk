@@ -1161,5 +1161,9 @@
     "specsTitle": "规格工作区",
     "preview": "预览",
     "previewTitle": "网页预览"
+  },
+  "historySearch": {
+    "placeholder": "搜索提交…",
+    "clearSearch": "清除搜索 (Escape)"
   }
 }

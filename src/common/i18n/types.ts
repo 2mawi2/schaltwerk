@@ -1172,4 +1172,8 @@ export interface Translations {
     preview: string
     previewTitle: string
   }
+  historySearch: {
+    placeholder: string
+    clearSearch: string
+  }
 }

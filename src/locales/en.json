@@ -1161,5 +1161,9 @@
     "specsTitle": "Specs Workspace",
     "preview": "Preview",
     "previewTitle": "Web Preview"
+  },
+  "historySearch": {
+    "placeholder": "Search commits...",
+    "clearSearch": "Clear search (Escape)"
   }
 }
