@@ -588,6 +588,9 @@ export interface Translations {
     createNewSpec: string
     startNewAgent: string
     cancel: string
+    cancelEsc: string
+    esc: string
+    cmdEnter: string
     agentName: string
     epic: string
     createAsSpec: string
@@ -612,6 +615,31 @@ export interface Translations {
     prSelectHint: string
     enterSpecContent: string
     describeAgent: string
+    validation: {
+      nameRequired: string
+      nameTooLong: string
+      nameInvalidChars: string
+      selectBranch: string
+      enterSpecContent: string
+      selectIssue: string
+      selectPr: string
+      selectAgent: string
+    }
+    tooltips: {
+      createSpec: string
+      startAgent: string
+      fetchingIssue: string
+      fetchingPr: string
+      selectIssuePrompt: string
+      selectPrPrompt: string
+      selectAgentPrompt: string
+      agentNotInstalled: string
+      agentsNotInstalled: string
+      useIssuePrompt: string
+      connectGithubIssue: string
+      usePrPrompt: string
+      connectGithubPr: string
+    }
   }
   errorBoundary: {
     title: string

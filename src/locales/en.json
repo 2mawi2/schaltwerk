@@ -586,6 +586,9 @@
     "createNewSpec": "Create new spec",
     "startNewAgent": "Start new agent",
     "cancel": "Cancel",
+    "cancelEsc": "Cancel (Esc)",
+    "esc": "Esc",
+    "cmdEnter": "⌘↵",
     "agentName": "Agent name",
     "epic": "Epic",
     "createAsSpec": "Create as spec (no agent will start)",
@@ -609,7 +612,32 @@
     "issueSelectHint": "Select an issue to pull its description and comments into the agent prompt.",
     "prSelectHint": "Select a pull request to pull its description and comments into the agent prompt. The session will start on the PR branch.",
     "enterSpecContent": "Enter spec content in markdown...",
-    "describeAgent": "Describe the agent for the Claude session"
+    "describeAgent": "Describe the agent for the Claude session",
+    "validation": {
+      "nameRequired": "Agent name is required",
+      "nameTooLong": "Agent name must be 100 characters or less",
+      "nameInvalidChars": "Agent name can only contain letters, numbers, hyphens, underscores, and spaces",
+      "selectBranch": "Please select a base branch",
+      "enterSpecContent": "Please enter spec content",
+      "selectIssue": "Select a GitHub issue to continue",
+      "selectPr": "Select a GitHub pull request to continue",
+      "selectAgent": "Select at least one agent to continue"
+    },
+    "tooltips": {
+      "createSpec": "Create spec (Cmd+Enter)",
+      "startAgent": "Start agent (Cmd+Enter)",
+      "fetchingIssue": "Fetching issue details...",
+      "fetchingPr": "Fetching pull request details...",
+      "selectIssuePrompt": "Select a GitHub issue to generate a prompt",
+      "selectPrPrompt": "Select a GitHub pull request to generate a prompt",
+      "selectAgentPrompt": "Select at least one agent to continue",
+      "agentNotInstalled": "{agent} is not installed. Please install it to use this agent.",
+      "agentsNotInstalled": "One or more selected agents are not installed. Please install them to continue.",
+      "useIssuePrompt": "Use a GitHub issue as the agent prompt",
+      "connectGithubIssue": "Connect GitHub to enable GitHub issue prompts",
+      "usePrPrompt": "Use a GitHub pull request as the agent prompt",
+      "connectGithubPr": "Connect GitHub to enable GitHub PR prompts"
+    }
   },
   "errorBoundary": {
     "title": "Well, that's unexpected",

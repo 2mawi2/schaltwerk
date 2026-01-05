@@ -586,6 +586,9 @@
     "createNewSpec": "创建新规格",
     "startNewAgent": "启动新代理",
     "cancel": "取消",
+    "cancelEsc": "取消 (Esc)",
+    "esc": "Esc",
+    "cmdEnter": "⌘↵",
     "agentName": "代理名称",
     "epic": "史诗",
     "createAsSpec": "创建为规格（不启动代理）",
@@ -609,7 +612,32 @@
     "issueSelectHint": "选择一个议题以将其描述和评论拉入代理提示词。",
     "prSelectHint": "选择一个拉取请求以将其描述和评论拉入代理提示词。会话将在 PR 分支上启动。",
     "enterSpecContent": "输入规格内容（Markdown 格式）...",
-    "describeAgent": "描述 Claude 会话的代理任务"
+    "describeAgent": "描述 Claude 会话的代理任务",
+    "validation": {
+      "nameRequired": "代理名称为必填项",
+      "nameTooLong": "代理名称不能超过 100 个字符",
+      "nameInvalidChars": "代理名称只能包含字母、数字、连字符、下划线和空格",
+      "selectBranch": "请选择基础分支",
+      "enterSpecContent": "请输入规格内容",
+      "selectIssue": "请选择 GitHub 议题以继续",
+      "selectPr": "请选择 GitHub 拉取请求以继续",
+      "selectAgent": "请至少选择一个代理以继续"
+    },
+    "tooltips": {
+      "createSpec": "创建规格 (Cmd+Enter)",
+      "startAgent": "启动代理 (Cmd+Enter)",
+      "fetchingIssue": "正在获取议题详情...",
+      "fetchingPr": "正在获取拉取请求详情...",
+      "selectIssuePrompt": "选择 GitHub 议题以生成提示词",
+      "selectPrPrompt": "选择 GitHub 拉取请求以生成提示词",
+      "selectAgentPrompt": "请至少选择一个代理以继续",
+      "agentNotInstalled": "{agent} 未安装。请安装后使用此代理。",
+      "agentsNotInstalled": "一个或多个选中的代理未安装。请安装后继续。",
+      "useIssuePrompt": "使用 GitHub 议题作为代理提示词",
+      "connectGithubIssue": "连接 GitHub 以启用议题提示词",
+      "usePrPrompt": "使用 GitHub 拉取请求作为代理提示词",
+      "connectGithubPr": "连接 GitHub 以启用 PR 提示词"
+    }
   },
   "errorBoundary": {
     "title": "意外错误",
