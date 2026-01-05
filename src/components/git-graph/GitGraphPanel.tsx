@@ -12,6 +12,7 @@ import type {
 } from './types'
 import { logger } from '../../utils/logger'
 import { useToast } from '../../common/toast/ToastProvider'
+import { useTranslation } from '../../common/i18n'
 import { writeClipboard } from '../../utils/clipboard'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { EventPayloadMap } from '../../common/events'
@@ -46,6 +47,7 @@ type PendingHeadInfo = {
 type PendingHeadBucket = Map<string, PendingHeadInfo>
 
 export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverride, sessionName }: GitGraphPanelProps = {}) => {
+  const { t } = useTranslation()
   const projectPath = useAtomValue(projectPathAtom)
   const repoPath = repoPathOverride ?? projectPath
   const { pushToast } = useToast()
@@ -163,9 +165,9 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     if (!contextMenu) return
     const success = await writeClipboard(contextMenu.commit.id)
     if (success) {
-      pushToast({ tone: 'success', title: 'Copied commit ID', description: contextMenu.commit.id.substring(0, 7) })
+      pushToast({ tone: 'success', title: t.toasts.copiedCommitId, description: contextMenu.commit.id.substring(0, 7) })
     } else {
-      pushToast({ tone: 'error', title: 'Copy failed', description: 'Unable to access clipboard' })
+      pushToast({ tone: 'error', title: t.toasts.copyFailed, description: t.toasts.clipboardBlockedDesc })
     }
     setContextMenu(null)
   }, [contextMenu, pushToast])
@@ -174,9 +176,9 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     if (!contextMenu) return
     const success = await writeClipboard(contextMenu.commit.subject)
     if (success) {
-      pushToast({ tone: 'success', title: 'Copied commit message' })
+      pushToast({ tone: 'success', title: t.toasts.copiedCommitMessage })
     } else {
-      pushToast({ tone: 'error', title: 'Copy failed', description: 'Unable to access clipboard' })
+      pushToast({ tone: 'error', title: t.toasts.copyFailed, description: t.toasts.clipboardBlockedDesc })
     }
     setContextMenu(null)
   }, [contextMenu, pushToast])
@@ -236,13 +238,13 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
         })
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        pushToast({ tone: 'error', title: 'Failed to open diff', description: message })
+        pushToast({ tone: 'error', title: t.toasts.failedToOpenDiff, description: message })
         return
       }
     }
 
     if (!files || files.length === 0) {
-      pushToast({ tone: 'info', title: 'No file changes', description: 'This commit has no files to diff.' })
+      pushToast({ tone: 'info', title: t.toasts.noFileChanges, description: t.toasts.noFileChangesDesc })
       return
     }
 
@@ -285,7 +287,7 @@ export const GitGraphPanel = memo(({ onOpenCommitDiff, repoPath: repoPathOverrid
     lastLoadMoreErrorRef.current = loadMoreError
     pushToast({
       tone: 'error',
-      title: 'Failed to load more commits',
+      title: t.toasts.failedToLoadMoreCommits,
       description: loadMoreError,
     })
   }, [loadMoreError, pushToast])

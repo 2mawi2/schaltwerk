@@ -3,6 +3,7 @@ import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
 import { ProjectFileTree } from './ProjectFileTree'
 import { FileContentViewer } from './FileContentViewer'
+import { useTranslation } from '../../common/i18n'
 import {
   VscScreenFull,
   VscChevronLeft,
@@ -67,6 +68,7 @@ export function SimpleDiffPanel({
   onInlineLayoutPreferenceChange,
   onHasFilesChange,
 }: SimpleDiffPanelProps) {
+  const { t } = useTranslation()
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
   const [linkPrModalOpen, setLinkPrModalOpen] = useState(false)
@@ -224,10 +226,10 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         prUrl: prUrlValue
       })
       await reloadSessions()
-      pushToast({ tone: 'success', title: 'PR linked', description: `Session linked to PR #${prNum}` })
+      pushToast({ tone: 'success', title: t.toasts.prLinked, description: t.toasts.prLinkedDesc.replace('{prNum}', String(prNum)) })
     } catch (error) {
       logger.error('Failed to link session to PR:', error)
-      pushToast({ tone: 'error', title: 'Failed to link PR', description: String(error) })
+      pushToast({ tone: 'error', title: t.toasts.prLinkFailed, description: String(error) })
     }
   }, [sessionName, reloadSessions, pushToast])
 
@@ -238,10 +240,10 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         name: sessionName
       })
       await reloadSessions()
-      pushToast({ tone: 'success', title: 'PR unlinked', description: `PR #${prNumber} unlinked from session` })
+      pushToast({ tone: 'success', title: t.toasts.prUnlinked, description: t.toasts.prUnlinkedDesc.replace('{prNumber}', String(prNumber)) })
     } catch (error) {
       logger.error('Failed to unlink PR from session:', error)
-      pushToast({ tone: 'error', title: 'Failed to unlink PR', description: String(error) })
+      pushToast({ tone: 'error', title: t.toasts.prUnlinkFailed, description: String(error) })
     }
   }, [sessionName, prNumber, reloadSessions, pushToast])
 

@@ -544,7 +544,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             await invoke(TauriCommands.SetAutoUpdateEnabled, { enabled: next })
             toast?.pushToast({
                 tone: 'success',
-                title: next ? 'Automatic updates enabled' : 'Automatic updates disabled',
+                title: next ? t.toasts.autoUpdatesEnabled : t.toasts.autoUpdatesDisabled,
                 durationMs: 2400,
             })
         } catch (error) {
@@ -552,8 +552,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             setAutoUpdateEnabled(previous)
             toast?.pushToast({
                 tone: 'error',
-                title: 'Could not update preference',
-                description: 'Try again or restart Schaltwerk.',
+                title: t.toasts.updatePreferenceFailed,
+                description: t.toasts.updatePreferenceFailedDesc,
                 durationMs: 5000,
             })
         } finally {
@@ -569,14 +569,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             logger.error('Failed to start manual update check:', error)
             toast?.pushToast({
                 tone: 'error',
-                title: 'Unable to check for updates',
-                description: 'Please try again in a few minutes.',
+                title: t.toasts.checkUpdatesFailed,
+                description: t.toasts.checkUpdatesFailedDesc,
                 durationMs: 5000,
             })
         } finally {
             setCheckingUpdate(false)
         }
-    }, [toast])
+    }, [toast, t])
     
     // JS normalizers removed; native fix handles inputs globally.
 

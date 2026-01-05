@@ -19,6 +19,7 @@ import { createFileReferenceAutocomplete } from './fileReferenceAutocomplete'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
 import { logger } from '../../utils/logger'
 import type { ToastOptions } from '../../common/toast/ToastProvider'
+import { useTranslation } from '../../common/i18n'
 
 interface MarkdownEditorProps {
   value: string
@@ -38,7 +39,21 @@ export const MARKDOWN_PASTE_CHARACTER_LIMIT = 200_000
 
 type OptionalToastApi = { pushToast: (options: ToastOptions) => void } | undefined
 
-export function handleMarkdownPaste(event: ClipboardEvent, toast: OptionalToastApi): boolean {
+type PasteTranslations = {
+  title: string
+  description: string
+}
+
+const defaultPasteTranslations: PasteTranslations = {
+  title: 'Paste too large',
+  description: `Paste size is limited to ${MARKDOWN_PASTE_CHARACTER_LIMIT.toLocaleString()} characters. Shorten the content before pasting.`,
+}
+
+export function handleMarkdownPaste(
+  event: ClipboardEvent,
+  toast: OptionalToastApi,
+  translations?: PasteTranslations
+): boolean {
   const text = event.clipboardData?.getData('text/plain') ?? ''
   if (!text || text.length <= MARKDOWN_PASTE_CHARACTER_LIMIT) {
     return false
@@ -52,10 +67,11 @@ export function handleMarkdownPaste(event: ClipboardEvent, toast: OptionalToastA
     limit: MARKDOWN_PASTE_CHARACTER_LIMIT,
   })
 
+  const t = translations ?? defaultPasteTranslations
   toast?.pushToast({
     tone: 'warning',
-    title: 'Paste too large',
-    description: `Paste size is limited to ${MARKDOWN_PASTE_CHARACTER_LIMIT.toLocaleString()} characters. Shorten the content before pasting.`,
+    title: t.title,
+    description: t.description,
   })
 
   return true
@@ -272,6 +288,7 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
   className = '',
   fileReferenceProvider,
 }, ref) {
+  const { t } = useTranslation()
   const editorConfig = useMemo(() => EditorState.tabSize.of(2), [])
   const lastValueRef = useRef(value)
   const [internalValue, setInternalValue] = useState(value)
@@ -285,12 +302,17 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
     return [createFileReferenceAutocomplete(fileReferenceProvider)]
   }, [fileReferenceProvider])
 
+  const pasteTranslations = useMemo(() => ({
+    title: t.toasts.pasteTooLarge,
+    description: t.toasts.pasteTooLargeDesc.replace('{limit}', MARKDOWN_PASTE_CHARACTER_LIMIT.toLocaleString()),
+  }), [t])
+
   const pasteGuardExtension = useMemo<Extension>(() => EditorView.domEventHandlers({
     paste: (event) => {
       const clipboardEvent = event as ClipboardEvent
-      return handleMarkdownPaste(clipboardEvent, toast)
+      return handleMarkdownPaste(clipboardEvent, toast, pasteTranslations)
     },
-  }), [toast])
+  }), [toast, pasteTranslations])
 
   const extensions = useMemo(() => [
     markdown(),

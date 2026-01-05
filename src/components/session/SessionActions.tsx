@@ -22,6 +22,7 @@ import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
 import type { Epic } from '../../types/session'
 import { EpicSelect } from '../shared/EpicSelect'
+import { useTranslation } from '../../common/i18n'
 
 const spinnerIcon = (
   <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -97,6 +98,7 @@ export function SessionActions({
   onEpicChange,
   epicDisabled = false,
 }: SessionActionsProps) {
+  const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
   const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
@@ -122,11 +124,11 @@ export function SessionActions({
 
   const handleFetchAndCopyComments = useCallback(async () => {
     if (!prNumber) {
-      pushToast({ tone: 'error', title: 'No PR linked', description: 'Link a PR first before fetching comments' })
+      pushToast({ tone: 'error', title: t.toasts.noPrLinked, description: t.toasts.noPrLinkedDesc })
       return
     }
     await fetchAndCopyToClipboard(prNumber)
-  }, [prNumber, pushToast, fetchAndCopyToClipboard])
+  }, [prNumber, pushToast, fetchAndCopyToClipboard, t])
 
   return (
     <div className={`flex items-center ${spacing}`} data-onboarding="session-actions">

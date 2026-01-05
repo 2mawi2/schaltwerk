@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { useToast } from '../../common/toast/ToastProvider'
+import { useTranslation } from '../../common/i18n'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { ChangedFile, SessionsRefreshedEventPayload } from '../../common/events'
 import { logger } from '../../utils/logger'
@@ -67,12 +68,16 @@ function sanitizeSelection(base: SelectionState, availability: AvailabilityState
   return sanitized
 }
 
-function formatSectionSummary(sections: SectionName[], fileCount: number) {
-  if (sections.length === 0) return 'Nothing selected'
+function formatSectionSummary(
+  sections: SectionName[],
+  fileCount: number,
+  translations: { nothingSelected: string; oneFile: string; nFiles: string }
+) {
+  if (sections.length === 0) return translations.nothingSelected
   return sections
     .map((section) => {
       if (section === 'Files') {
-        return fileCount === 1 ? '1 file' : `${fileCount} files`
+        return fileCount === 1 ? translations.oneFile : translations.nFiles.replace('{count}', String(fileCount))
       }
       return section
     })
@@ -80,6 +85,7 @@ function formatSectionSummary(sections: SectionName[], fileCount: number) {
 }
 
 export function CopyContextBar({ sessionName }: CopyContextBarProps) {
+  const { t } = useTranslation()
   const projectPath = useAtomValue(projectPathAtom)
   const { pushToast } = useToast()
 
@@ -402,13 +408,13 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
     try {
       const { text, included, sizeBytes } = await assembleBundle()
       if (!text) {
-        pushToast({ tone: 'warning', title: 'Nothing to copy', description: 'No bundle content available.' })
+        pushToast({ tone: 'warning', title: t.toasts.nothingToCopy, description: t.toasts.nothingToCopyDesc })
         return
       }
 
       const success = await writeClipboard(text)
       if (!success) {
-        pushToast({ tone: 'error', title: 'Clipboard blocked', description: 'Clipboard access was denied.' })
+        pushToast({ tone: 'error', title: t.toasts.clipboardBlocked, description: t.toasts.clipboardBlockedDesc })
         return
       }
 
@@ -419,21 +425,21 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
       pushToast({
         tone: 'success',
-        title: 'Copied to clipboard',
-        description: formatSectionSummary(included, selectedChangedFilesCount),
+        title: t.toasts.copiedToClipboard,
+        description: formatSectionSummary(included, selectedChangedFilesCount, t.toasts),
       })
 
       if (sizeBytes > LARGE_BUNDLE_BYTES) {
         const megabytes = (sizeBytes / (1024 * 1024)).toFixed(1)
         pushToast({
           tone: 'warning',
-          title: `Copied ${megabytes} MB`,
-          description: 'Clipboard may truncate large bundles in some apps.',
+          title: t.toasts.copiedLargeBundle.replace('{size}', megabytes),
+          description: t.toasts.copiedLargeBundleDesc,
         })
       }
     } catch (err) {
       logger.error('[CopyContextBar] Clipboard copy failed', err)
-      pushToast({ tone: 'error', title: 'Copy failed', description: 'Unable to build bundle.' })
+      pushToast({ tone: 'error', title: t.toasts.copyFailed, description: t.toasts.copyFailedDesc })
     } finally {
       setIsCopying(false)
     }

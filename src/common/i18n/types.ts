@@ -1085,4 +1085,48 @@ export interface Translations {
     ungrouped: string
     confirm: string
   }
+  toasts: {
+    // PR-related (SimpleDiffPanel)
+    prLinked: string
+    prLinkedDesc: string
+    prLinkFailed: string
+    prUnlinked: string
+    prUnlinkedDesc: string
+    prUnlinkFailed: string
+    // Copy/Clipboard (CopyContextBar)
+    nothingToCopy: string
+    nothingToCopyDesc: string
+    clipboardBlocked: string
+    clipboardBlockedDesc: string
+    copiedToClipboard: string
+    copiedLargeBundle: string
+    copiedLargeBundleDesc: string
+    copyFailed: string
+    copyFailedDesc: string
+    nothingSelected: string
+    oneFile: string
+    nFiles: string
+    // Git graph (GitGraphPanel)
+    copiedCommitId: string
+    copiedCommitMessage: string
+    failedToOpenDiff: string
+    noFileChanges: string
+    noFileChangesDesc: string
+    failedToLoadMoreCommits: string
+    // Markdown editor/renderer
+    pasteTooLarge: string
+    pasteTooLargeDesc: string
+    failedToOpenLink: string
+    failedToOpenLinkDesc: string
+    // Updates (SettingsModal)
+    autoUpdatesEnabled: string
+    autoUpdatesDisabled: string
+    updatePreferenceFailed: string
+    updatePreferenceFailedDesc: string
+    checkUpdatesFailed: string
+    checkUpdatesFailedDesc: string
+    // Session actions
+    noPrLinked: string
+    noPrLinkedDesc: string
+  }
 }
