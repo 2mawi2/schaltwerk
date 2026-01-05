@@ -572,5 +572,60 @@
     "failedToLoadActionButtons": "加载操作按钮失败",
     "failedToSaveActionButtons": "保存操作按钮失败",
     "failedToResetActionButtons": "重置操作按钮为默认值失败"
+  },
+  "homeScreen": {
+    "newProject": "新建项目",
+    "openRepository": "打开仓库",
+    "cloneFromGit": "从 Git 克隆",
+    "recentProjects": "最近的项目",
+    "removeFromRecent": "从最近项目中移除 {name}"
+  },
+  "newSessionModal": {
+    "createSpec": "创建规格",
+    "startAgent": "启动代理",
+    "createNewSpec": "创建新规格",
+    "startNewAgent": "启动新代理",
+    "cancel": "取消",
+    "agentName": "代理名称",
+    "epic": "史诗",
+    "createAsSpec": "创建为规格（不启动代理）",
+    "specContent": "规格内容",
+    "initialPrompt": "初始提示词（可选）",
+    "customPrompt": "自定义提示词",
+    "githubIssue": "GitHub 议题",
+    "githubPr": "GitHub PR",
+    "reset": "重置",
+    "resetToOriginal": "重置为原始规格名称",
+    "fromSpec": "来自规格：",
+    "configureAgents": "配置多个代理",
+    "parallelVersions": "并行版本数量",
+    "multipleAgents": "多个代理",
+    "newRepositoryDetected": "检测到新仓库",
+    "newRepositoryHint": "此仓库尚无提交。启动代理时将自动创建初始提交。",
+    "terminalOnlyMode": "仅终端模式",
+    "terminalOnlyHint": "不会启动 AI 代理。将打开一个带有默认 shell 的终端，用于自定义开发或手动运行自定义代理。上面的初始提示词不会被粘贴。",
+    "specSaveHint": "规格会保存以便稍后使用。准备就绪后可以启动。输入 @ 引用项目文件。",
+    "referenceFiles": "输入 @ 引用项目文件。",
+    "issueSelectHint": "选择一个议题以将其描述和评论拉入代理提示词。",
+    "prSelectHint": "选择一个拉取请求以将其描述和评论拉入代理提示词。会话将在 PR 分支上启动。",
+    "enterSpecContent": "输入规格内容（Markdown 格式）...",
+    "describeAgent": "描述 Claude 会话的代理任务"
+  },
+  "errorBoundary": {
+    "title": "意外错误",
+    "description": "别担心 - 这种情况偶尔会发生。让我们恢复正常。",
+    "errorDetails": "错误详情",
+    "reloadApp": "重新加载应用",
+    "tryAgain": "重试"
+  },
+  "globalKeepAwake": {
+    "clickToEnable": "代理工作时保持机器唤醒 - 点击启用",
+    "autoPaused": "自动暂停（所有会话空闲）- 点击禁用",
+    "preventingSleep": "防止睡眠（会话活跃）- 点击禁用",
+    "disabled": "保持唤醒已禁用",
+    "enabled": "保持唤醒已启用",
+    "canSleepNormally": "机器可正常睡眠",
+    "willStayAwake": "会话活跃时机器将保持唤醒",
+    "unavailable": "保持唤醒不可用（详情请查看日志）"
   }
 }

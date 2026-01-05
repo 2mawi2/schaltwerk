@@ -575,4 +575,59 @@ export interface Translations {
     failedToSaveActionButtons: string
     failedToResetActionButtons: string
   }
+  homeScreen: {
+    newProject: string
+    openRepository: string
+    cloneFromGit: string
+    recentProjects: string
+    removeFromRecent: string
+  }
+  newSessionModal: {
+    createSpec: string
+    startAgent: string
+    createNewSpec: string
+    startNewAgent: string
+    cancel: string
+    agentName: string
+    epic: string
+    createAsSpec: string
+    specContent: string
+    initialPrompt: string
+    customPrompt: string
+    githubIssue: string
+    githubPr: string
+    reset: string
+    resetToOriginal: string
+    fromSpec: string
+    configureAgents: string
+    parallelVersions: string
+    multipleAgents: string
+    newRepositoryDetected: string
+    newRepositoryHint: string
+    terminalOnlyMode: string
+    terminalOnlyHint: string
+    specSaveHint: string
+    referenceFiles: string
+    issueSelectHint: string
+    prSelectHint: string
+    enterSpecContent: string
+    describeAgent: string
+  }
+  errorBoundary: {
+    title: string
+    description: string
+    errorDetails: string
+    reloadApp: string
+    tryAgain: string
+  }
+  globalKeepAwake: {
+    clickToEnable: string
+    autoPaused: string
+    preventingSleep: string
+    disabled: string
+    enabled: string
+    canSleepNormally: string
+    willStayAwake: string
+    unavailable: string
+  }
 }

@@ -572,5 +572,60 @@
     "failedToLoadActionButtons": "Failed to load action buttons",
     "failedToSaveActionButtons": "Failed to save action buttons",
     "failedToResetActionButtons": "Failed to reset action buttons to defaults"
+  },
+  "homeScreen": {
+    "newProject": "New Project",
+    "openRepository": "Open Repository",
+    "cloneFromGit": "Clone from Git",
+    "recentProjects": "Recent Projects",
+    "removeFromRecent": "Remove {name} from recent projects"
+  },
+  "newSessionModal": {
+    "createSpec": "Create Spec",
+    "startAgent": "Start Agent",
+    "createNewSpec": "Create new spec",
+    "startNewAgent": "Start new agent",
+    "cancel": "Cancel",
+    "agentName": "Agent name",
+    "epic": "Epic",
+    "createAsSpec": "Create as spec (no agent will start)",
+    "specContent": "Spec content",
+    "initialPrompt": "Initial prompt (optional)",
+    "customPrompt": "Custom prompt",
+    "githubIssue": "GitHub issue",
+    "githubPr": "GitHub PR",
+    "reset": "Reset",
+    "resetToOriginal": "Reset to original spec name",
+    "fromSpec": "From spec:",
+    "configureAgents": "Configure multiple agents",
+    "parallelVersions": "Number of parallel versions",
+    "multipleAgents": "Multiple agents",
+    "newRepositoryDetected": "New repository detected",
+    "newRepositoryHint": "This repository has no commits yet. An initial commit will be created automatically when you start the agent.",
+    "terminalOnlyMode": "Terminal-only mode",
+    "terminalOnlyHint": "No AI agent will be started. A terminal will open with your default shell for custom development or running custom agents manually. The initial prompt above will not be pasted.",
+    "specSaveHint": "Specs are saved for later. You can start them when ready. Type @ to reference project files.",
+    "referenceFiles": "Type @ to reference project files.",
+    "issueSelectHint": "Select an issue to pull its description and comments into the agent prompt.",
+    "prSelectHint": "Select a pull request to pull its description and comments into the agent prompt. The session will start on the PR branch.",
+    "enterSpecContent": "Enter spec content in markdown...",
+    "describeAgent": "Describe the agent for the Claude session"
+  },
+  "errorBoundary": {
+    "title": "Well, that's unexpected",
+    "description": "Don't worry - this happens sometimes. Let's get things back on track.",
+    "errorDetails": "Error details",
+    "reloadApp": "Reload App",
+    "tryAgain": "Try Again"
+  },
+  "globalKeepAwake": {
+    "clickToEnable": "Keep machine awake while agents work — click to enable",
+    "autoPaused": "Auto-paused (all sessions idle) — click to disable",
+    "preventingSleep": "Preventing sleep (sessions active) — click to disable",
+    "disabled": "Keep-awake disabled",
+    "enabled": "Keep-awake enabled",
+    "canSleepNormally": "Machine can sleep normally",
+    "willStayAwake": "Machine will stay awake while sessions are active",
+    "unavailable": "Keep-awake unavailable (see logs for details)"
   }
 }
