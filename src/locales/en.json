@@ -841,5 +841,43 @@
     "closeEsc": "Close (Esc)",
     "noSpecsMatch": "No specs match your search",
     "noSpecsAvailable": "No specs available"
+  },
+  "githubIssue": {
+    "searchFailed": "GitHub issue search failed",
+    "failedToLoadDetails": "Failed to load issue details",
+    "failedToOpenLink": "Failed to open link",
+    "noCommentsYet": "No comments yet",
+    "comment": "comment",
+    "comments": "comments",
+    "updated": "Updated {time}",
+    "open": "Open",
+    "closed": "Closed",
+    "viewOnGithub": "View on GitHub",
+    "clearSelection": "Clear selection",
+    "searchPlaceholder": "Search GitHub issues",
+    "searchHint": "Search by title or label to import the latest GitHub issue context.",
+    "loadingIssues": "Loading issues…",
+    "noIssuesFound": "No issues found for this project.",
+    "adjustSearch": "Adjust your search or ensure issues exist on GitHub.",
+    "loading": "Loading…",
+    "openedBy": "opened by {author}"
+  },
+  "githubPr": {
+    "searchFailed": "GitHub PR search failed",
+    "failedToLoadDetails": "Failed to load PR details",
+    "failedToOpenLink": "Failed to open link",
+    "noCommentsYet": "No comments yet",
+    "comment": "comment",
+    "comments": "comments",
+    "updated": "Updated {time}",
+    "viewOnGithub": "View on GitHub",
+    "clearSelection": "Clear selection",
+    "searchPlaceholder": "Search GitHub pull requests",
+    "searchHint": "Search by title to import the latest GitHub PR context.",
+    "loadingPrs": "Loading pull requests…",
+    "noPrsFound": "No pull requests found for this project.",
+    "adjustSearch": "Adjust your search or ensure pull requests exist on GitHub.",
+    "loading": "Loading…",
+    "openedBy": "opened by {author}"
   }
 }

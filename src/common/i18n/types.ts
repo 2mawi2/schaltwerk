@@ -844,4 +844,42 @@ export interface Translations {
     noSpecsMatch: string
     noSpecsAvailable: string
   }
+  githubIssue: {
+    searchFailed: string
+    failedToLoadDetails: string
+    failedToOpenLink: string
+    noCommentsYet: string
+    comment: string
+    comments: string
+    updated: string
+    open: string
+    closed: string
+    viewOnGithub: string
+    clearSelection: string
+    searchPlaceholder: string
+    searchHint: string
+    loadingIssues: string
+    noIssuesFound: string
+    adjustSearch: string
+    loading: string
+    openedBy: string
+  }
+  githubPr: {
+    searchFailed: string
+    failedToLoadDetails: string
+    failedToOpenLink: string
+    noCommentsYet: string
+    comment: string
+    comments: string
+    updated: string
+    viewOnGithub: string
+    clearSelection: string
+    searchPlaceholder: string
+    searchHint: string
+    loadingPrs: string
+    noPrsFound: string
+    adjustSearch: string
+    loading: string
+    openedBy: string
+  }
 }

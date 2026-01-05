@@ -841,5 +841,43 @@
     "closeEsc": "关闭 (Esc)",
     "noSpecsMatch": "没有匹配的规格",
     "noSpecsAvailable": "没有可用的规格"
+  },
+  "githubIssue": {
+    "searchFailed": "GitHub 议题搜索失败",
+    "failedToLoadDetails": "加载议题详情失败",
+    "failedToOpenLink": "打开链接失败",
+    "noCommentsYet": "暂无评论",
+    "comment": "条评论",
+    "comments": "条评论",
+    "updated": "更新于 {time}",
+    "open": "开放",
+    "closed": "已关闭",
+    "viewOnGithub": "在 GitHub 上查看",
+    "clearSelection": "清除选择",
+    "searchPlaceholder": "搜索 GitHub 议题",
+    "searchHint": "按标题或标签搜索以导入最新的 GitHub 议题上下文。",
+    "loadingIssues": "正在加载议题…",
+    "noIssuesFound": "未找到此项目的议题。",
+    "adjustSearch": "调整搜索条件或确保 GitHub 上存在议题。",
+    "loading": "加载中…",
+    "openedBy": "由 {author} 创建"
+  },
+  "githubPr": {
+    "searchFailed": "GitHub PR 搜索失败",
+    "failedToLoadDetails": "加载 PR 详情失败",
+    "failedToOpenLink": "打开链接失败",
+    "noCommentsYet": "暂无评论",
+    "comment": "条评论",
+    "comments": "条评论",
+    "updated": "更新于 {time}",
+    "viewOnGithub": "在 GitHub 上查看",
+    "clearSelection": "清除选择",
+    "searchPlaceholder": "搜索 GitHub 拉取请求",
+    "searchHint": "按标题搜索以导入最新的 GitHub PR 上下文。",
+    "loadingPrs": "正在加载拉取请求…",
+    "noPrsFound": "未找到此项目的拉取请求。",
+    "adjustSearch": "调整搜索条件或确保 GitHub 上存在拉取请求。",
+    "loading": "加载中…",
+    "openedBy": "由 {author} 创建"
   }
 }
