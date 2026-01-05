@@ -339,22 +339,33 @@
   "sidebar": {
     "header": "Agents",
     "orchestrator": "orchestrator",
+    "showSidebar": "Show left sidebar",
+    "hideSidebar": "Hide left sidebar",
     "filters": {
       "specs": "Specs",
       "running": "Running",
       "reviewed": "Reviewed",
       "specShort": "SPEC",
       "runShort": "RUN",
-      "revShort": "REV"
+      "revShort": "REV",
+      "showSpecs": "Show spec agents",
+      "showRunning": "Show running agents",
+      "showReviewed": "Show reviewed agents"
     },
     "search": {
       "placeholder": "Search sessions...",
       "title": "Search sessions",
       "results": "results",
-      "result": "result"
+      "result": "result",
+      "close": "Close search"
     },
     "empty": "No active agents",
-    "ungrouped": "Ungrouped"
+    "ungrouped": "Ungrouped",
+    "states": {
+      "idle": "Idle",
+      "spec": "Spec",
+      "ready": "Ready"
+    }
   },
   "session": {
     "idle": "⏸︎ Idle",

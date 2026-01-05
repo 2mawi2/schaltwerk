@@ -10,6 +10,7 @@ import { ProgressIndicator } from '../common/ProgressIndicator'
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
+import { useTranslation } from '../../common/i18n'
 
 interface SessionRailCardProps {
   session: {
@@ -32,6 +33,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
   isRunning,
   onSelect,
 }) {
+  const { t } = useTranslation()
   const info = session.info
   const sessionName = getSessionDisplayName(info)
   const sessionState = info.session_state
@@ -130,23 +132,23 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
               fontWeight: 600,
               color: 'var(--color-accent-yellow-light)'
             }}
-            title="Idle"
+            title={t.sidebar.states.idle}
           >
-            ⏸ Idle
+            ⏸ {t.sidebar.states.idle}
           </span>
           )}
           {!isRunningState && !isIdle && stateLabel === SessionState.Spec && (
             <span
               className="block w-1.5 h-1.5 rounded-full"
               style={{ backgroundColor: 'var(--color-accent-yellow)' }}
-              title="Spec"
+              title={t.sidebar.states.spec}
             />
           )}
           {!isRunningState && !isIdle && stateLabel === SessionState.Reviewed && (
             <span
               className="font-bold"
               style={{ color: 'var(--color-accent-green-light)', fontSize: theme.fontSize.caption }}
-              title="Ready"
+              title={t.sidebar.states.ready}
             >
               ✓
             </span>
@@ -155,7 +157,7 @@ export const SessionRailCard = memo<SessionRailCardProps>(function SessionRailCa
             <span
               className="block w-1 h-1 rounded-full opacity-40"
               style={{ backgroundColor: 'var(--color-text-tertiary)' }}
-              title="Idle"
+              title={t.sidebar.states.idle}
             />
           )}
         </div>

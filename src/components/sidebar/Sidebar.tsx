@@ -1389,8 +1389,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 "h-6 w-6 flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors",
                                 !isCollapsed && "ml-auto"
                             )}
-                            title={isCollapsed ? 'Show left sidebar' : 'Hide left sidebar'}
-                            aria-label={isCollapsed ? 'Show left sidebar' : 'Hide left sidebar'}
+                            title={isCollapsed ? t.sidebar.showSidebar : t.sidebar.hideSidebar}
+                            aria-label={isCollapsed ? t.sidebar.showSidebar : t.sidebar.hideSidebar}
                         >
                             {isCollapsed ? <VscLayoutSidebarLeftOff /> : <VscLayoutSidebarLeft />}
                         </button>
@@ -1560,7 +1560,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     keyboardNavigatedFilter === FilterMode.Spec && ''
                                 )}
                                 onClick={() => setFilterMode(FilterMode.Spec)}
-                                title="Show spec agents"
+                                title={t.sidebar.filters.showSpecs}
                             >
                                 {t.sidebar.filters.specs} <span className="text-[var(--color-text-muted)]">({specsCount})</span>
                             </button>
@@ -1573,7 +1573,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     keyboardNavigatedFilter === FilterMode.Running && ''
                                 )}
                                 onClick={() => setFilterMode(FilterMode.Running)}
-                                title="Show running agents"
+                                title={t.sidebar.filters.showRunning}
                             >
                                 {t.sidebar.filters.running} <span className="text-[var(--color-text-muted)]">({runningCount})</span>
                             </button>
@@ -1586,7 +1586,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     keyboardNavigatedFilter === FilterMode.Reviewed && ''
                                 )}
                                 onClick={() => setFilterMode(FilterMode.Reviewed)}
-                                title="Show reviewed agents"
+                                title={t.sidebar.filters.showReviewed}
                             >
                                 {t.sidebar.filters.reviewed} <span className="text-[var(--color-text-muted)]">({reviewedCount})</span>
                             </button>
@@ -1653,7 +1653,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 }
                             }}
                             className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] p-0.5"
-                            title="Close search"
+                            title={t.sidebar.search.close}
                         >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

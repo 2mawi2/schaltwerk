@@ -339,22 +339,33 @@
   "sidebar": {
     "header": "代理",
     "orchestrator": "协调器",
+    "showSidebar": "显示左侧边栏",
+    "hideSidebar": "隐藏左侧边栏",
     "filters": {
       "specs": "规格",
       "running": "运行中",
       "reviewed": "已审核",
       "specShort": "规格",
       "runShort": "运行",
-      "revShort": "审核"
+      "revShort": "审核",
+      "showSpecs": "显示规格代理",
+      "showRunning": "显示运行中代理",
+      "showReviewed": "显示已审核代理"
     },
     "search": {
       "placeholder": "搜索会话...",
       "title": "搜索会话",
       "results": "个结果",
-      "result": "个结果"
+      "result": "个结果",
+      "close": "关闭搜索"
     },
     "empty": "没有活动代理",
-    "ungrouped": "未分组"
+    "ungrouped": "未分组",
+    "states": {
+      "idle": "空闲",
+      "spec": "规格",
+      "ready": "就绪"
+    }
   },
   "session": {
     "idle": "⏸︎ 空闲",

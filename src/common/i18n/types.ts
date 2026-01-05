@@ -341,6 +341,8 @@ export interface Translations {
   sidebar: {
     header: string
     orchestrator: string
+    showSidebar: string
+    hideSidebar: string
     filters: {
       specs: string
       running: string
@@ -348,15 +350,24 @@ export interface Translations {
       specShort: string
       runShort: string
       revShort: string
+      showSpecs: string
+      showRunning: string
+      showReviewed: string
     }
     search: {
       placeholder: string
       title: string
       results: string
       result: string
+      close: string
     }
     empty: string
     ungrouped: string
+    states: {
+      idle: string
+      spec: string
+      ready: string
+    }
   }
   session: {
     idle: string
