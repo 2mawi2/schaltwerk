@@ -466,4 +466,113 @@ export interface Translations {
   sessionCard: {
     newFollowUp: string
   }
+  permissionPrompt: {
+    title: string
+    description: string
+    clickOk: string
+    restartHint: string
+    checking: string
+    grantPermission: string
+    tryAgain: string
+    recheck: string
+    troubleTitle: string
+    troubleDesc: string
+    detectedInstall: string
+    currentExecutable: string
+    opening: string
+    openSystemSettings: string
+    resetting: string
+    resetFolderAccess: string
+    persistHint: string
+    retryAgent: string
+    installLabels: {
+      appBundle: string
+      homebrew: string
+      justfile: string
+      standalone: string
+      other: string
+    }
+    installGuidance: {
+      appBundle: string
+      homebrew: string
+      justfile: string
+      standalone: string
+      other: string
+    }
+    supportMessages: {
+      settingsOpened: string
+      permissionsReset: string
+    }
+  }
+  loadingSpinner: {
+    loading: string
+  }
+  searchBox: {
+    placeholder: string
+    previousMatch: string
+    nextMatch: string
+    closeSearch: string
+  }
+  fontPicker: {
+    searchPlaceholder: string
+    monoOnly: string
+    close: string
+    noFonts: string
+    mono: string
+  }
+  agentBinaryStatus: {
+    selectDefault: string
+    refresh: string
+    scanning: string
+    failed: string
+    noClis: string
+    clickToSetDefault: string
+    default: string
+    found: string
+    missing: string
+    noPathDetected: string
+  }
+  diffFileList: {
+    uncommittedChanges: string
+    localChanges: string
+    changesFromBranch: string
+    noUncommittedChanges: string
+    noLocalChanges: string
+    noChangesFromBranch: string
+    workingDirClean: string
+    allPushed: string
+    atBaseCommit: string
+    upToDateWith: string
+    noSessionSelected: string
+    selectSessionHint: string
+    filesChanged: string
+    openInEditor: string
+    discardChanges: string
+  }
+  time: {
+    unknown: string
+    today: string
+    yesterday: string
+    daysAgo: string
+    weeksAgo: string
+    now: string
+    minutesShort: string
+    hoursShort: string
+    daysShort: string
+    inTheFuture: string
+    secondsAgo: string
+    minutesAgo: string
+    hoursAgo: string
+    daysAgoLong: string
+    monthsAgo: string
+    yearsAgo: string
+  }
+  errors: {
+    unknown: string
+    mergeFailed: string
+    failedToCancel: string
+    failedToLoadActionButtons: string
+    failedToSaveActionButtons: string
+    failedToResetActionButtons: string
+  }
 }

@@ -463,5 +463,114 @@
   },
   "sessionCard": {
     "newFollowUp": "New follow-up message received"
+  },
+  "permissionPrompt": {
+    "title": "Folder Access Required",
+    "description": "Schaltwerk needs access to the following folder to manage development sessions and run AI agents:",
+    "clickOk": "Please click 'OK' in the system permission dialog that appeared.",
+    "restartHint": "If you granted permission, you may need to restart the agent for it to take effect.",
+    "checking": "Checking...",
+    "grantPermission": "Grant Permission",
+    "tryAgain": "Try Again",
+    "recheck": "Recheck",
+    "troubleTitle": "Having trouble granting access?",
+    "troubleDesc": "Enable Documents access for {app} in System Settings > Privacy & Security > Files and Folders, then return here and click Try Again.",
+    "detectedInstall": "Detected install: {label}",
+    "currentExecutable": "Current executable: {path}",
+    "opening": "Opening...",
+    "openSystemSettings": "Open System Settings",
+    "resetting": "Resetting...",
+    "resetFolderAccess": "Reset Folder Access",
+    "persistHint": "If issues persist, try restarting Schaltwerk after granting permission.",
+    "retryAgent": "Retry Starting Agent",
+    "installLabels": {
+      "appBundle": "Standard macOS app bundle",
+      "homebrew": "Homebrew installation",
+      "justfile": "Development build (just run)",
+      "standalone": "Direct binary execution",
+      "other": "Custom installation"
+    },
+    "installGuidance": {
+      "appBundle": "Look for \"Schaltwerk\" in Files and Folders and enable Documents access.",
+      "homebrew": "Look for the Schaltwerk entry added by Homebrew under Files and Folders.",
+      "justfile": "macOS lists the development binary path below - enable Documents access for that entry.",
+      "standalone": "If System Settings shows a direct binary path, enable Documents access for that entry.",
+      "other": "Enable Documents access for the matching entry shown in Files and Folders."
+    },
+    "supportMessages": {
+      "settingsOpened": "System Settings opened. Enable Documents access, then return here and click Try Again.",
+      "permissionsReset": "Folder permissions were reset. macOS will prompt for access again the next time you try."
+    }
+  },
+  "loadingSpinner": {
+    "loading": "Loading..."
+  },
+  "searchBox": {
+    "placeholder": "Search...",
+    "previousMatch": "Previous match (Shift+Enter)",
+    "nextMatch": "Next match (Enter)",
+    "closeSearch": "Close search (Escape)"
+  },
+  "fontPicker": {
+    "searchPlaceholder": "Search installed fonts",
+    "monoOnly": "Monospace only",
+    "close": "Close",
+    "noFonts": "No fonts found",
+    "mono": "mono"
+  },
+  "agentBinaryStatus": {
+    "selectDefault": "Select your default agent",
+    "refresh": "Refresh",
+    "scanning": "Scanning…",
+    "failed": "Failed: {error}",
+    "noClis": "No CLIs found",
+    "clickToSetDefault": "Click on an agent to set it as your default. This is the agent that will start in the orchestrator.",
+    "default": "Default",
+    "found": "Found",
+    "missing": "Missing",
+    "noPathDetected": "No path detected"
+  },
+  "diffFileList": {
+    "uncommittedChanges": "Uncommitted Changes",
+    "localChanges": "Local changes (since last push)",
+    "changesFromBranch": "Changes from {branch}",
+    "noUncommittedChanges": "No uncommitted changes",
+    "noLocalChanges": "No local changes",
+    "noChangesFromBranch": "No changes from {branch}",
+    "workingDirClean": "Your working directory is clean",
+    "allPushed": "All changes have been pushed to remote",
+    "atBaseCommit": "You are at the base commit",
+    "upToDateWith": "Your session is up to date with {branch}",
+    "noSessionSelected": "No session selected",
+    "selectSessionHint": "Select a session to view changes",
+    "filesChanged": "{count} files changed",
+    "openInEditor": "Open file in editor",
+    "discardChanges": "Discard changes for this file"
+  },
+  "time": {
+    "unknown": "unknown",
+    "today": "today",
+    "yesterday": "yesterday",
+    "daysAgo": "{days} days ago",
+    "weeksAgo": "{weeks} weeks ago",
+    "now": "now",
+    "minutesShort": "{mins}m",
+    "hoursShort": "{hours}h",
+    "daysShort": "{days}d",
+    "inTheFuture": "in the future",
+    "secondsAgo": "{seconds}s ago",
+    "minutesAgo": "{minutes}m ago",
+    "hoursAgo": "{hours}h ago",
+    "daysAgoLong": "{days}d ago",
+    "monthsAgo": "{months}mo ago",
+    "yearsAgo": "{years}y ago"
+  },
+  "errors": {
+    "unknown": "An unknown error occurred",
+    "mergeFailed": "Merge failed",
+    "failedToCancel": "Failed to cancel {name}",
+    "failedToLoadActionButtons": "Failed to load action buttons",
+    "failedToSaveActionButtons": "Failed to save action buttons",
+    "failedToResetActionButtons": "Failed to reset action buttons to defaults"
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useTranslation } from '../../common/i18n'
 
 interface SearchMatch {
   element: Element
@@ -15,6 +16,7 @@ interface SearchBoxProps {
 }
 
 export function SearchBox({ targetRef, isVisible, onClose, className = '' }: SearchBoxProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentMatchIndex, setCurrentMatchIndex] = useState(-1)
   const [totalMatches, setTotalMatches] = useState(0)
@@ -187,7 +189,7 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
         value={searchTerm}
         onChange={(e) => handleSearch(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Search..."
+        placeholder={t.searchBox.placeholder}
         className="bg-transparent text-sm text-slate-200 outline-none w-40 placeholder:text-slate-500"
       />
 
@@ -200,7 +202,7 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
       <button
         onClick={findPrevious}
         className="text-slate-400 hover:text-slate-200 ml-1 disabled:opacity-50"
-        title="Previous match (Shift+Enter)"
+        title={t.searchBox.previousMatch}
         disabled={totalMatches === 0}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -211,7 +213,7 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
       <button
         onClick={findNext}
         className="text-slate-400 hover:text-slate-200 ml-1 disabled:opacity-50"
-        title="Next match (Enter)"
+        title={t.searchBox.nextMatch}
         disabled={totalMatches === 0}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -222,7 +224,7 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
       <button
         onClick={handleClose}
         className="text-slate-400 hover:text-slate-200 ml-2"
-        title="Close search (Escape)"
+        title={t.searchBox.closeSearch}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
           <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

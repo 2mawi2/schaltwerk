@@ -463,5 +463,114 @@
   },
   "sessionCard": {
     "newFollowUp": "收到新的后续消息"
+  },
+  "permissionPrompt": {
+    "title": "需要文件夹访问权限",
+    "description": "Schaltwerk 需要访问以下文件夹来管理开发会话和运行 AI 代理：",
+    "clickOk": "请在出现的系统权限对话框中点击「确定」。",
+    "restartHint": "如果您已授予权限，可能需要重启代理才能生效。",
+    "checking": "检查中...",
+    "grantPermission": "授予权限",
+    "tryAgain": "重试",
+    "recheck": "重新检查",
+    "troubleTitle": "授权遇到问题？",
+    "troubleDesc": "在「系统设置 > 隐私与安全性 > 文件和文件夹」中为 {app} 启用「文稿」访问权限，然后返回这里点击「重试」。",
+    "detectedInstall": "检测到的安装方式：{label}",
+    "currentExecutable": "当前可执行文件：{path}",
+    "opening": "打开中...",
+    "openSystemSettings": "打开系统设置",
+    "resetting": "重置中...",
+    "resetFolderAccess": "重置文件夹访问权限",
+    "persistHint": "如果问题仍然存在，请在授予权限后尝试重启 Schaltwerk。",
+    "retryAgent": "重试启动代理",
+    "installLabels": {
+      "appBundle": "标准 macOS 应用包",
+      "homebrew": "Homebrew 安装",
+      "justfile": "开发构建 (just run)",
+      "standalone": "直接执行二进制文件",
+      "other": "自定义安装"
+    },
+    "installGuidance": {
+      "appBundle": "在「文件和文件夹」中找到「Schaltwerk」并启用「文稿」访问权限。",
+      "homebrew": "在「文件和文件夹」下找到 Homebrew 添加的 Schaltwerk 条目。",
+      "justfile": "macOS 在下方列出了开发版二进制路径 - 为该条目启用「文稿」访问权限。",
+      "standalone": "如果系统设置显示直接二进制路径，为该条目启用「文稿」访问权限。",
+      "other": "为「文件和文件夹」中显示的匹配条目启用「文稿」访问权限。"
+    },
+    "supportMessages": {
+      "settingsOpened": "系统设置已打开。启用「文稿」访问权限，然后返回这里点击「重试」。",
+      "permissionsReset": "文件夹权限已重置。下次尝试时 macOS 将再次提示授权。"
+    }
+  },
+  "loadingSpinner": {
+    "loading": "加载中..."
+  },
+  "searchBox": {
+    "placeholder": "搜索...",
+    "previousMatch": "上一个匹配项 (Shift+Enter)",
+    "nextMatch": "下一个匹配项 (Enter)",
+    "closeSearch": "关闭搜索 (Escape)"
+  },
+  "fontPicker": {
+    "searchPlaceholder": "搜索已安装字体",
+    "monoOnly": "仅等宽字体",
+    "close": "关闭",
+    "noFonts": "未找到字体",
+    "mono": "等宽"
+  },
+  "agentBinaryStatus": {
+    "selectDefault": "选择默认代理",
+    "refresh": "刷新",
+    "scanning": "扫描中…",
+    "failed": "失败：{error}",
+    "noClis": "未找到 CLI",
+    "clickToSetDefault": "点击代理将其设为默认。这是将在协调器中启动的代理。",
+    "default": "默认",
+    "found": "已找到",
+    "missing": "未找到",
+    "noPathDetected": "未检测到路径"
+  },
+  "diffFileList": {
+    "uncommittedChanges": "未提交的更改",
+    "localChanges": "本地更改（自上次推送以来）",
+    "changesFromBranch": "来自 {branch} 的更改",
+    "noUncommittedChanges": "没有未提交的更改",
+    "noLocalChanges": "没有本地更改",
+    "noChangesFromBranch": "没有来自 {branch} 的更改",
+    "workingDirClean": "您的工作目录是干净的",
+    "allPushed": "所有更改都已推送到远程",
+    "atBaseCommit": "您在基础提交位置",
+    "upToDateWith": "您的会话与 {branch} 保持同步",
+    "noSessionSelected": "未选择会话",
+    "selectSessionHint": "选择会话以查看更改",
+    "filesChanged": "{count} 个文件已更改",
+    "openInEditor": "在编辑器中打开文件",
+    "discardChanges": "放弃此文件的更改"
+  },
+  "time": {
+    "unknown": "未知",
+    "today": "今天",
+    "yesterday": "昨天",
+    "daysAgo": "{days} 天前",
+    "weeksAgo": "{weeks} 周前",
+    "now": "刚刚",
+    "minutesShort": "{mins}分",
+    "hoursShort": "{hours}时",
+    "daysShort": "{days}天",
+    "inTheFuture": "在未来",
+    "secondsAgo": "{seconds}秒前",
+    "minutesAgo": "{minutes}分钟前",
+    "hoursAgo": "{hours}小时前",
+    "daysAgoLong": "{days}天前",
+    "monthsAgo": "{months}个月前",
+    "yearsAgo": "{years}年前"
+  },
+  "errors": {
+    "unknown": "发生未知错误",
+    "mergeFailed": "合并失败",
+    "failedToCancel": "取消 {name} 失败",
+    "failedToLoadActionButtons": "加载操作按钮失败",
+    "failedToSaveActionButtons": "保存操作按钮失败",
+    "failedToResetActionButtons": "重置操作按钮为默认值失败"
   }
 }

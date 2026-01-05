@@ -30,6 +30,8 @@ import {
   copyContextChangedFilesSelectionAtomFamily,
   type CopyContextChangedFilesSelection,
 } from '../../store/atoms/copyContextSelection'
+import { useTranslation } from '../../common/i18n'
+import type { Translations } from '../../common/i18n/types'
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -79,45 +81,46 @@ type EmptyStateParams = {
   sessionName: string | null
   compareMode: 'merge_base' | 'unpushed_only'
   branchInfo: BranchInfo | null
+  t: Translations
 }
 
-const getHeaderTitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+const getHeaderTitle = ({ isCommander, sessionName, compareMode, branchInfo, t }: EmptyStateParams): string => {
   if (isCommander && !sessionName) {
-    return 'Uncommitted Changes'
+    return t.diffFileList.uncommittedChanges
   }
   if (compareMode === 'unpushed_only') {
-    return 'Local changes (since last push)'
+    return t.diffFileList.localChanges
   }
   if (branchInfo?.baseCommit) {
-    return `Changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+    return t.diffFileList.changesFromBranch.replace('{branch}', `${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`)
   }
-  return `Changes from ${branchInfo?.baseBranch || 'base'}`
+  return t.diffFileList.changesFromBranch.replace('{branch}', branchInfo?.baseBranch || 'base')
 }
 
-const getEmptyStateTitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+const getEmptyStateTitle = ({ isCommander, sessionName, compareMode, branchInfo, t }: EmptyStateParams): string => {
   if (isCommander && !sessionName) {
-    return 'No uncommitted changes'
+    return t.diffFileList.noUncommittedChanges
   }
   if (compareMode === 'unpushed_only') {
-    return 'No local changes'
+    return t.diffFileList.noLocalChanges
   }
   if (branchInfo?.baseCommit) {
-    return `No changes from ${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`
+    return t.diffFileList.noChangesFromBranch.replace('{branch}', `${branchInfo.baseBranch || 'base'} (${branchInfo.baseCommit})`)
   }
-  return `No changes from ${branchInfo?.baseBranch || 'base'}`
+  return t.diffFileList.noChangesFromBranch.replace('{branch}', branchInfo?.baseBranch || 'base')
 }
 
-const getEmptyStateSubtitle = ({ isCommander, sessionName, compareMode, branchInfo }: EmptyStateParams): string => {
+const getEmptyStateSubtitle = ({ isCommander, sessionName, compareMode, branchInfo, t }: EmptyStateParams): string => {
   if (isCommander && !sessionName) {
-    return 'Your working directory is clean'
+    return t.diffFileList.workingDirClean
   }
   if (compareMode === 'unpushed_only') {
-    return 'All changes have been pushed to remote'
+    return t.diffFileList.allPushed
   }
   if (branchInfo?.baseCommit === branchInfo?.headCommit) {
-    return `You are at the base commit (${branchInfo?.baseCommit})`
+    return t.diffFileList.atBaseCommit
   }
-  return `Your session is up to date with ${branchInfo?.baseBranch || 'base'}`
+  return t.diffFileList.upToDateWith.replace('{branch}', branchInfo?.baseBranch || 'base')
 }
 
 const collectFilePathsFromTreeNode = (node: TreeNode, result: string[]) => {
@@ -139,6 +142,7 @@ const collectFilePathsFromFolder = (folder: FolderNode): string[] => {
 }
 
 export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, getCommentCountForFile, selectedFilePath, onFilesChange }: DiffFileListProps) {
+  const { t } = useTranslation()
   const { selection } = useSelection()
   const { openInEditor } = useOpenInEditor({ sessionNameOverride, isCommander })
   const [files, setFiles] = useState<ChangedFile[]>([])
@@ -933,7 +937,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         </div>
         <div className="ml-2 flex items-center justify-end gap-1 shrink-0">
           <button
-            title="Open file in editor"
+            title={t.diffFileList.openInEditor}
             aria-label={`Open ${node.file.path}`}
             className="p-1 rounded"
             style={{ color: 'var(--color-text-secondary)' }}
@@ -951,7 +955,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             <VscGoToFile className="text-base" />
           </button>
           <button
-            title="Discard changes for this file"
+            title={t.diffFileList.discardChanges}
             aria-label={`Discard ${node.file.path}`}
             className="p-1 rounded"
             style={{ color: 'var(--color-text-secondary)' }}
@@ -986,7 +990,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
         <div className="flex items-center justify-between pr-12">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {getHeaderTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
+              {getHeaderTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo, t })}
             </span>
             {branchInfo && !isCommander && sessionName && (
               <>
@@ -1016,7 +1020,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
             )}
             {branchInfo && files.length > 0 && (
               <div className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                {files.length} files changed
+                {t.diffFileList.filesChanged.replace('{count}', String(files.length))}
               </div>
             )}
             {showCopyContextControls && files.length > 0 && (
@@ -1062,8 +1066,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
       {sessionName === null && !isCommander ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center" style={{ color: 'var(--color-text-tertiary)' }}>
-            <div className="text-sm">No session selected</div>
-            <div className="text-xs mt-1">Select a session to view changes</div>
+            <div className="text-sm">{t.diffFileList.noSessionSelected}</div>
+            <div className="text-xs mt-1">{t.diffFileList.selectSessionHint}</div>
           </div>
         </div>
       ) : files.length > 0 ? (
@@ -1119,10 +1123,10 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           <div className="text-center">
             <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
             <div className="mb-1">
-              {getEmptyStateTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
+              {getEmptyStateTitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo, t })}
             </div>
             <div className="text-xs">
-              {getEmptyStateSubtitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo })}
+              {getEmptyStateSubtitle({ isCommander: isCommander ?? false, sessionName, compareMode, branchInfo, t })}
             </div>
           </div>
         </div>
