@@ -244,7 +244,7 @@ export function PrSessionModal({
               onClick={onClose}
               className="text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
-              aria-label="Close PR dialog"
+              aria-label={t.ariaLabels.closePrDialog}
               title={t.prModal.closeEsc}
             >
               ×

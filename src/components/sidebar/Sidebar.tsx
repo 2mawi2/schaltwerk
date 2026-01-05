@@ -351,10 +351,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 }
                 pushToast({
                     tone: 'success',
-                    title: 'Pull request created',
+                    title: t.toasts.prCreated,
                     description: prUrl,
                     action: {
-                        label: 'Open',
+                        label: t.settings.common.open,
                         onClick: () => {
                             void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }).catch((err) => {
                                 logger.warn('Failed to open URL via Tauri, falling back to window.open', err)
@@ -364,7 +364,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     },
                 })
             } else {
-                pushToast({ tone: 'success', title: 'Pull request created', description: `Branch: ${result.branch}` })
+                pushToast({ tone: 'success', title: t.toasts.prCreated, description: t.toasts.prCreatedBranch.replace('{branch}', result.branch) })
             }
             await reloadSessions()
         } catch (error) {
@@ -575,7 +575,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         logger.error('Failed to load PR preview for MCP request:', error)
                         pushToast({
                             tone: 'error',
-                            title: 'Failed to open PR modal',
+                            title: t.toasts.prModalFailed,
                             description: error instanceof Error ? error.message : String(error),
                         })
                     }
@@ -1418,7 +1418,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         orchestratorRunning && selection.kind !== 'orchestrator' &&
                             'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
                     )}
-                    aria-label="Select orchestrator (⌘1)"
+                    aria-label={`${t.ariaLabels.selectOrchestrator} (⌘1)`}
                     aria-pressed={selection.kind === 'orchestrator'}
                     data-onboarding="orchestrator-entry"
                 >

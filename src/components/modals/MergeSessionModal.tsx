@@ -234,7 +234,7 @@ export function MergeSessionModal({
               onClick={onClose}
               className="text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
-              aria-label="Close merge dialog"
+              aria-label={t.ariaLabels.closeMergeDialog}
               title={t.mergeSessionModal.closeEsc}
             >
               ×

@@ -1128,5 +1128,21 @@ export interface Translations {
     // Session actions
     noPrLinked: string
     noPrLinkedDesc: string
+    // PR creation (Sidebar)
+    prCreated: string
+    prCreatedBranch: string
+    prModalFailed: string
+  }
+  ariaLabels: {
+    close: string
+    closeMergeDialog: string
+    closePrDialog: string
+    selectOrchestrator: string
+    schaltwerkLogo: string
+  }
+  placeholders: {
+    gitRemoteUrl: string
+    sessionName: string
+    describeChanges: string
   }
 }

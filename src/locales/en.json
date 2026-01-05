@@ -1119,6 +1119,21 @@
     "checkUpdatesFailed": "Unable to check for updates",
     "checkUpdatesFailedDesc": "Please try again in a few minutes.",
     "noPrLinked": "No PR linked",
-    "noPrLinkedDesc": "Link a PR first before fetching comments"
+    "noPrLinkedDesc": "Link a PR first before fetching comments",
+    "prCreated": "Pull request created",
+    "prCreatedBranch": "Branch: {branch}",
+    "prModalFailed": "Failed to open PR modal"
+  },
+  "ariaLabels": {
+    "close": "Close",
+    "closeMergeDialog": "Close merge dialog",
+    "closePrDialog": "Close PR dialog",
+    "selectOrchestrator": "Select orchestrator",
+    "schaltwerkLogo": "SCHALTWERK logo"
+  },
+  "placeholders": {
+    "gitRemoteUrl": "git@github.com:org/repo.git or https://github.com/org/repo.git",
+    "sessionName": "eager_cosmos",
+    "describeChanges": "Describe the changes"
   }
 }

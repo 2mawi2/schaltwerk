@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { VscFolderOpened, VscTrash, VscClose } from 'react-icons/vsc'
 import { formatDateTime } from '../../utils/dateTime'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
+import { useTranslation } from '../../common/i18n'
 
 const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   dateStyle: 'medium'
@@ -15,6 +16,7 @@ interface ProjectSelectorModalProps {
 }
 
 export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, openProjectPaths = [] }: ProjectSelectorModalProps) {
+  const { t } = useTranslation()
   const {
     recentProjects,
     error,
@@ -111,7 +113,7 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
             onClick={onClose}
             className="p-1 rounded hover:bg-bg-elevated transition-colors"
             style={{ color: 'var(--color-text-tertiary)' }}
-            aria-label="Close"
+            aria-label={t.ariaLabels.close}
           >
             <VscClose className="text-xl" />
           </button>

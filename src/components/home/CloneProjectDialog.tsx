@@ -9,8 +9,6 @@ import { logger } from '../../utils/logger'
 import { parseGitRemote, sanitizeFolderName } from '../../utils/gitRemote'
 import { useTranslation } from '../../common/i18n'
 
-const REMOTE_PLACEHOLDER = 'git@github.com:org/repo.git or https://github.com/org/repo.git'
-
 function generateRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -260,7 +258,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
               id="clone-remote-url"
               value={remoteUrl}
               onChange={(event) => setRemoteUrl(event.target.value)}
-              placeholder={REMOTE_PLACEHOLDER}
+              placeholder={t.placeholders.gitRemoteUrl}
               className="w-full px-3 py-2 rounded-lg"
               style={{
                 backgroundColor: 'var(--color-bg-secondary)',

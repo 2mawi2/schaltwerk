@@ -1119,6 +1119,21 @@
     "checkUpdatesFailed": "无法检查更新",
     "checkUpdatesFailedDesc": "请稍后再试。",
     "noPrLinked": "未关联 PR",
-    "noPrLinkedDesc": "请先关联 PR 再获取评论"
+    "noPrLinkedDesc": "请先关联 PR 再获取评论",
+    "prCreated": "拉取请求已创建",
+    "prCreatedBranch": "分支：{branch}",
+    "prModalFailed": "无法打开 PR 对话框"
+  },
+  "ariaLabels": {
+    "close": "关闭",
+    "closeMergeDialog": "关闭合并对话框",
+    "closePrDialog": "关闭 PR 对话框",
+    "selectOrchestrator": "选择协调器",
+    "schaltwerkLogo": "SCHALTWERK 徽标"
+  },
+  "placeholders": {
+    "gitRemoteUrl": "git@github.com:org/repo.git 或 https://github.com/org/repo.git",
+    "sessionName": "eager_cosmos",
+    "describeChanges": "描述更改内容"
   }
 }
