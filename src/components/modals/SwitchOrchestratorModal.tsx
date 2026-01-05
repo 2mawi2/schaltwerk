@@ -3,6 +3,7 @@ import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   open: boolean
@@ -29,6 +30,7 @@ export function SwitchOrchestratorModal({
   initialSkipPermissions,
   targetSessionId,
 }: Props) {
+  const { t } = useTranslation()
   const [agentType, setAgentType] = useState<AgentType>('claude')
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [switching, setSwitching] = useState(false)
@@ -45,15 +47,15 @@ export function SwitchOrchestratorModal({
     scope ?? (targetSessionId ? 'session' : 'orchestrator')
   const isOrchestrator = derivedScope === 'orchestrator'
   const allowedAgents = isOrchestrator ? ORCHESTRATOR_ALLOWED_AGENTS : SESSION_ALLOWED_AGENTS
-  const title = isOrchestrator ? 'Switch Orchestrator Agent' : 'Switch Session Agent'
+  const title = isOrchestrator ? t.switchAgentModal.titleOrchestrator : t.switchAgentModal.titleSession
   const warningBody = isOrchestrator
-    ? 'Switching the orchestrator agent will restart the terminal and clear the current session history. Any unsaved work in the orchestrator terminal will be lost.'
-    : `Switching the session agent${
-        targetSessionId ? ` for ${targetSessionId}` : ''
-      } will restart the terminal and clear the current session history. Any unsaved work in that terminal will be lost.`
+    ? t.switchAgentModal.warningOrchestrator
+    : targetSessionId
+      ? t.switchAgentModal.warningSession.replace('session agent', `session agent for ${targetSessionId}`)
+      : t.switchAgentModal.warningSession
   const helperText = isOrchestrator
-    ? 'Choose the AI agent to use for the orchestrator terminal'
-    : 'Choose the AI agent to use for this session terminal'
+    ? t.switchAgentModal.helperOrchestrator
+    : t.switchAgentModal.helperSession
 
   const handleSwitch = async () => {
     if (switching) return
@@ -153,14 +155,14 @@ export function SwitchOrchestratorModal({
             <div className="flex items-start gap-2">
               <span className="text-amber-500 text-lg">⚠️</span>
               <div className="text-sm text-amber-200">
-                <p className="font-medium mb-1">Warning</p>
+                <p className="font-medium mb-1">{t.switchAgentModal.warning}</p>
                 <p className="text-amber-300/90">{warningBody}</p>
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm text-slate-300 mb-2">Select Agent</label>
+            <label className="block text-sm text-slate-300 mb-2">{t.switchAgentModal.selectAgent}</label>
             <ModelSelector
               value={agentType}
               onChange={setAgentType}
@@ -179,9 +181,9 @@ export function SwitchOrchestratorModal({
             onClick={onClose}
             disabled={switching}
             className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800 disabled:opacity-50 rounded group relative"
-            title="Cancel (Esc)"
+            title={t.switchAgentModal.cancelEsc}
           >
-            Cancel
+            {t.switchAgentModal.cancel}
             <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
           </button>
           <button
@@ -197,7 +199,7 @@ export function SwitchOrchestratorModal({
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
             }}
-            title="Switch Agent (Enter)"
+            title={t.switchAgentModal.switchAgentEnter}
           >
             {switching && (
               <span
@@ -205,7 +207,7 @@ export function SwitchOrchestratorModal({
                 aria-hidden="true"
               />
             )}
-            <span>Switch Agent</span>
+            <span>{t.switchAgentModal.switchAgent}</span>
             {!switching && (
               <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>
             )}

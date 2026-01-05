@@ -33,6 +33,19 @@
       "confirmTitle": "转换为规格 (Enter)",
       "cancel": "取消",
       "cancelTitle": "取消 (Esc)"
+    },
+    "discardFile": {
+      "title": "丢弃文件更改",
+      "body": "这将丢弃以下文件的所有未提交更改：",
+      "cannotUndo": "此操作无法撤销。",
+      "cancel": "取消",
+      "discard": "丢弃"
+    },
+    "resetSession": {
+      "title": "重置会话工作树",
+      "body": "这将丢弃所有未提交的更改，并将此会话分支重置到其基础分支。此操作无法撤销。",
+      "cancel": "取消",
+      "reset": "重置"
     }
   },
   "settings": {
@@ -655,5 +668,59 @@
     "canSleepNormally": "机器可正常睡眠",
     "willStayAwake": "会话活跃时机器将保持唤醒",
     "unavailable": "保持唤醒不可用（详情请查看日志）"
+  },
+  "customAgentModal": {
+    "title": "添加自定义代理标签页",
+    "selectAgent": "选择代理",
+    "helperText": "选择要在新标签页中打开的 AI 代理",
+    "cancel": "取消",
+    "cancelEsc": "取消 (Esc)",
+    "addTab": "添加标签页",
+    "addTabEnter": "添加标签页 (Enter)"
+  },
+  "switchAgentModal": {
+    "titleOrchestrator": "切换协调器代理",
+    "titleSession": "切换会话代理",
+    "warning": "警告",
+    "warningOrchestrator": "切换协调器代理将重启终端并清除当前会话历史。协调器终端中任何未保存的工作都将丢失。",
+    "warningSession": "切换会话代理将重启终端并清除当前会话历史。该终端中任何未保存的工作都将丢失。",
+    "helperOrchestrator": "选择用于协调器终端的 AI 代理",
+    "helperSession": "选择用于此会话终端的 AI 代理",
+    "selectAgent": "选择代理",
+    "cancel": "取消",
+    "cancelEsc": "取消 (Esc)",
+    "switchAgent": "切换代理",
+    "switchAgentEnter": "切换代理 (Enter)"
+  },
+  "mergeSessionModal": {
+    "title": "合并会话",
+    "autoCancelAfterMerge": "合并后自动取消",
+    "closeEsc": "关闭 (Esc)",
+    "autoCancelStatus": "成功合并后自动取消当前为{status}。此偏好设置按项目存储，也可以在「设置 → 项目」中调整。",
+    "autoCancelHint": "此偏好设置按项目存储，也可以在「设置 → 项目」中调整。",
+    "sessionBranch": "会话分支",
+    "mergeStrategy": "合并策略",
+    "squashFastForward": "压缩并快进",
+    "reapplyCommits": "重新应用提交",
+    "squashDesc": "使用您的消息创建单个提交，然后快进父分支。",
+    "reapplyDesc": "将所有会话提交重新应用到最新的父分支上，保留历史记录。",
+    "commitMessage": "提交消息",
+    "commitPlaceholder": "描述此会话中的更改",
+    "resolveConflicts": "请先解决合并冲突再继续。",
+    "conflictsBody": "使用 {parentBranch} 更新 {sessionBranch} 会产生冲突。",
+    "conflictingPaths": "冲突路径：{paths}。",
+    "nothingToMerge": "无需合并",
+    "nothingToMergeBody": "{sessionBranch} 没有需要合并到 {parentBranch} 的提交。",
+    "shortcutHint": "快捷键：⌘⇧M",
+    "cancel": "取消",
+    "mergeSession": "合并会话",
+    "merging": "合并中…",
+    "tooltips": {
+      "hasConflicts": "请先解决合并冲突再合并。",
+      "isUpToDate": "会话没有需要合并到父分支的提交。",
+      "isMerging": "合并中…",
+      "needsCommitMessage": "请输入提交消息以启用合并。",
+      "readyToMerge": "合并会话 (⌘↵)"
+    }
   }
 }

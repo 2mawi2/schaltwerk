@@ -36,6 +36,19 @@ export interface Translations {
       cancel: string
       cancelTitle: string
     }
+    discardFile: {
+      title: string
+      body: string
+      cannotUndo: string
+      cancel: string
+      discard: string
+    }
+    resetSession: {
+      title: string
+      body: string
+      cancel: string
+      reset: string
+    }
   }
   settings: {
     title: string
@@ -657,5 +670,59 @@ export interface Translations {
     canSleepNormally: string
     willStayAwake: string
     unavailable: string
+  }
+  customAgentModal: {
+    title: string
+    selectAgent: string
+    helperText: string
+    cancel: string
+    cancelEsc: string
+    addTab: string
+    addTabEnter: string
+  }
+  switchAgentModal: {
+    titleOrchestrator: string
+    titleSession: string
+    warning: string
+    warningOrchestrator: string
+    warningSession: string
+    helperOrchestrator: string
+    helperSession: string
+    selectAgent: string
+    cancel: string
+    cancelEsc: string
+    switchAgent: string
+    switchAgentEnter: string
+  }
+  mergeSessionModal: {
+    title: string
+    autoCancelAfterMerge: string
+    closeEsc: string
+    autoCancelStatus: string
+    autoCancelHint: string
+    sessionBranch: string
+    mergeStrategy: string
+    squashFastForward: string
+    reapplyCommits: string
+    squashDesc: string
+    reapplyDesc: string
+    commitMessage: string
+    commitPlaceholder: string
+    resolveConflicts: string
+    conflictsBody: string
+    conflictingPaths: string
+    nothingToMerge: string
+    nothingToMergeBody: string
+    shortcutHint: string
+    cancel: string
+    mergeSession: string
+    merging: string
+    tooltips: {
+      hasConflicts: string
+      isUpToDate: string
+      isMerging: string
+      needsCommitMessage: string
+      readyToMerge: string
+    }
   }
 }

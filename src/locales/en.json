@@ -33,6 +33,19 @@
       "confirmTitle": "Convert to spec (Enter)",
       "cancel": "Cancel",
       "cancelTitle": "Cancel (Esc)"
+    },
+    "discardFile": {
+      "title": "Discard File Changes",
+      "body": "This will discard all uncommitted changes for the file:",
+      "cannotUndo": "This action cannot be undone.",
+      "cancel": "Cancel",
+      "discard": "Discard"
+    },
+    "resetSession": {
+      "title": "Reset Session Worktree",
+      "body": "This will discard ALL uncommitted changes and reset this session branch to its base branch. This action cannot be undone.",
+      "cancel": "Cancel",
+      "reset": "Reset"
     }
   },
   "settings": {
@@ -655,5 +668,59 @@
     "canSleepNormally": "Machine can sleep normally",
     "willStayAwake": "Machine will stay awake while sessions are active",
     "unavailable": "Keep-awake unavailable (see logs for details)"
+  },
+  "customAgentModal": {
+    "title": "Add Custom Agent Tab",
+    "selectAgent": "Select Agent",
+    "helperText": "Choose an AI agent to open in a new tab",
+    "cancel": "Cancel",
+    "cancelEsc": "Cancel (Esc)",
+    "addTab": "Add Tab",
+    "addTabEnter": "Add Tab (Enter)"
+  },
+  "switchAgentModal": {
+    "titleOrchestrator": "Switch Orchestrator Agent",
+    "titleSession": "Switch Session Agent",
+    "warning": "Warning",
+    "warningOrchestrator": "Switching the orchestrator agent will restart the terminal and clear the current session history. Any unsaved work in the orchestrator terminal will be lost.",
+    "warningSession": "Switching the session agent will restart the terminal and clear the current session history. Any unsaved work in that terminal will be lost.",
+    "helperOrchestrator": "Choose the AI agent to use for the orchestrator terminal",
+    "helperSession": "Choose the AI agent to use for this session terminal",
+    "selectAgent": "Select Agent",
+    "cancel": "Cancel",
+    "cancelEsc": "Cancel (Esc)",
+    "switchAgent": "Switch Agent",
+    "switchAgentEnter": "Switch Agent (Enter)"
+  },
+  "mergeSessionModal": {
+    "title": "Merge Session",
+    "autoCancelAfterMerge": "Auto-cancel after merge",
+    "closeEsc": "Close (Esc)",
+    "autoCancelStatus": "Auto-cancel after a successful merge is currently {status}. This preference is stored per project and can also be adjusted in Settings → Project.",
+    "autoCancelHint": "This preference is stored per project and can also be adjusted in Settings → Project.",
+    "sessionBranch": "Session branch",
+    "mergeStrategy": "Merge strategy",
+    "squashFastForward": "Squash & fast-forward",
+    "reapplyCommits": "Reapply commits",
+    "squashDesc": "Create a single commit with your message, then fast-forward the parent branch.",
+    "reapplyDesc": "Replay all session commits onto the latest parent branch, preserving history.",
+    "commitMessage": "Commit message",
+    "commitPlaceholder": "Describe the changes that landed in this session",
+    "resolveConflicts": "Resolve merge conflicts before proceeding.",
+    "conflictsBody": "Updating {sessionBranch} with {parentBranch} would conflict.",
+    "conflictingPaths": "Conflicting paths: {paths}.",
+    "nothingToMerge": "Nothing to merge",
+    "nothingToMergeBody": "{sessionBranch} has no commits to merge into {parentBranch}.",
+    "shortcutHint": "Shortcut: ⌘⇧M",
+    "cancel": "Cancel",
+    "mergeSession": "Merge session",
+    "merging": "Merging…",
+    "tooltips": {
+      "hasConflicts": "Resolve merge conflicts before merging.",
+      "isUpToDate": "Session has no commits to merge into the parent branch.",
+      "isMerging": "Merging…",
+      "needsCommitMessage": "Enter a commit message to enable merge.",
+      "readyToMerge": "Merge session (⌘↵)"
+    }
   }
 }
