@@ -10,6 +10,7 @@ import {
   type DiffCompareMode,
 } from '../../store/atoms/diffCompareMode'
 import { VscCloudUpload } from 'react-icons/vsc'
+import { useTranslation } from '../../common/i18n'
 
 interface CompareModeToggleProps {
   sessionName: string
@@ -17,6 +18,7 @@ interface CompareModeToggleProps {
 }
 
 export function CompareModeToggle({ sessionName, onModeChange }: CompareModeToggleProps) {
+  const { t } = useTranslation()
   const [compareMode, setCompareMode] = useAtom(diffCompareModeAtomFamily(sessionName))
   const [hasRemote, setHasRemote] = useAtom(hasRemoteTrackingBranchAtomFamily(sessionName))
 
@@ -75,10 +77,10 @@ export function CompareModeToggle({ sessionName, onModeChange }: CompareModeTogg
       }}
       title={
         isUnpushedMode
-          ? 'Showing local only (changes since last push). Click to show all changes.'
-          : 'Show local only (changes since last push)'
+          ? t.compareModeToggle.showingLocalOnly
+          : t.compareModeToggle.showLocalOnly
       }
-      aria-label={isUnpushedMode ? 'Showing local only' : 'Show local only'}
+      aria-label={isUnpushedMode ? t.compareModeToggle.showingLocalOnlyLabel : t.compareModeToggle.showLocalOnlyLabel}
     >
       <VscCloudUpload className="text-base" />
     </button>

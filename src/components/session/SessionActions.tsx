@@ -104,19 +104,19 @@ export function SessionActions({
   const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
   const spacing = 'gap-0.5';
   const conflictCount = mergeConflictingPaths?.length ?? 0;
-  const conflictLabel = conflictCount > 0 ? `Resolve conflicts (${conflictCount})` : 'Resolve conflicts';
+  const conflictLabel = conflictCount > 0 ? `${t.sessionActions.resolveConflicts} (${conflictCount})` : t.sessionActions.resolveConflicts;
   const conflictTooltip = conflictCount > 0
-    ? `Resolve conflicts (⌘⇧M)${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
-    : 'Resolve conflicts (⌘⇧M)';
+    ? `${t.sessionActions.resolveConflictsShortcut}${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
+    : t.sessionActions.resolveConflictsShortcut;
 
   const canCreatePr = github.canCreatePr;
   const prTooltip = canCreatePr
-    ? 'Create pull request'
+    ? t.sessionActions.createPr
     : github.isGhMissing
-      ? 'Install the GitHub CLI to enable PR automation'
+      ? t.sessionActions.installGhCli
       : github.hasRepository
-        ? 'Sign in with GitHub to enable PR automation'
-        : 'Connect this project to a GitHub repository first';
+        ? t.sessionActions.signInGithub
+        : t.sessionActions.connectGithubFirst;
   const handleOpenPullRequest = useCallback(() => {
     if (!onCreatePullRequest) return
     onCreatePullRequest(sessionId)
@@ -149,16 +149,16 @@ export function SessionActions({
             <IconButton
               icon={<VscBeaker />}
               onClick={() => onRefineSpec(sessionId)}
-              ariaLabel="Refine spec"
-              tooltip="Refine in orchestrator (⌘⇧R)"
+              ariaLabel={t.sessionActions.refineSpec}
+              tooltip={t.sessionActions.refineInOrchestrator}
             />
           )}
           {onRunSpec && (
             <IconButton
               icon={<VscPlay />}
               onClick={() => onRunSpec(sessionId)}
-              ariaLabel="Run spec"
-              tooltip="Run spec"
+              ariaLabel={t.sessionActions.runSpec}
+              tooltip={t.sessionActions.runSpec}
               variant="success"
             />
           )}
@@ -166,8 +166,8 @@ export function SessionActions({
             <IconButton
               icon={<VscTrash />}
               onClick={() => onDeleteSpec(sessionId)}
-              ariaLabel="Delete spec"
-              tooltip="Delete spec"
+              ariaLabel={t.sessionActions.deleteSpec}
+              tooltip={t.sessionActions.deleteSpec}
               variant="danger"
             />
           )}
@@ -190,8 +190,8 @@ export function SessionActions({
           <IconButton
             icon={<FaGithub />}
             onClick={handleOpenPullRequest}
-            ariaLabel="Create pull request"
-            tooltip={canCreatePr ? 'Create pull request (⌘⇧P)' : prTooltip}
+            ariaLabel={t.sessionActions.createPr}
+            tooltip={canCreatePr ? t.sessionActions.createPrShortcut : prTooltip}
             disabled={!canCreatePr || !onCreatePullRequest}
             className={!canCreatePr ? 'opacity-60' : undefined}
           />
@@ -290,8 +290,8 @@ export function SessionActions({
           <IconButton
             icon={<FaGithub />}
             onClick={handleOpenPullRequest}
-            ariaLabel="Create pull request"
-            tooltip={canCreatePr ? 'Create pull request (⌘⇧P)' : prTooltip}
+            ariaLabel={t.sessionActions.createPr}
+            tooltip={canCreatePr ? t.sessionActions.createPrShortcut : prTooltip}
             disabled={!canCreatePr || !onCreatePullRequest}
             className={!canCreatePr ? 'opacity-60' : undefined}
           />

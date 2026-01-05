@@ -694,7 +694,8 @@
     "enabled": "Keep-awake enabled",
     "canSleepNormally": "Machine can sleep normally",
     "willStayAwake": "Machine will stay awake while sessions are active",
-    "unavailable": "Keep-awake unavailable (see logs for details)"
+    "unavailable": "Keep-awake unavailable (see logs for details)",
+    "toggleLabel": "Toggle keep-awake"
   },
   "customAgentModal": {
     "title": "Add Custom Agent Tab",
@@ -902,7 +903,9 @@
     "selectReasoning": "Select reasoning effort",
     "noReasoningOptions": "No reasoning options available",
     "requirePermissions": "Require permissions",
-    "skipPermissions": "Skip permissions"
+    "skipPermissions": "Skip permissions",
+    "requirePermissionsTitle": "Require macOS permission prompts when starting the agent",
+    "skipPermissionsTitle": "Skip macOS permission prompts when starting the agent"
   },
   "githubMenu": {
     "title": "GitHub CLI",
@@ -1192,5 +1195,99 @@
     "showChangedFiles": "Show changed files",
     "browseAllFiles": "Browse all project files",
     "linkToGithubPr": "Link to GitHub PR"
+  },
+  "tabBar": {
+    "openAnotherProject": "Open another project"
+  },
+  "specWorkspacePanel": {
+    "openSpec": "Open spec",
+    "edited": "Edited",
+    "noSpecSelected": "No spec selected",
+    "openSpecButton": "Open Spec"
+  },
+  "branchSelectorPopover": {
+    "customCompare": "Custom compare: {branch} (click to change)",
+    "changeDiffBranch": "Change diff comparison branch",
+    "resetTo": "Reset to:",
+    "compareAgainst": "Compare against",
+    "search": "Search..."
+  },
+  "modelSelector": {
+    "checkingAvailability": "Checking availability...",
+    "notInstalled": "{agent} is not installed on this system. Please install it to use this agent.",
+    "availableAt": "{agent} is available at: {path} (installed via {method})",
+    "available": "{agent} is available",
+    "permissionHandling": "Permission handling"
+  },
+  "specMetadataPanel": {
+    "title": "Spec Information",
+    "subtitle": "View spec metadata",
+    "created": "Created",
+    "lastModified": "Last Modified",
+    "unknown": "Unknown"
+  },
+  "terminalErrorBoundary": {
+    "title": "Terminal Failed to Load",
+    "terminalId": "Terminal ID: {terminalId}",
+    "description": "The terminal encountered an unexpected error. This might be due to a connection issue or a rendering problem.",
+    "errorDetails": "Error details",
+    "retryTerminal": "Retry Terminal",
+    "refreshPage": "Refresh Page"
+  },
+  "sessionErrorBoundary": {
+    "title": "Session Error",
+    "session": "Session: {sessionName}",
+    "description": "Failed to load session data. This might be due to a corrupted session state or network issue.",
+    "errorDetails": "Error details",
+    "retry": "Retry",
+    "refreshApp": "Refresh App"
+  },
+  "agentCliMissing": {
+    "title": "No agent CLIs detected",
+    "close": "Close",
+    "description": "We couldn't find any supported agent command-line binaries. Install one (e.g., via Homebrew) or set a custom path in Settings → Agent Configuration, then re-run detection.",
+    "noPathDetected": "No path detected",
+    "found": "Found",
+    "missing": "Missing",
+    "scanning": "Scanning…",
+    "rerunDetection": "Re-run detection",
+    "openSettings": "Open Settings"
+  },
+  "compareModeToggle": {
+    "showingLocalOnly": "Showing local only (changes since last push). Click to show all changes.",
+    "showLocalOnly": "Show local only (changes since last push)",
+    "showingLocalOnlyLabel": "Showing local only",
+    "showLocalOnlyLabel": "Show local only"
+  },
+  "diffChangeBadges": {
+    "binary": "Binary"
+  },
+  "promoteVersionConfirmation": {
+    "title": "Promote \"{session}\" as best version?",
+    "deleteDescription": "This will permanently delete the following sessions:",
+    "remainRunning": "The selected session will remain in Running state for continued work.",
+    "dontAskAgain": "Don't ask again",
+    "deleteOthers": "Delete Others",
+    "cancel": "Cancel"
+  },
+  "multiAgentAllocation": {
+    "version": "version",
+    "versions": "versions",
+    "useMultipleAgents": "Use Multiple Agents",
+    "multiAgentSetup": "Multi-agent setup",
+    "configureAgents": "Configure agents"
+  },
+  "sessionActions": {
+    "resolveConflicts": "Resolve conflicts",
+    "resolveConflictsShortcut": "Resolve conflicts (⌘⇧M)",
+    "createPr": "Create pull request",
+    "installGhCli": "Install the GitHub CLI to enable PR automation",
+    "signInGithub": "Sign in with GitHub to enable PR automation",
+    "connectGithubFirst": "Connect this project to a GitHub repository first",
+    "refineSpec": "Refine spec",
+    "refineInOrchestrator": "Refine in orchestrator (⌘⇧R)",
+    "runSpec": "Run spec",
+    "deleteSpec": "Delete spec",
+    "createPrShortcut": "Create pull request (⌘⇧P)"
   }
 }

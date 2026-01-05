@@ -694,7 +694,8 @@
     "enabled": "保持唤醒已启用",
     "canSleepNormally": "机器可正常睡眠",
     "willStayAwake": "会话活跃时机器将保持唤醒",
-    "unavailable": "保持唤醒不可用（详情请查看日志）"
+    "unavailable": "保持唤醒不可用（详情请查看日志）",
+    "toggleLabel": "切换保持唤醒"
   },
   "customAgentModal": {
     "title": "添加自定义代理标签页",
@@ -902,7 +903,9 @@
     "selectReasoning": "选择推理力度",
     "noReasoningOptions": "没有可用的推理选项",
     "requirePermissions": "需要权限",
-    "skipPermissions": "跳过权限"
+    "skipPermissions": "跳过权限",
+    "requirePermissionsTitle": "启动代理时需要 macOS 权限提示",
+    "skipPermissionsTitle": "启动代理时跳过 macOS 权限提示"
   },
   "githubMenu": {
     "title": "GitHub CLI",
@@ -1192,5 +1195,99 @@
     "showChangedFiles": "显示已更改的文件",
     "browseAllFiles": "浏览所有项目文件",
     "linkToGithubPr": "关联 GitHub PR"
+  },
+  "tabBar": {
+    "openAnotherProject": "打开另一个项目"
+  },
+  "specWorkspacePanel": {
+    "openSpec": "打开规格",
+    "edited": "已编辑",
+    "noSpecSelected": "未选择规格",
+    "openSpecButton": "打开规格"
+  },
+  "branchSelectorPopover": {
+    "customCompare": "自定义比较：{branch}（点击更改）",
+    "changeDiffBranch": "更改差异比较分支",
+    "resetTo": "重置为：",
+    "compareAgainst": "比较对象",
+    "search": "搜索..."
+  },
+  "modelSelector": {
+    "checkingAvailability": "检查可用性...",
+    "notInstalled": "{agent} 未安装在此系统上。请安装后使用此代理。",
+    "availableAt": "{agent} 可用路径：{path}（通过 {method} 安装）",
+    "available": "{agent} 可用",
+    "permissionHandling": "权限处理"
+  },
+  "specMetadataPanel": {
+    "title": "规格信息",
+    "subtitle": "查看规格元数据",
+    "created": "创建时间",
+    "lastModified": "最后修改",
+    "unknown": "未知"
+  },
+  "terminalErrorBoundary": {
+    "title": "终端加载失败",
+    "terminalId": "终端 ID：{terminalId}",
+    "description": "终端遇到意外错误。这可能是由于连接问题或渲染问题。",
+    "errorDetails": "错误详情",
+    "retryTerminal": "重试终端",
+    "refreshPage": "刷新页面"
+  },
+  "sessionErrorBoundary": {
+    "title": "会话错误",
+    "session": "会话：{sessionName}",
+    "description": "加载会话数据失败。这可能是由于会话状态损坏或网络问题。",
+    "errorDetails": "错误详情",
+    "retry": "重试",
+    "refreshApp": "刷新应用"
+  },
+  "agentCliMissing": {
+    "title": "未检测到代理 CLI",
+    "close": "关闭",
+    "description": "找不到任何支持的代理命令行工具。请安装一个（例如通过 Homebrew）或在「设置 → 代理配置」中设置自定义路径，然后重新运行检测。",
+    "noPathDetected": "未检测到路径",
+    "found": "已找到",
+    "missing": "未找到",
+    "scanning": "扫描中…",
+    "rerunDetection": "重新检测",
+    "openSettings": "打开设置"
+  },
+  "compareModeToggle": {
+    "showingLocalOnly": "仅显示本地更改（自上次推送以来）。点击显示所有更改。",
+    "showLocalOnly": "仅显示本地更改（自上次推送以来）",
+    "showingLocalOnlyLabel": "仅显示本地",
+    "showLocalOnlyLabel": "仅显示本地"
+  },
+  "diffChangeBadges": {
+    "binary": "二进制"
+  },
+  "promoteVersionConfirmation": {
+    "title": "将「{session}」提升为最佳版本？",
+    "deleteDescription": "这将永久删除以下会话：",
+    "remainRunning": "所选会话将保持运行状态以便继续工作。",
+    "dontAskAgain": "不再询问",
+    "deleteOthers": "删除其他",
+    "cancel": "取消"
+  },
+  "multiAgentAllocation": {
+    "version": "个版本",
+    "versions": "个版本",
+    "useMultipleAgents": "使用多个代理",
+    "multiAgentSetup": "多代理设置",
+    "configureAgents": "配置代理"
+  },
+  "sessionActions": {
+    "resolveConflicts": "解决冲突",
+    "resolveConflictsShortcut": "解决冲突 (⌘⇧M)",
+    "createPr": "创建拉取请求",
+    "installGhCli": "安装 GitHub CLI 以启用 PR 自动化",
+    "signInGithub": "登录 GitHub 以启用 PR 自动化",
+    "connectGithubFirst": "请先将此项目连接到 GitHub 仓库",
+    "refineSpec": "优化规格",
+    "refineInOrchestrator": "在协调器中优化 (⌘⇧R)",
+    "runSpec": "运行规格",
+    "deleteSpec": "删除规格",
+    "createPrShortcut": "创建拉取请求 (⌘⇧P)"
   }
 }

@@ -2,6 +2,7 @@ import React, { ReactNode } from 'react'
 import ErrorBoundary from './ErrorBoundary'
 import { theme } from '../common/theme'
 import { VscRefresh, VscTerminal } from 'react-icons/vsc'
+import { useTranslation } from '../common/i18n'
 
 interface TerminalErrorBoundaryProps {
   children: ReactNode
@@ -9,11 +10,12 @@ interface TerminalErrorBoundaryProps {
   onRetry?: () => void
 }
 
-const TerminalErrorBoundary: React.FC<TerminalErrorBoundaryProps> = ({ 
-  children, 
+const TerminalErrorBoundary: React.FC<TerminalErrorBoundaryProps> = ({
+  children,
   terminalId,
   onRetry
 }) => {
+  const { t } = useTranslation()
   const handleTerminalError = (error: Error, resetError: () => void): ReactNode => {
     return (
       <div 
@@ -36,47 +38,47 @@ const TerminalErrorBoundary: React.FC<TerminalErrorBoundaryProps> = ({
           style={{ marginBottom: '1rem' }}
         />
         
-        <h3 style={{ 
+        <h3 style={{
           fontSize: theme.fontSize.heading,
           color: 'var(--color-text-primary)',
           marginBottom: '0.5rem',
           textAlign: 'center'
         }}>
-          Terminal Failed to Load
+          {t.terminalErrorBoundary.title}
         </h3>
-        
+
         {terminalId && (
-          <p style={{ 
+          <p style={{
             fontSize: theme.fontSize.caption,
             color: 'var(--color-text-tertiary)',
             marginBottom: '1rem',
             textAlign: 'center'
           }}>
-            Terminal ID: {terminalId}
+            {t.terminalErrorBoundary.terminalId.replace('{terminalId}', terminalId)}
           </p>
         )}
-        
-        <p style={{ 
+
+        <p style={{
           fontSize: theme.fontSize.body,
           color: 'var(--color-text-secondary)',
           marginBottom: '1.5rem',
           textAlign: 'center',
           maxWidth: '400px'
         }}>
-          The terminal encountered an unexpected error. This might be due to a connection issue or a rendering problem.
+          {t.terminalErrorBoundary.description}
         </p>
 
-        <details style={{ 
+        <details style={{
           marginBottom: '1.5rem',
           maxWidth: '400px',
           width: '100%'
         }}>
-          <summary style={{ 
+          <summary style={{
             cursor: 'pointer',
             fontSize: theme.fontSize.caption,
             color: 'var(--color-text-muted)'
           }}>
-            Error details
+            {t.terminalErrorBoundary.errorDetails}
           </summary>
           <pre style={{ 
             fontSize: theme.fontSize.caption,
@@ -122,9 +124,9 @@ const TerminalErrorBoundary: React.FC<TerminalErrorBoundaryProps> = ({
             }}
           >
             <VscRefresh size={16} />
-            Retry Terminal
+            {t.terminalErrorBoundary.retryTerminal}
           </button>
-          
+
           <button
             onClick={() => window.location.reload()}
             style={{
@@ -144,7 +146,7 @@ const TerminalErrorBoundary: React.FC<TerminalErrorBoundaryProps> = ({
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >
-            Refresh Page
+            {t.terminalErrorBoundary.refreshPage}
           </button>
         </div>
       </div>

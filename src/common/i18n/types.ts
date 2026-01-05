@@ -697,6 +697,7 @@ export interface Translations {
     canSleepNormally: string
     willStayAwake: string
     unavailable: string
+    toggleLabel: string
   }
   customAgentModal: {
     title: string
@@ -905,6 +906,8 @@ export interface Translations {
     noReasoningOptions: string
     requirePermissions: string
     skipPermissions: string
+    requirePermissionsTitle: string
+    skipPermissionsTitle: string
   }
   githubMenu: {
     title: string
@@ -1202,5 +1205,99 @@ export interface Translations {
     showChangedFiles: string
     browseAllFiles: string
     linkToGithubPr: string
+  }
+  tabBar: {
+    openAnotherProject: string
+  }
+  specWorkspacePanel: {
+    openSpec: string
+    edited: string
+    noSpecSelected: string
+    openSpecButton: string
+  }
+  branchSelectorPopover: {
+    customCompare: string
+    changeDiffBranch: string
+    resetTo: string
+    compareAgainst: string
+    search: string
+  }
+  modelSelector: {
+    checkingAvailability: string
+    notInstalled: string
+    availableAt: string
+    available: string
+    permissionHandling: string
+  }
+  specMetadataPanel: {
+    title: string
+    subtitle: string
+    created: string
+    lastModified: string
+    unknown: string
+  }
+  terminalErrorBoundary: {
+    title: string
+    terminalId: string
+    description: string
+    errorDetails: string
+    retryTerminal: string
+    refreshPage: string
+  }
+  sessionErrorBoundary: {
+    title: string
+    session: string
+    description: string
+    errorDetails: string
+    retry: string
+    refreshApp: string
+  }
+  agentCliMissing: {
+    title: string
+    close: string
+    description: string
+    noPathDetected: string
+    found: string
+    missing: string
+    scanning: string
+    rerunDetection: string
+    openSettings: string
+  }
+  compareModeToggle: {
+    showingLocalOnly: string
+    showLocalOnly: string
+    showingLocalOnlyLabel: string
+    showLocalOnlyLabel: string
+  }
+  diffChangeBadges: {
+    binary: string
+  }
+  promoteVersionConfirmation: {
+    title: string
+    deleteDescription: string
+    remainRunning: string
+    dontAskAgain: string
+    deleteOthers: string
+    cancel: string
+  }
+  multiAgentAllocation: {
+    version: string
+    versions: string
+    useMultipleAgents: string
+    multiAgentSetup: string
+    configureAgents: string
+  }
+  sessionActions: {
+    resolveConflicts: string
+    resolveConflictsShortcut: string
+    createPr: string
+    installGhCli: string
+    signInGithub: string
+    connectGithubFirst: string
+    refineSpec: string
+    refineInOrchestrator: string
+    runSpec: string
+    deleteSpec: string
+    createPrShortcut: string
   }
 }

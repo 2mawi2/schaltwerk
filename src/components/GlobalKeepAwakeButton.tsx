@@ -102,7 +102,7 @@ export function GlobalKeepAwakeButton() {
       className="h-8 w-8 inline-flex items-center justify-center rounded-md border transition-colors duration-150 shadow-sm"
       style={style as CSSProperties}
       title={tooltip}
-      aria-label="Toggle keep-awake"
+      aria-label={t.globalKeepAwake.toggleLabel}
       disabled={isLoading || Boolean(errorTooltip)}
     >
       <div className="relative flex items-center justify-center">

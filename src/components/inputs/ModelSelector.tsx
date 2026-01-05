@@ -3,6 +3,7 @@ import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
+import { useTranslation } from '../../common/i18n'
 
 type ModelColor = 'blue' | 'green' | 'orange' | 'red' | 'violet' | 'cyan' | 'yellow' | 'copilot'
 
@@ -42,6 +43,7 @@ export function ModelSelector({
     showShortcutHint = false,
     allowedAgents
 }: ModelSelectorProps) {
+    const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
@@ -66,13 +68,13 @@ export function ModelSelector({
     }, [onChange, isAvailable, agentSelectionDisabled])
 
     const getTooltipText = useCallback((modelValue: AgentType) => {
-        if (loading) return 'Checking availability...'
-        if (!isAvailable(modelValue)) return `${modelValue} is not installed on this system. Please install it to use this agent.`
+        if (loading) return t.modelSelector.checkingAvailability
+        if (!isAvailable(modelValue)) return t.modelSelector.notInstalled.replace('{agent}', modelValue)
         const path = getRecommendedPath(modelValue)
         const method = getInstallationMethod(modelValue)
-        if (path && method) return `${modelValue} is available at: ${path} (installed via ${method})`
-        return `${modelValue} is available`
-    }, [loading, isAvailable, getRecommendedPath, getInstallationMethod])
+        if (path && method) return t.modelSelector.availableAt.replace('{agent}', modelValue).replace('{path}', path).replace('{method}', method)
+        return t.modelSelector.available.replace('{agent}', modelValue)
+    }, [loading, isAvailable, getRecommendedPath, getInstallationMethod, t])
 
     const selectedAvailable = isAvailable(selectedModel.value)
     const dropdownDisabled = disabled || agentSelectionDisabled
@@ -205,7 +207,7 @@ export function ModelSelector({
                 )}
             </Dropdown>
             {canConfigurePermissions && (
-                <div className="flex gap-2" role="group" aria-label="Permission handling">
+                <div className="flex gap-2" role="group" aria-label={t.modelSelector.permissionHandling}>
                     <button
                         type="button"
                         onClick={handleRequirePermissions}
@@ -217,9 +219,9 @@ export function ModelSelector({
                             borderColor: 'var(--color-border-default)',
                             color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-secondary)' : 'var(--color-text-primary)')
                         }}
-                        title="Require macOS permission prompts when starting the agent"
+                        title={t.sessionConfig.requirePermissionsTitle}
                     >
-                        Require permissions
+                        {t.sessionConfig.requirePermissions}
                     </button>
                     <button
                         type="button"
@@ -232,9 +234,9 @@ export function ModelSelector({
                             borderColor: 'var(--color-border-default)',
                             color: disabled ? 'var(--color-text-muted)' : (skipPermissions ? 'var(--color-text-primary)' : 'var(--color-text-secondary)')
                         }}
-                        title="Skip macOS permission prompts when starting the agent"
+                        title={t.sessionConfig.skipPermissionsTitle}
                     >
-                        Skip permissions
+                        {t.sessionConfig.skipPermissions}
                     </button>
                 </div>
             )}

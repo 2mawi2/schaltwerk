@@ -4,6 +4,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 import { VscSettings } from 'react-icons/vsc'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
+import { useTranslation } from '../../common/i18n'
 
 interface BranchSelectorPopoverProps {
   sessionName: string
@@ -18,6 +19,7 @@ export function BranchSelectorPopover({
   originalBaseBranch,
   onBranchChange
 }: BranchSelectorPopoverProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const [branches, setBranches] = useState<string[]>([])
   const [selectedBranch, setSelectedBranch] = useState(currentBaseBranch)
@@ -157,8 +159,8 @@ export function BranchSelectorPopover({
         disabled={isUpdating}
         className="p-1 rounded hover:bg-slate-800 transition-colors relative"
         style={{ color: isOpen ? 'var(--color-accent-blue)' : hasCustomCompare ? 'var(--color-accent-amber)' : 'var(--color-text-secondary)' }}
-        title={hasCustomCompare ? `Custom compare: ${currentBaseBranch} (click to change)` : "Change diff comparison branch"}
-        aria-label="Change diff comparison branch"
+        title={hasCustomCompare ? t.branchSelectorPopover.customCompare.replace('{branch}', currentBaseBranch) : t.branchSelectorPopover.changeDiffBranch}
+        aria-label={t.branchSelectorPopover.changeDiffBranch}
       >
         {isUpdating ? (
           <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -194,12 +196,12 @@ export function BranchSelectorPopover({
                 color: 'var(--color-text-primary)'
               }}
             >
-              <span style={{ color: 'var(--color-text-secondary)' }}>Reset to: </span>
+              <span style={{ color: 'var(--color-text-secondary)' }}>{t.branchSelectorPopover.resetTo} </span>
               <span style={{ color: 'var(--color-accent-amber)' }}>{originalBaseBranch}</span>
             </button>
           )}
           <div className="text-xs mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>
-            Compare against
+            {t.branchSelectorPopover.compareAgainst}
           </div>
           {isLoading ? (
             <div
@@ -210,7 +212,7 @@ export function BranchSelectorPopover({
                 color: 'var(--color-text-muted)'
               }}
             >
-              Loading...
+              {t.settings.common.loading}
             </div>
           ) : (
             <BranchAutocomplete
@@ -219,7 +221,7 @@ export function BranchSelectorPopover({
               onConfirm={handleConfirm}
               branches={branches}
               disabled={isUpdating || branches.length === 0}
-              placeholder={branches.length === 0 ? "No branches" : "Search..."}
+              placeholder={branches.length === 0 ? t.sessionConfig.noBranches : t.branchSelectorPopover.search}
               className="text-xs py-1"
               autoFocus
             />
