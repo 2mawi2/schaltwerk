@@ -136,7 +136,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
   const copyCommand = async () => {
     if (status) {
       await navigator.clipboard.writeText(status.setup_command)
-      setSuccess('Command copied to clipboard!')
+      setSuccess(t.mcpMessages.commandCopied)
       setTimeout(() => setSuccess(null), 3000)
     }
   }
@@ -145,7 +145,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     setLoading(true)
     try {
       await invoke(TauriCommands.RemoveMcpForProject, { projectPath, client: agent })
-      setSuccess('MCP configuration removed')
+      setSuccess(t.mcpMessages.configurationRemoved)
       await loadStatus()
     } catch (e) {
       logger.error(`Failed to remove MCP configuration for ${agent}`, e)
@@ -203,7 +203,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
         <>
           {loading && (
             <div className="flex items-center justify-center py-4">
-              <AnimatedText text="configuring" size="sm" />
+              <AnimatedText text={t.mcpMessages.configuring} size="sm" />
             </div>
           )}
 
@@ -418,7 +418,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <button
                       onClick={() => { void copyCommand() }}
                       className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition-colors text-slate-400 flex-shrink-0 self-start"
-                      title="Copy command"
+                      title={t.mcpMessages.copyCommand}
                     >
                       {t.settings.common.copy}
                     </button>

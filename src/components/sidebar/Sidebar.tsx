@@ -1887,14 +1887,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             <ConfirmModal
                 open={Boolean(deleteEpicTarget)}
-                title={`Delete epic "${deleteEpicTarget?.name ?? ''}"?`}
+                title={t.deleteEpicDialog.title.replace('{name}', deleteEpicTarget?.name ?? '')}
                 body={
                     <div style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.body }}>
-                        All sessions and specs in this epic will be moved to <strong>Ungrouped</strong>.
+                        {t.deleteEpicDialog.body} <strong>{t.deleteEpicDialog.ungrouped}</strong>.
                     </div>
                 }
-                confirmText="Delete"
-                cancelText="Cancel"
+                confirmText={t.deleteEpicDialog.confirm}
+                cancelText={t.settings.common.cancel}
                 variant="danger"
                 loading={deleteEpicLoading}
                 onCancel={() => {

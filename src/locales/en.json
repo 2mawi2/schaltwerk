@@ -1030,5 +1030,57 @@
     "colorNone": "None",
     "nameRequired": "Name is required",
     "cancel": "Cancel"
+  },
+  "specContentView": {
+    "saving": "Saving…",
+    "editingSpec": "Editing spec",
+    "previewMode": "Preview mode",
+    "focusSpecContent": "Focus spec content",
+    "previewMarkdown": "Preview markdown",
+    "editMarkdown": "Edit markdown",
+    "preview": "Preview",
+    "edit": "Edit",
+    "enterAgentDescription": "Enter agent description in markdown…",
+    "spec": "Spec"
+  },
+  "runTerminal": {
+    "loadingRunScript": "Loading run script…",
+    "noRunConfiguration": "No Run Configuration",
+    "noRunConfigurationDesc": "Configure a run script in Settings → Run & Environment to enable this terminal.",
+    "addRunScript": "Add run script",
+    "running": "Running:",
+    "readyToRun": "Ready to run:",
+    "pressToStart": "Press ⌘E to start",
+    "processEnded": "Process ended"
+  },
+  "mcpMessages": {
+    "configuredWithGitignore": "Configured! .schaltwerk-mcp/ added to .gitignore",
+    "commandCopied": "Command copied to clipboard!",
+    "configurationRemoved": "MCP configuration removed",
+    "configuring": "configuring",
+    "copyCommand": "Copy command"
+  },
+  "terminalErrors": {
+    "agentSwitchFailed": "Agent switch failed",
+    "agentSwitchFailedDesc": "We could not switch the agent. Please try again.",
+    "addAgentTabFailed": "Failed to add agent tab",
+    "addAgentTabFailedDesc": "We could not add the agent tab. Please try again.",
+    "terminalUnavailable": "Terminal unavailable",
+    "terminalUnavailableOrchestratorDesc": "Select the orchestrator to start its terminal, then try again.",
+    "terminalUnavailableSessionDesc": "The session terminal is not available. Please try again.",
+    "insertTextFailed": "Failed to insert text",
+    "insertTextFailedDesc": "Unable to insert text into the terminal."
+  },
+  "specInfoPanel": {
+    "title": "Spec Agent",
+    "description": "Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.",
+    "runSpec": "Run spec",
+    "deleteSpec": "Delete spec"
+  },
+  "deleteEpicDialog": {
+    "title": "Delete epic \"{name}\"?",
+    "body": "All sessions and specs in this epic will be moved to",
+    "ungrouped": "Ungrouped",
+    "confirm": "Delete"
   }
 }

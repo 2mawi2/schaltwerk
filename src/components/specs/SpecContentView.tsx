@@ -8,6 +8,7 @@ import { MarkdownEditor, type MarkdownEditorRef } from './MarkdownEditor'
 import { useSpecContentCache } from '../../hooks/useSpecContentCache'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { theme } from '../../common/theme'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   sessionName: string
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function SpecContentView({ sessionName, editable = true, debounceMs = 1000, sessionState }: Props) {
+  const { t } = useTranslation()
   const { content, loading, error, updateContent } = useSpecContentCache(sessionName, sessionState)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
@@ -81,20 +83,20 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>
-              {saving ? 'Saving…' : error ? <span style={{ color: 'var(--color-accent-red)' }}>{error}</span> : viewMode === 'edit' ? 'Editing spec' : 'Preview mode'}
+              {saving ? t.specContentView.saving : error ? <span style={{ color: 'var(--color-accent-red)' }}>{error}</span> : viewMode === 'edit' ? t.specContentView.editingSpec : t.specContentView.previewMode}
             </div>
             {viewMode === 'edit' && (
-              <span style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-elevated)', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }} title="Focus spec content (⌘T)">⌘T</span>
+              <span style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)', backgroundColor: 'var(--color-bg-elevated)', padding: '0.125rem 0.375rem', borderRadius: '0.25rem' }} title={`${t.specContentView.focusSpecContent} (⌘T)`}>⌘T</span>
             )}
           </div>
           <button
             onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
             style={{ fontSize: theme.fontSize.caption, padding: '0.25rem 0.5rem', borderRadius: '0.25rem', backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' }}
             className="hover:bg-slate-600 flex items-center gap-1"
-            title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
+            title={viewMode === 'edit' ? t.specContentView.previewMarkdown : t.specContentView.editMarkdown}
           >
             {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
-            {viewMode === 'edit' ? 'Preview' : 'Edit'}
+            {viewMode === 'edit' ? t.specContentView.preview : t.specContentView.edit}
           </button>
         </div>
         {viewMode === 'edit' ? (
@@ -102,7 +104,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
             ref={markdownEditorRef}
             value={content}
             onChange={updateContent}
-            placeholder="Enter agent description in markdown…"
+            placeholder={t.specContentView.enterAgentDescription}
             className="flex-1"
           />
         ) : (
@@ -118,7 +120,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     <div className="h-full flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>Spec</div>
+          <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>{t.specContentView.spec}</div>
         </div>
       </div>
       <div className="flex-1 overflow-auto">

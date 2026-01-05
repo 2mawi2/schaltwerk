@@ -1033,4 +1033,56 @@ export interface Translations {
     nameRequired: string
     cancel: string
   }
+  specContentView: {
+    saving: string
+    editingSpec: string
+    previewMode: string
+    focusSpecContent: string
+    previewMarkdown: string
+    editMarkdown: string
+    preview: string
+    edit: string
+    enterAgentDescription: string
+    spec: string
+  }
+  runTerminal: {
+    loadingRunScript: string
+    noRunConfiguration: string
+    noRunConfigurationDesc: string
+    addRunScript: string
+    running: string
+    readyToRun: string
+    pressToStart: string
+    processEnded: string
+  }
+  mcpMessages: {
+    configuredWithGitignore: string
+    commandCopied: string
+    configurationRemoved: string
+    configuring: string
+    copyCommand: string
+  }
+  terminalErrors: {
+    agentSwitchFailed: string
+    agentSwitchFailedDesc: string
+    addAgentTabFailed: string
+    addAgentTabFailedDesc: string
+    terminalUnavailable: string
+    terminalUnavailableOrchestratorDesc: string
+    terminalUnavailableSessionDesc: string
+    insertTextFailed: string
+    insertTextFailedDesc: string
+  }
+  specInfoPanel: {
+    title: string
+    description: string
+    runSpec: string
+    deleteSpec: string
+  }
+  deleteEpicDialog: {
+    title: string
+    body: string
+    ungrouped: string
+    confirm: string
+  }
 }

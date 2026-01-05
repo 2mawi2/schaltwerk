@@ -1030,5 +1030,57 @@
     "colorNone": "无",
     "nameRequired": "名称为必填项",
     "cancel": "取消"
+  },
+  "specContentView": {
+    "saving": "保存中…",
+    "editingSpec": "编辑规格",
+    "previewMode": "预览模式",
+    "focusSpecContent": "聚焦规格内容",
+    "previewMarkdown": "预览 Markdown",
+    "editMarkdown": "编辑 Markdown",
+    "preview": "预览",
+    "edit": "编辑",
+    "enterAgentDescription": "输入代理描述（Markdown 格式）…",
+    "spec": "规格"
+  },
+  "runTerminal": {
+    "loadingRunScript": "正在加载运行脚本…",
+    "noRunConfiguration": "无运行配置",
+    "noRunConfigurationDesc": "请在「设置 → 运行与环境」中配置运行脚本以启用此终端。",
+    "addRunScript": "添加运行脚本",
+    "running": "运行中：",
+    "readyToRun": "准备运行：",
+    "pressToStart": "按 ⌘E 开始",
+    "processEnded": "进程已结束"
+  },
+  "mcpMessages": {
+    "configuredWithGitignore": "配置完成！.schaltwerk-mcp/ 已添加到 .gitignore",
+    "commandCopied": "命令已复制到剪贴板！",
+    "configurationRemoved": "MCP 配置已移除",
+    "configuring": "配置中",
+    "copyCommand": "复制命令"
+  },
+  "terminalErrors": {
+    "agentSwitchFailed": "代理切换失败",
+    "agentSwitchFailedDesc": "无法切换代理。请重试。",
+    "addAgentTabFailed": "添加代理标签页失败",
+    "addAgentTabFailedDesc": "无法添加代理标签页。请重试。",
+    "terminalUnavailable": "终端不可用",
+    "terminalUnavailableOrchestratorDesc": "请选择协调器以启动其终端，然后重试。",
+    "terminalUnavailableSessionDesc": "会话终端不可用。请重试。",
+    "insertTextFailed": "插入文本失败",
+    "insertTextFailedDesc": "无法将文本插入终端。"
+  },
+  "specInfoPanel": {
+    "title": "规格代理",
+    "description": "启动代理以创建工作树并启动代理。您可以在主编辑器中编辑内容。",
+    "runSpec": "运行规格",
+    "deleteSpec": "删除规格"
+  },
+  "deleteEpicDialog": {
+    "title": "删除史诗「{name}」？",
+    "body": "此史诗中的所有会话和规格将移至",
+    "ungrouped": "未分组",
+    "confirm": "删除"
   }
 }
