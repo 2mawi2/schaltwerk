@@ -955,4 +955,82 @@ export interface Translations {
     envVarsShellHint: string
     envVarsProcessHint: string
   }
+  prModal: {
+    title: string
+    autoCancelAfterPr: string
+    closeEsc: string
+    loadingPreview: string
+    branchConflict: string
+    cannotSquashPushed: string
+    cannotSquashPushedDesc: string
+    uncommittedConflict: string
+    uncommittedConflictDesc: string
+    uncommittedChanges: string
+    uncommittedSquashHint: string
+    uncommittedReapplyHint: string
+    squashHint: string
+    commitsHint: string
+    commitsHintPlural: string
+    plusUncommitted: string
+    autoCancelStatus: string
+    strategy: string
+    squashChanges: string
+    useExistingCommits: string
+    squashDesc: string
+    reapplyDesc: string
+    commitMessage: string
+    commitMessageUncommitted: string
+    prTitle: string
+    prTitlePlaceholder: string
+    description: string
+    descriptionPlaceholder: string
+    baseBranch: string
+    baseBranchHint: string
+    useCustomBranch: string
+    customBranchHint: string
+    shortcutHint: string
+    cancel: string
+    createPr: string
+    creatingPr: string
+    tooltips: {
+      creating: string
+      branchConflict: string
+      squashConflict: string
+      uncommittedConflict: string
+      titleMissing: string
+      ready: string
+    }
+  }
+  setupScriptModal: {
+    title: string
+    confirmApply: string
+    confirmSaving: string
+    reject: string
+    description: string
+    emptyScript: string
+  }
+  linkPrModal: {
+    title: string
+    integrationNotAvailable: string
+    searchPlaceholder: string
+    connectToGithub: string
+    loadingPrs: string
+    noPrsFound: string
+    tryDifferentSearch: string
+    noOpenPrs: string
+    cancel: string
+    updated: string
+  }
+  epicModal: {
+    createTitle: string
+    editTitle: string
+    create: string
+    save: string
+    name: string
+    namePlaceholder: string
+    colorOptional: string
+    colorNone: string
+    nameRequired: string
+    cancel: string
+  }
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from '../../common/i18n'
 import { ConfirmModal } from './ConfirmModal'
 
 interface Props {
@@ -15,12 +16,13 @@ export function SetupScriptApprovalModal({
   onConfirm,
   onCancel,
 }: Props) {
+  const { t } = useTranslation()
   return (
     <ConfirmModal
       open={open}
-      title="Approve worktree setup script"
-      confirmText={isApplying ? 'Saving…' : 'Apply script'}
-      cancelText="Reject"
+      title={t.setupScriptModal.title}
+      confirmText={isApplying ? t.setupScriptModal.confirmSaving : t.setupScriptModal.confirmApply}
+      cancelText={t.setupScriptModal.reject}
       confirmDisabled={isApplying}
       loading={isApplying}
       onConfirm={onConfirm}
@@ -28,7 +30,7 @@ export function SetupScriptApprovalModal({
       body={
         <div className="space-y-3 text-slate-200">
           <p className="text-body text-slate-300">
-            This script runs automatically for every new session worktree. Review and approve before applying.
+            {t.setupScriptModal.description}
           </p>
           <div
             className="rounded border border-slate-700 overflow-auto"
@@ -39,7 +41,7 @@ export function SetupScriptApprovalModal({
               className="p-3 text-sm font-mono whitespace-pre-wrap"
               style={{ color: 'var(--color-text-primary)' }}
             >
-              {script || '(empty script)'}
+              {script || t.setupScriptModal.emptyScript}
             </pre>
           </div>
         </div>
