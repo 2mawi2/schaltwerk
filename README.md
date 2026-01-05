@@ -107,7 +107,7 @@ See [Quick Start](#quick-start-60-seconds) for the basic Homebrew installation (
 
 ### Windows
 
-Download the latest `.msi` installer from [GitHub Releases](https://github.com/2mawi2/schaltwerk/releases) and run it. WSL is not yet supported—use native Windows Git and terminals.
+Download the latest Windows installer (`.exe` or `.msi`) from [GitHub Releases](https://github.com/2mawi2/schaltwerk/releases) and run it. WSL is not yet supported—use native Windows Git and terminals.
 
 ### Linux
 
