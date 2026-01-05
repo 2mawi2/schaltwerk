@@ -1341,21 +1341,20 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Action Buttons</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectActions.title}</h3>
                         <p className="text-body text-text-tertiary">
-                            Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
-                            These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
+                            {t.settings.projectActions.description}
                         </p>
                     </div>
 
                     <div className="border rounded p-3 bg-accent-blue/10 border-accent-blue/50">
                         <div className="text-caption text-accent-blue">
-                            <strong>💡 How it works:</strong>
+                            <strong>{t.settings.projectActions.howItWorks}</strong>
                             <ul className="mt-2 space-y-1 list-disc list-inside text-accent-blue">
-                                <li>Click any action button to instantly paste its prompt into Claude</li>
-                                <li>Use keyboard shortcuts F1-F6 for even faster access</li>
-                                <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
-                                <li>Maximum of 6 custom buttons allowed</li>
+                                <li>{t.settings.projectActions.howItWorksItems.click}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.keyboard}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.buttons}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.maximum}</li>
                             </ul>
                         </div>
                     </div>
@@ -1365,7 +1364,7 @@ fi`}
                             <div key={button.id} className="bg-bg-elevated rounded-lg p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-body text-text-secondary mb-2">Label</label>
+                                        <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.label}</label>
                                         <input
                                             type="text"
                                             value={button.label}
@@ -1380,7 +1379,7 @@ fi`}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-body text-text-secondary mb-2">Color</label>
+                                        <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.color}</label>
                                         <select
                                             value={button.color || 'slate'}
                                             onChange={(e) => {
@@ -1391,15 +1390,15 @@ fi`}
                                             }}
                                             className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 focus:border-white/20 focus:outline-none"
                                         >
-                                            <option value="slate">Default (Slate)</option>
-                                            <option value="green">Green</option>
-                                            <option value="blue">Blue</option>
-                                            <option value="amber">Amber</option>
+                                            <option value="slate">{t.settings.projectActions.colorOptions.slate}</option>
+                                            <option value="green">{t.settings.projectActions.colorOptions.green}</option>
+                                            <option value="blue">{t.settings.projectActions.colorOptions.blue}</option>
+                                            <option value="amber">{t.settings.projectActions.colorOptions.amber}</option>
                                         </select>
                                     </div>
                                 </div>
                                 <div className="mt-4">
-                                    <label className="block text-body text-text-secondary mb-2">AI Prompt</label>
+                                    <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.aiPrompt}</label>
                                     <textarea
                                         value={button.prompt}
                                         onChange={(e) => {
@@ -1409,7 +1408,7 @@ fi`}
                                             setHasUnsavedChanges(true)
                                         }}
                                         className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 focus:border-white/20 focus:outline-none font-mono text-body min-h-[80px] resize-y"
-                                        placeholder="Enter the AI prompt that will be pasted into Claude chat..."
+                                        placeholder={t.settings.projectActions.promptPlaceholder}
                                     />
                                 </div>
                                 <div className="mt-4 flex justify-end">
@@ -1423,7 +1422,7 @@ fi`}
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
-                                        Remove
+                                        {t.settings.projectActions.removeButton}
                                     </button>
                                 </div>
                             </div>
@@ -1446,14 +1445,14 @@ fi`}
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add New Action Button
+                                {t.settings.projectActions.addButton}
                             </button>
                         ) : (
                             <div className="w-full border-2 border-dashed border-border-subtle rounded-lg p-4 text-text-muted flex items-center justify-center gap-2">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
-                                Maximum of 6 action buttons allowed
+                                {t.settings.projectActions.maxReached}
                             </div>
                         )}
                     </div>
@@ -1473,10 +1472,10 @@ fi`}
                     }}
                     className="text-text-tertiary hover:text-text-secondary text-body"
                 >
-                    Reset to Defaults
+                    {t.settings.projectActions.resetToDefaults}
                 </button>
                 <span className={`text-caption ${hasUnsavedChanges ? 'text-amber-300' : 'text-text-muted'}`}>
-                    {hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}
+                    {hasUnsavedChanges ? t.settings.projectActions.unsavedChanges : t.settings.projectActions.saved}
                 </span>
             </div>
         </div>
