@@ -882,4 +882,77 @@ export interface Translations {
     loading: string
     openedBy: string
   }
+  sessionConfig: {
+    baseBranch: string
+    existingBranch: string
+    useExistingBranch: string
+    existingBranchHint: string
+    checkoutBranchHint: string
+    branchName: string
+    branchNameOptional: string
+    branchNameHint: string
+    agent: string
+    agentHint: string
+    model: string
+    reasoningEffort: string
+    loading: string
+    noBranches: string
+    searchBranches: string
+    selectModel: string
+    noModels: string
+    selectReasoning: string
+    noReasoningOptions: string
+    requirePermissions: string
+    skipPermissions: string
+  }
+  githubMenu: {
+    title: string
+    installed: string
+    authenticated: string
+    repository: string
+    notConnected: string
+    defaultBranch: string
+    account: string
+    installCliHint: string
+    authHint: string
+    connectActiveProject: string
+    reconnectProject: string
+    refreshStatus: string
+    statusLabels: {
+      signedInAs: string
+      githubReady: string
+      connectProject: string
+      noProjectSelected: string
+      notAuthenticated: string
+      cliNotInstalled: string
+    }
+    toasts: {
+      repositoryConnected: string
+      connectionFailed: string
+      statusRefreshed: string
+      refreshFailed: string
+    }
+  }
+  agentDefaults: {
+    title: string
+    descriptionWithArgs: string
+    descriptionEnvOnly: string
+    showAdvanced: string
+    hideAdvanced: string
+    defaultCustomArgs: string
+    argsPlaceholder: string
+    argsHint: string
+    envVars: string
+    noEnvVarsYet: string
+    loadingDefaults: string
+    editVariables: string
+    hideEditor: string
+    addVariable: string
+    noEnvVarsConfigured: string
+    keyPlaceholder: string
+    valuePlaceholder: string
+    remove: string
+    envVarsShellHint: string
+    envVarsProcessHint: string
+  }
 }

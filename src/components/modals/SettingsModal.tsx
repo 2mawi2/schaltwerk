@@ -1082,9 +1082,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Branch Prefix</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.branchPrefix}</h3>
                         <div className="text-body text-text-tertiary mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className="text-accent-blue">team/frontend</code>). Spaces will be converted to hyphens automatically.
+                            {t.settings.projectGeneral.branchPrefixDesc.split('. ').map((sentence, i, arr) => (
+                                <span key={i}>{sentence}{i < arr.length - 1 ? '. ' : ''}</span>
+                            ))}
                         </div>
                         <input
                             type="text"
@@ -1101,9 +1103,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Merge Defaults</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.mergeDefaults}</h3>
                         <div className="text-body text-text-tertiary mb-3">
-                            Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
+                            {t.settings.projectGeneral.mergeDefaultsDesc}
                         </div>
                         <label className="flex items-center gap-3 text-sm text-text-primary">
                             <input
@@ -1118,10 +1120,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 }}
                                 className="rounded border-border-strong bg-bg-elevated text-accent-blue focus:ring-accent-blue"
                             />
-                            <span>Auto-cancel sessions after successful merge</span>
+                            <span>{t.settings.projectGeneral.autoCancelAfterMerge}</span>
                         </label>
                         <p className="text-caption text-text-muted mt-2">
-                            You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
+                            {t.settings.projectGeneral.mergeToggleNote}
                         </p>
                     </div>
                 </div>
