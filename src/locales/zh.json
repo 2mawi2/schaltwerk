@@ -1166,5 +1166,31 @@
   "historySearch": {
     "placeholder": "搜索提交…",
     "clearSearch": "清除搜索 (Escape)"
+  },
+  "copyContextBar": {
+    "spec": "规格",
+    "diff": "差异",
+    "files": "文件",
+    "includeSpec": "包含规格内容",
+    "specUnavailable": "规格内容不可用",
+    "includeDiff": "包含差异（{count}）",
+    "includeDiffSelected": "包含差异（已选 {selected}/{total}）",
+    "noDiffAvailable": "无差异可用",
+    "includeFiles": "包含文件内容（{count}）",
+    "includeFilesSelected": "包含文件内容（已选 {selected}/{total}）",
+    "noTouchedFiles": "无修改的文件",
+    "tokens": "{count} 个令牌",
+    "tokenCountUnavailable": "令牌计数不可用",
+    "copyTitle": "复制所选的规格、差异和文件，以粘贴到外部 AI",
+    "copyingContext": "正在复制上下文…",
+    "copyContext": "复制上下文"
+  },
+  "simpleDiffPanel": {
+    "openInModal": "在模态框中打开",
+    "discardPendingComments": "放弃待处理的评论",
+    "sendReviewComments": "发送审查评论",
+    "showChangedFiles": "显示已更改的文件",
+    "browseAllFiles": "浏览所有项目文件",
+    "linkToGithubPr": "关联 GitHub PR"
   }
 }

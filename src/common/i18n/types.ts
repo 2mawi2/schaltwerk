@@ -1177,4 +1177,30 @@ export interface Translations {
     placeholder: string
     clearSearch: string
   }
+  copyContextBar: {
+    spec: string
+    diff: string
+    files: string
+    includeSpec: string
+    specUnavailable: string
+    includeDiff: string
+    includeDiffSelected: string
+    noDiffAvailable: string
+    includeFiles: string
+    includeFilesSelected: string
+    noTouchedFiles: string
+    tokens: string
+    tokenCountUnavailable: string
+    copyTitle: string
+    copyingContext: string
+    copyContext: string
+  }
+  simpleDiffPanel: {
+    openInModal: string
+    discardPendingComments: string
+    sendReviewComments: string
+    showChangedFiles: string
+    browseAllFiles: string
+    linkToGithubPr: string
+  }
 }

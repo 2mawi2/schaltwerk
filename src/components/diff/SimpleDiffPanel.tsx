@@ -278,7 +278,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             onClick={() => onOpenDiff(activeFile, true)}
             className="p-1 rounded transition-colors"
             style={{ color: 'var(--color-text-secondary)' }}
-            title="Open in Modal"
+            title={t.simpleDiffPanel.openInModal}
           >
             <VscScreenFull />
           </button>
@@ -330,7 +330,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={handleCancelReview}
                 className="px-2 py-1 rounded transition-colors"
                 style={{ border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }}
-                title="Discard pending comments"
+                title={t.simpleDiffPanel.discardPendingComments}
               >
                 Cancel Review
               </button>
@@ -338,7 +338,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={() => { void handleFinishReview() }}
                 className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"
                 style={{ backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
-                title="Send review comments"
+                title={t.simpleDiffPanel.sendReviewComments}
               >
                 Finish Review ({currentReview.comments.length})
               </button>
@@ -358,7 +358,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         onClick={() => { setViewSource('changes'); setFileViewerPath(null) }}
         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
         style={viewSource === 'changes' ? { backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' } : { color: 'var(--color-text-secondary)' }}
-        title="Show changed files"
+        title={t.simpleDiffPanel.showChangedFiles}
       >
         <VscGitCompare className="w-3 h-3" />
         <span>Changes</span>
@@ -367,7 +367,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         onClick={() => { setViewSource('files'); setFileViewerPath(null) }}
         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
         style={viewSource === 'files' ? { backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' } : { color: 'var(--color-text-secondary)' }}
-        title="Browse all project files"
+        title={t.simpleDiffPanel.browseAllFiles}
       >
         <VscFiles className="w-3 h-3" />
         <span>Files</span>
@@ -486,7 +486,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={() => setLinkPrModalOpen(true)}
                 className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-secondary)' }}
-                title="Link to GitHub PR"
+                title={t.simpleDiffPanel.linkToGithubPr}
               >
                 <VscLink />
               </button>
@@ -497,7 +497,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               onClick={() => onOpenDiff(activeFile, true)}
               className="p-1 rounded transition-colors"
               style={{ color: 'var(--color-text-secondary)' }}
-              title="Open in Modal"
+              title={t.simpleDiffPanel.openInModal}
             >
               <VscScreenFull />
             </button>

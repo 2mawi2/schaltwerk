@@ -1166,5 +1166,31 @@
   "historySearch": {
     "placeholder": "Search commits...",
     "clearSearch": "Clear search (Escape)"
+  },
+  "copyContextBar": {
+    "spec": "Spec",
+    "diff": "Diff",
+    "files": "Files",
+    "includeSpec": "Include spec content",
+    "specUnavailable": "Spec content unavailable",
+    "includeDiff": "Include diff ({count})",
+    "includeDiffSelected": "Include diff ({selected} selected of {total})",
+    "noDiffAvailable": "No diff available",
+    "includeFiles": "Include file contents ({count})",
+    "includeFilesSelected": "Include file contents ({selected} selected of {total})",
+    "noTouchedFiles": "No touched files",
+    "tokens": "{count} tokens",
+    "tokenCountUnavailable": "Token count unavailable",
+    "copyTitle": "Copy the selected spec, diffs, and files to paste into an external AI",
+    "copyingContext": "Copying Context...",
+    "copyContext": "Copy Context"
+  },
+  "simpleDiffPanel": {
+    "openInModal": "Open in Modal",
+    "discardPendingComments": "Discard pending comments",
+    "sendReviewComments": "Send review comments",
+    "showChangedFiles": "Show changed files",
+    "browseAllFiles": "Browse all project files",
+    "linkToGithubPr": "Link to GitHub PR"
   }
 }

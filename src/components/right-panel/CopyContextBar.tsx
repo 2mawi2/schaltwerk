@@ -510,9 +510,9 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             e.currentTarget.style.color = style.color as string
             e.currentTarget.style.borderColor = style.borderColor as string
           }}
-          title={availability.spec ? 'Include spec content' : 'Spec content unavailable'}
+          title={availability.spec ? t.copyContextBar.includeSpec : t.copyContextBar.specUnavailable}
         >
-          <span>Spec</span>
+          <span>{t.copyContextBar.spec}</span>
         </div>
 
         {/* Diff Pill */}
@@ -532,11 +532,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           }}
           title={availability.diff
             ? (selectedChangedFilesCount === totalChangedFilesCount
-              ? `Include diff (${totalChangedFilesCount})`
-              : `Include diff (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
-            : 'No diff available'}
+              ? t.copyContextBar.includeDiff.replace('{count}', String(totalChangedFilesCount))
+              : t.copyContextBar.includeDiffSelected.replace('{selected}', String(selectedChangedFilesCount)).replace('{total}', String(totalChangedFilesCount)))
+            : t.copyContextBar.noDiffAvailable}
         >
-          <span>Diff</span>
+          <span>{t.copyContextBar.diff}</span>
           {availability.diff && (
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
@@ -567,11 +567,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           }}
           title={availability.files
             ? (selectedChangedFilesCount === totalChangedFilesCount
-              ? `Include file contents (${totalChangedFilesCount})`
-              : `Include file contents (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
-            : 'No touched files'}
+              ? t.copyContextBar.includeFiles.replace('{count}', String(totalChangedFilesCount))
+              : t.copyContextBar.includeFilesSelected.replace('{selected}', String(selectedChangedFilesCount)).replace('{total}', String(totalChangedFilesCount)))
+            : t.copyContextBar.noTouchedFiles}
         >
-          <span>Files</span>
+          <span>{t.copyContextBar.files}</span>
           {availability.files && (
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
@@ -590,7 +590,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
         <div
           className="text-xs font-mono tracking-wide uppercase"
           style={{ color: 'var(--color-text-secondary)' }}
-          title={tokenCount !== null ? `${tokenCount.toLocaleString()} tokens` : 'Token count unavailable'}
+          title={tokenCount !== null ? t.copyContextBar.tokens.replace('{count}', tokenCount.toLocaleString()) : t.copyContextBar.tokenCountUnavailable}
         >
           {tokenCount !== null ? `${tokenCount.toLocaleString()} TOKENS` : '—'}
         </div>
@@ -599,7 +599,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           type="button"
           onClick={() => { void handleCopy() }}
           disabled={isCopying || nothingSelected}
-          title="Copy the selected spec, diffs, and files to paste into an external AI"
+          title={t.copyContextBar.copyTitle}
           className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
           style={{
             backgroundColor: 'var(--color-accent-blue)',
@@ -628,7 +628,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           )}
-          <span>{isCopying ? 'Copying Context...' : 'Copy Context'}</span>
+          <span>{isCopying ? t.copyContextBar.copyingContext : t.copyContextBar.copyContext}</span>
         </button>
       </div>
     </div>
