@@ -3,6 +3,7 @@ import { theme } from '../../common/theme'
 import { type Epic } from '../../types/session'
 import { getEpicAccentScheme } from '../../utils/epicColors'
 import { Dropdown } from '../inputs/Dropdown'
+import { useTranslation } from '../../common/i18n'
 
 type EpicGroupHeaderProps = {
     epic: Epic
@@ -25,6 +26,7 @@ export function EpicGroupHeader({
     onEdit,
     onDelete,
 }: EpicGroupHeaderProps) {
+    const { t } = useTranslation()
     const scheme = getEpicAccentScheme(epic.color)
 
     return (
@@ -69,8 +71,8 @@ export function EpicGroupHeader({
                         open={menuOpen}
                         onOpenChange={onMenuOpenChange}
                         items={[
-                            { key: 'edit', label: 'Edit epic' },
-                            { key: 'delete', label: 'Delete epic' },
+                            { key: 'edit', label: t.epicGroup.editEpic },
+                            { key: 'delete', label: t.epicGroup.deleteEpic },
                         ]}
                         onSelect={(key) => {
                             if (key === 'edit') {
@@ -93,7 +95,7 @@ export function EpicGroupHeader({
                                     color: 'var(--color-text-muted)',
                                     backgroundColor: 'transparent',
                                 }}
-                                title="Epic actions"
+                                title={t.epicGroup.epicActions}
                             >
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z" />

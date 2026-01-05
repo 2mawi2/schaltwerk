@@ -454,7 +454,7 @@ export const SessionCard = memo<SessionCardProps>(
             {hasFollowUpMessage && !isReadyToMerge && (
               <span
                 className="flex-shrink-0 inline-flex items-center gap-1"
-                title="New follow-up message received"
+                title={t.sessionCard.newFollowUp}
               >
                 <span className="flex h-4 w-4 relative">
                   <span
