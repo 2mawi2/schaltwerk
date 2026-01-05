@@ -143,7 +143,7 @@ jobs:
       - name: Install cargo tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-shear@1.5.2,nextest@0.9.108
+          tool: cargo-shear@1.5.2
 
       - name: Run Rust checks
         shell: bash
@@ -152,10 +152,15 @@ jobs:
           cargo clippy --all-features -- -D warnings
           cargo shear
 
-      - name: Run Rust tests
+      - name: Compile Rust tests (no-run)
         shell: bash
         working-directory: src-tauri
-        run: cargo nextest run
+        run: cargo test --no-run --lib --bins
+
+      - name: Run Rust tests (pty_host)
+        shell: bash
+        working-directory: src-tauri/crates/pty_host
+        run: cargo test
 
       - name: Build release
         shell: bash

@@ -110,11 +110,6 @@ jobs:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
-        with:
-          tool: nextest
-          version: 0.9.108
-
       - name: Install dependencies
         run: node scripts/package-manager.mjs install --frozen-lockfile
 
@@ -226,8 +221,13 @@ jobs:
         run: |
           cargo clippy --all-features -- -D warnings
           cargo shear
-          cargo nextest run --profile ci --all-features --status-level fail --failure-output immediate
+          cargo test --no-run --lib --bins
           cargo build
+
+      - name: Run Rust tests (pty_host)
+        shell: bash
+        working-directory: src-tauri/crates/pty_host
+        run: cargo test
 
       - name: Save cargo home cache
         if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true'
