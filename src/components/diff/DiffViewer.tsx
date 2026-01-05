@@ -15,6 +15,7 @@ import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { shouldCollapseDiff } from '../../domains/diff/diffFilters'
 import { CollapsedDiffBadge } from './CollapsedDiffBadge'
 import { getSelectableLineIdentity } from './lineSelection'
+import { useTranslation } from '../../common/i18n'
 
 type ContextMenuState =
   | {
@@ -211,6 +212,7 @@ export function DiffViewer({
   keyboardFocus = null,
   hoveredLine = null,
 }: DiffViewerProps) {
+  const { t } = useTranslation()
   const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
   const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
   const editorFilter = useCallback((app: OpenApp) => app.kind === 'editor', [])
@@ -375,7 +377,7 @@ export function DiffViewer({
       if (onCopyLine) {
         items.push({
           key: 'copy-line-number',
-          label: `Copy line ${contextMenu.lineNumber}`,
+          label: t.diffViewer.copyLine.replace('{line}', String(contextMenu.lineNumber)),
           action: () => {
             void onCopyLine({
               filePath: contextMenu.filePath,
@@ -388,7 +390,7 @@ export function DiffViewer({
       if (contextMenu.content && onCopyCode) {
         items.push({
           key: 'copy-line-content',
-          label: 'Copy line contents',
+          label: t.diffViewer.copyLineContents,
           action: () => {
             void onCopyCode({
               filePath: contextMenu.filePath,
@@ -400,7 +402,7 @@ export function DiffViewer({
       if (onStartCommentFromContext) {
         items.push({
           key: 'start-thread',
-          label: 'Start comment thread',
+          label: t.diffViewer.startCommentThread,
           action: () => {
             void onStartCommentFromContext({
               filePath: contextMenu.filePath,
@@ -414,7 +416,7 @@ export function DiffViewer({
       if (onCopyFilePath) {
         items.push({
           key: 'copy-path',
-          label: 'Copy file path',
+          label: t.diffViewer.copyFilePath,
           action: () => {
             void onCopyFilePath(contextMenu.filePath)
           }
@@ -423,7 +425,7 @@ export function DiffViewer({
       if (onDiscardFile) {
         items.push({
           key: 'discard-file',
-          label: 'Discard file changes',
+          label: t.diffViewer.discardFileChanges,
           action: () => { void onDiscardFile(contextMenu.filePath) }
         })
       }
@@ -471,12 +473,12 @@ export function DiffViewer({
         ))}
       </div>
     )
-  }, [contextMenu, onCopyLine, onCopyCode, onStartCommentFromContext, onCopyFilePath, onDiscardFile, closeContextMenu])
+  }, [t, contextMenu, onCopyLine, onCopyCode, onStartCommentFromContext, onCopyFilePath, onDiscardFile, closeContextMenu])
   
   if (!selectedFile && files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <AnimatedText text="loading" />
+        <AnimatedText text={t.diffViewer.loading} />
       </div>
     )
   }
@@ -486,10 +488,10 @@ export function DiffViewer({
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-8">
           <div className="text-6xl mb-4 text-slate-600">⚠️</div>
-          <div className="text-lg font-medium text-slate-400 mb-2">Cannot Display Diff</div>
+          <div className="text-lg font-medium text-slate-400 mb-2">{t.diffViewer.cannotDisplayDiff}</div>
           <div className="text-sm text-slate-500">{fileError}</div>
           <div className="text-xs text-slate-600 mt-4">
-            This file type cannot be compared in the diff viewer.
+            {t.diffViewer.fileTypeCannotCompare}
           </div>
         </div>
       </div>
@@ -504,13 +506,13 @@ export function DiffViewer({
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center px-8">
           <div className="text-6xl mb-4 text-slate-500">📄</div>
-          <div className="text-lg font-medium text-slate-300 mb-2">Binary file</div>
+          <div className="text-lg font-medium text-slate-300 mb-2">{t.diffViewer.binaryFile}</div>
           <div className="text-sm text-slate-400 mb-4">
             {(selectedFile ? allFileDiffs.get(selectedFile)?.unsupportedReason : undefined) ||
-              "This file cannot be displayed in the diff viewer"}
+              t.diffViewer.fileCannotDisplay}
           </div>
           <div className="text-xs text-slate-500">
-            Binary files are not shown to prevent performance issues.
+            {t.diffViewer.binaryFilesNotShown}
           </div>
         </div>
       </div>
@@ -628,7 +630,7 @@ export function DiffViewer({
 
       {/* Skeleton placeholder for initial frame to avoid flash of empty content */}
       {allFileDiffs.size === 0 && files.length > 0 && (
-        <div className="p-4 text-slate-600">Preparing preview…</div>
+        <div className="p-4 text-slate-600">{t.diffViewer.preparingPreview}</div>
       )}
 
       <div
@@ -666,12 +668,12 @@ export function DiffViewer({
                     <div className="min-w-0">
                       <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
                       <div className="text-xs text-slate-400">
-                        {file.change_type === 'added' && 'New file'}
-                        {file.change_type === 'deleted' && 'Deleted file'}
-                        {file.change_type === 'modified' && 'Modified'}
-                        {file.change_type === 'renamed' && 'Renamed'}
-                        {file.change_type === 'copied' && 'Copied'}
-                        {file.change_type === 'unknown' && 'Changed'}
+                        {file.change_type === 'added' && t.diffViewer.newFile}
+                        {file.change_type === 'deleted' && t.diffViewer.deletedFile}
+                        {file.change_type === 'modified' && t.diffViewer.modified}
+                        {file.change_type === 'renamed' && t.diffViewer.renamed}
+                        {file.change_type === 'copied' && t.diffViewer.copied}
+                        {file.change_type === 'unknown' && t.diffViewer.changed}
                       </div>
                     </div>
                   </div>
@@ -682,12 +684,12 @@ export function DiffViewer({
                         style={{ color: 'var(--color-accent-blue-light)' }}
                       >
                       <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                      <span>{commentCount} {commentCount > 1 ? t.diffViewer.comments : t.diffViewer.comment}</span>
                     </div>
                   )}
                   {onDiscardFile && (
                     <button
-                      title="Discard changes for this file"
+                      title={t.diffViewer.discardChangesForFile}
                       aria-label={`Discard ${file.path}`}
                       className="p-1 rounded hover:bg-slate-800 text-slate-300"
                       onClick={(e) => {
@@ -752,12 +754,12 @@ export function DiffViewer({
                   if (fileDiff.isBinary) {
                     return (
                       <div className="px-4 py-10 text-center text-slate-400">
-                        <div className="text-lg font-medium text-slate-200">Binary file</div>
+                        <div className="text-lg font-medium text-slate-200">{t.diffViewer.binaryFile}</div>
                         <div className="text-sm text-slate-400">
-                          {fileDiff.unsupportedReason || 'This file cannot be displayed in the diff viewer'}
+                          {fileDiff.unsupportedReason || t.diffViewer.fileCannotDisplay}
                         </div>
                         <div className="text-xs text-slate-500 mt-3">
-                          Binary files stay in the list so you can keep scrolling through other changes.
+                          {t.diffViewer.binaryFilesInList}
                         </div>
                       </div>
                     )
@@ -827,12 +829,12 @@ export function DiffViewer({
                     <div className="min-w-0">
                       <div className="font-medium text-sm text-slate-100 truncate">{file.path}</div>
                       <div className="text-xs text-slate-400">
-                        {file.change_type === 'added' && 'New file'}
-                        {file.change_type === 'deleted' && 'Deleted file'}
-                        {file.change_type === 'modified' && 'Modified'}
-                        {file.change_type === 'renamed' && 'Renamed'}
-                        {file.change_type === 'copied' && 'Copied'}
-                        {file.change_type === 'unknown' && 'Changed'}
+                        {file.change_type === 'added' && t.diffViewer.newFile}
+                        {file.change_type === 'deleted' && t.diffViewer.deletedFile}
+                        {file.change_type === 'modified' && t.diffViewer.modified}
+                        {file.change_type === 'renamed' && t.diffViewer.renamed}
+                        {file.change_type === 'copied' && t.diffViewer.copied}
+                        {file.change_type === 'unknown' && t.diffViewer.changed}
                       </div>
                     </div>
                   </div>
@@ -843,12 +845,12 @@ export function DiffViewer({
                       style={{ color: 'var(--color-accent-blue-light)' }}
                     >
                       <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                      <span>{commentCount} {commentCount > 1 ? t.diffViewer.comments : t.diffViewer.comment}</span>
                     </div>
                   )}
                   {onDiscardFile && (
                     <button
-                      title="Discard changes for this file"
+                      title={t.diffViewer.discardChangesForFile}
                       aria-label={`Discard ${file.path}`}
                       className="p-1 rounded hover:bg-slate-800 text-slate-300"
                       onClick={(e) => {
@@ -922,12 +924,12 @@ export function DiffViewer({
                   if (fileDiff.isBinary) {
                     return (
                       <div className="px-4 py-10 text-center text-slate-400">
-                        <div className="text-lg font-medium text-slate-200">Binary file</div>
+                        <div className="text-lg font-medium text-slate-200">{t.diffViewer.binaryFile}</div>
                         <div className="text-sm text-slate-400">
-                          {fileDiff.unsupportedReason || 'This file cannot be displayed in the diff viewer'}
+                          {fileDiff.unsupportedReason || t.diffViewer.fileCannotDisplay}
                         </div>
                         <div className="text-xs text-slate-500 mt-3">
-                          Binary files stay in the list so you can keep scrolling through other changes.
+                          {t.diffViewer.binaryFilesInList}
                         </div>
                       </div>
                     )
@@ -957,7 +959,7 @@ export function DiffViewer({
                       className="flex items-center justify-center rounded border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500"
                       style={{ height: Math.max(storedHeight ?? 320, 160) }}
                     >
-                      Diff hidden to keep scrolling smooth
+                      {t.diffViewer.diffHiddenSmooth}
                     </div>
                   </div>
                 )}

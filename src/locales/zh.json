@@ -748,5 +748,98 @@
       "needsCommitMessage": "请输入提交消息以启用合并。",
       "readyToMerge": "合并会话 (⌘↵)"
     }
+  },
+  "diffViewer": {
+    "loading": "加载中",
+    "cannotDisplayDiff": "无法显示差异",
+    "fileTypeCannotCompare": "此文件类型无法在差异查看器中比较。",
+    "binaryFile": "二进制文件",
+    "fileCannotDisplay": "此文件无法在差异查看器中显示",
+    "binaryFilesNotShown": "为避免性能问题，不显示二进制文件。",
+    "newFile": "新文件",
+    "deletedFile": "已删除文件",
+    "modified": "已修改",
+    "renamed": "已重命名",
+    "copied": "已复制",
+    "changed": "已更改",
+    "comment": "条评论",
+    "comments": "条评论",
+    "discardChangesForFile": "放弃此文件的更改",
+    "preparingPreview": "正在准备预览…",
+    "diffHiddenSmooth": "差异已隐藏以保持滚动流畅",
+    "copyLine": "复制第 {line} 行",
+    "copyLineContents": "复制行内容",
+    "startCommentThread": "开始评论线程",
+    "copyFilePath": "复制文件路径",
+    "discardFileChanges": "放弃文件更改",
+    "binaryFilesInList": "二进制文件保留在列表中，以便您可以继续浏览其他更改。"
+  },
+  "fileContentViewer": {
+    "loading": "加载中...",
+    "binaryFile": "二进制文件",
+    "back": "返回",
+    "preview": "预览",
+    "raw": "原始",
+    "openInEditor": "在编辑器中打开"
+  },
+  "reviewComments": {
+    "deleteComment": "删除评论",
+    "deleteCommentOn": "删除 {file} 上的评论"
+  },
+  "diffSessionActions": {
+    "sendPrComments": "将 PR #{number} 的审查评论发送到终端",
+    "fetching": "获取中...",
+    "prComments": "PR #{number} 评论",
+    "openPrInBrowser": "在浏览器中打开 PR #{number}",
+    "discardAllChanges": "放弃所有更改并重置此会话",
+    "resetSession": "重置会话",
+    "markAsReviewed": "标记为已审核",
+    "markAsReviewedTitle": "将此会话标记为已审核"
+  },
+  "collapsedDiffBadge": {
+    "generatedFile": "生成的文件",
+    "largeDiff": "大型差异（{lines} 行，{size}）",
+    "deletedFile": "已删除文件",
+    "clickToExpand": "点击展开",
+    "generatedLargeDiff": "生成的文件 • 大型差异（{lines} 行，{size}）"
+  },
+  "specEditor": {
+    "focusSpecContent": "聚焦规格内容",
+    "editSpecContent": "编辑规格内容",
+    "saving": "保存中...",
+    "refine": "优化",
+    "previewMarkdown": "预览 Markdown",
+    "editMarkdown": "编辑 Markdown",
+    "preview": "预览",
+    "edit": "编辑",
+    "addComments": "为此规格添加评论",
+    "comment": "评论",
+    "exitReviewMode": "退出审核模式",
+    "exitReview": "退出审核",
+    "runAgent": "运行代理",
+    "runAgentButton": "运行代理",
+    "copyContent": "复制内容",
+    "copy": "复制",
+    "copied": "已复制！",
+    "editingSpec": "编辑规格 — 输入 @ 引用项目文件",
+    "reviewMode": "审核模式 — 选择行以添加评论",
+    "previewMode": "预览模式",
+    "enterAgentDescription": "输入代理描述（Markdown 格式）…",
+    "addReviewComment": "添加审核评论",
+    "line": "第 {line} 行",
+    "lines": "第 {start}-{end} 行",
+    "writeComment": "写下您的评论...",
+    "cancel": "取消",
+    "submit": "提交",
+    "discardPendingComments": "放弃待处理的评论",
+    "cancelReview": "取消审核",
+    "sendReviewComments": "发送审核评论",
+    "finishReview": "完成审核 ({count})"
+  },
+  "specPicker": {
+    "searchSpecs": "搜索规格...",
+    "closeEsc": "关闭 (Esc)",
+    "noSpecsMatch": "没有匹配的规格",
+    "noSpecsAvailable": "没有可用的规格"
   }
 }

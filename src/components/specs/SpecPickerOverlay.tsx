@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { theme } from '../../common/theme'
 import { EnrichedSession } from '../../types/session'
 import { VscSearch, VscClose } from 'react-icons/vsc'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   specs: EnrichedSession[]
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -103,7 +105,7 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search specs..."
+            placeholder={t.specPicker.searchSpecs}
             className="flex-1 bg-transparent border-none outline-none placeholder:text-slate-500"
             style={{
               color: 'var(--color-text-primary)',
@@ -119,7 +121,7 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            title="Close (Esc)"
+            title={t.specPicker.closeEsc}
           >
             <VscClose />
           </button>
@@ -138,7 +140,7 @@ export function SpecPickerOverlay({ specs, onSelect, onClose }: Props) {
                 fontSize: theme.fontSize.body
               }}
             >
-              {query ? 'No specs match your search' : 'No specs available'}
+              {query ? t.specPicker.noSpecsMatch : t.specPicker.noSpecsAvailable}
             </div>
           ) : (
             filtered.map((spec, index) => {

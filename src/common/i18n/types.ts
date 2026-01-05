@@ -751,4 +751,97 @@ export interface Translations {
       readyToMerge: string
     }
   }
+  diffViewer: {
+    loading: string
+    cannotDisplayDiff: string
+    fileTypeCannotCompare: string
+    binaryFile: string
+    fileCannotDisplay: string
+    binaryFilesNotShown: string
+    newFile: string
+    deletedFile: string
+    modified: string
+    renamed: string
+    copied: string
+    changed: string
+    comment: string
+    comments: string
+    discardChangesForFile: string
+    preparingPreview: string
+    diffHiddenSmooth: string
+    copyLine: string
+    copyLineContents: string
+    startCommentThread: string
+    copyFilePath: string
+    discardFileChanges: string
+    binaryFilesInList: string
+  }
+  fileContentViewer: {
+    loading: string
+    binaryFile: string
+    back: string
+    preview: string
+    raw: string
+    openInEditor: string
+  }
+  reviewComments: {
+    deleteComment: string
+    deleteCommentOn: string
+  }
+  diffSessionActions: {
+    sendPrComments: string
+    fetching: string
+    prComments: string
+    openPrInBrowser: string
+    discardAllChanges: string
+    resetSession: string
+    markAsReviewed: string
+    markAsReviewedTitle: string
+  }
+  collapsedDiffBadge: {
+    generatedFile: string
+    largeDiff: string
+    deletedFile: string
+    clickToExpand: string
+    generatedLargeDiff: string
+  }
+  specEditor: {
+    focusSpecContent: string
+    editSpecContent: string
+    saving: string
+    refine: string
+    previewMarkdown: string
+    editMarkdown: string
+    preview: string
+    edit: string
+    addComments: string
+    comment: string
+    exitReviewMode: string
+    exitReview: string
+    runAgent: string
+    runAgentButton: string
+    copyContent: string
+    copy: string
+    copied: string
+    editingSpec: string
+    reviewMode: string
+    previewMode: string
+    enterAgentDescription: string
+    addReviewComment: string
+    line: string
+    lines: string
+    writeComment: string
+    cancel: string
+    submit: string
+    discardPendingComments: string
+    cancelReview: string
+    sendReviewComments: string
+    finishReview: string
+  }
+  specPicker: {
+    searchSpecs: string
+    closeEsc: string
+    noSpecsMatch: string
+    noSpecsAvailable: string
+  }
 }

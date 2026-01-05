@@ -748,5 +748,98 @@
       "needsCommitMessage": "Enter a commit message to enable merge.",
       "readyToMerge": "Merge session (⌘↵)"
     }
+  },
+  "diffViewer": {
+    "loading": "loading",
+    "cannotDisplayDiff": "Cannot Display Diff",
+    "fileTypeCannotCompare": "This file type cannot be compared in the diff viewer.",
+    "binaryFile": "Binary file",
+    "fileCannotDisplay": "This file cannot be displayed in the diff viewer",
+    "binaryFilesNotShown": "Binary files are not shown to prevent performance issues.",
+    "newFile": "New file",
+    "deletedFile": "Deleted file",
+    "modified": "Modified",
+    "renamed": "Renamed",
+    "copied": "Copied",
+    "changed": "Changed",
+    "comment": "comment",
+    "comments": "comments",
+    "discardChangesForFile": "Discard changes for this file",
+    "preparingPreview": "Preparing preview…",
+    "diffHiddenSmooth": "Diff hidden to keep scrolling smooth",
+    "copyLine": "Copy line {line}",
+    "copyLineContents": "Copy line contents",
+    "startCommentThread": "Start comment thread",
+    "copyFilePath": "Copy file path",
+    "discardFileChanges": "Discard file changes",
+    "binaryFilesInList": "Binary files stay in the list so you can keep scrolling through other changes."
+  },
+  "fileContentViewer": {
+    "loading": "Loading...",
+    "binaryFile": "Binary file",
+    "back": "Back",
+    "preview": "Preview",
+    "raw": "Raw",
+    "openInEditor": "Open in editor"
+  },
+  "reviewComments": {
+    "deleteComment": "Delete comment",
+    "deleteCommentOn": "Delete comment on {file}"
+  },
+  "diffSessionActions": {
+    "sendPrComments": "Send PR #{number} review comments to terminal",
+    "fetching": "Fetching...",
+    "prComments": "PR #{number} Comments",
+    "openPrInBrowser": "Open PR #{number} in browser",
+    "discardAllChanges": "Discard all changes and reset this session",
+    "resetSession": "Reset Session",
+    "markAsReviewed": "Mark as Reviewed",
+    "markAsReviewedTitle": "Mark this session as reviewed"
+  },
+  "collapsedDiffBadge": {
+    "generatedFile": "Generated file",
+    "largeDiff": "Large diff ({lines} lines, {size})",
+    "deletedFile": "Deleted file",
+    "clickToExpand": "Click to expand",
+    "generatedLargeDiff": "Generated file • Large diff ({lines} lines, {size})"
+  },
+  "specEditor": {
+    "focusSpecContent": "Focus spec content",
+    "editSpecContent": "Edit spec content",
+    "saving": "Saving...",
+    "refine": "Refine",
+    "previewMarkdown": "Preview markdown",
+    "editMarkdown": "Edit markdown",
+    "preview": "Preview",
+    "edit": "Edit",
+    "addComments": "Add comments to this spec",
+    "comment": "Comment",
+    "exitReviewMode": "Exit review mode",
+    "exitReview": "Exit Review",
+    "runAgent": "Run agent",
+    "runAgentButton": "Run Agent",
+    "copyContent": "Copy content",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "editingSpec": "Editing spec — Type @ to reference project files",
+    "reviewMode": "Review mode — Select lines to add comments",
+    "previewMode": "Preview mode",
+    "enterAgentDescription": "Enter agent description in markdown…",
+    "addReviewComment": "Add Review Comment",
+    "line": "Line {line}",
+    "lines": "Lines {start}-{end}",
+    "writeComment": "Write your comment...",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "discardPendingComments": "Discard pending comments",
+    "cancelReview": "Cancel Review",
+    "sendReviewComments": "Send review comments",
+    "finishReview": "Finish Review ({count})"
+  },
+  "specPicker": {
+    "searchSpecs": "Search specs...",
+    "closeEsc": "Close (Esc)",
+    "noSpecsMatch": "No specs match your search",
+    "noSpecsAvailable": "No specs available"
   }
 }
