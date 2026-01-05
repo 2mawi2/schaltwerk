@@ -279,7 +279,7 @@ describe('RunTerminal', () => {
 
     // Should now show "Ready to run:" again and the process ended message
     expect(screen.getByText('Ready to run:')).toBeInTheDocument()
-    expect(screen.getByText('[process has ended]')).toBeInTheDocument()
+    expect(screen.getByText(/Process ended/)).toBeInTheDocument()
   })
 
   it('scrolls the terminal to bottom when starting a run', async () => {

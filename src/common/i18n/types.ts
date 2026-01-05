@@ -121,6 +121,7 @@ export interface Translations {
       yes: string
       no: string
       none: string
+      open: string
     }
     archives: {
       title: string

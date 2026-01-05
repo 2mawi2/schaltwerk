@@ -118,7 +118,8 @@
       "add": "Add",
       "yes": "Yes",
       "no": "No",
-      "none": "None"
+      "none": "None",
+      "open": "Open"
     },
     "archives": {
       "title": "Archived Specs",
