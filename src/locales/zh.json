@@ -1147,5 +1147,19 @@
     "title": "打开项目",
     "openRepository": "打开仓库",
     "recentProjects": "最近的项目"
+  },
+  "rightPanelTabs": {
+    "changes": "更改",
+    "changesTitle": "更改",
+    "info": "信息",
+    "infoTitle": "规格信息",
+    "history": "历史",
+    "historyTitle": "Git 历史",
+    "spec": "规格",
+    "specTitle": "规格",
+    "specs": "规格",
+    "specsTitle": "规格工作区",
+    "preview": "预览",
+    "previewTitle": "网页预览"
   }
 }

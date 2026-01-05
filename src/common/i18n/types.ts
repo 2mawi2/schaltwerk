@@ -1158,4 +1158,18 @@ export interface Translations {
     openRepository: string
     recentProjects: string
   }
+  rightPanelTabs: {
+    changes: string
+    changesTitle: string
+    info: string
+    infoTitle: string
+    history: string
+    historyTitle: string
+    spec: string
+    specTitle: string
+    specs: string
+    specsTitle: string
+    preview: string
+    previewTitle: string
+  }
 }

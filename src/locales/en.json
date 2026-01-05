@@ -1147,5 +1147,19 @@
     "title": "Open Project",
     "openRepository": "Open Repository",
     "recentProjects": "Recent Projects"
+  },
+  "rightPanelTabs": {
+    "changes": "Changes",
+    "changesTitle": "Changes",
+    "info": "Info",
+    "infoTitle": "Spec Info",
+    "history": "History",
+    "historyTitle": "Git History",
+    "spec": "Spec",
+    "specTitle": "Spec",
+    "specs": "Specs",
+    "specsTitle": "Specs Workspace",
+    "preview": "Preview",
+    "previewTitle": "Web Preview"
   }
 }
