@@ -295,7 +295,14 @@ impl TerminalEntry {
 }
 
 fn default_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    #[cfg(windows)]
+    {
+        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
 }
 
 fn default_transcript_root() -> PathBuf {
@@ -505,9 +512,14 @@ mod tests {
             })
             .await?;
 
+        #[cfg(windows)]
+        let cmd = "echo hello world\r\nexit\r\n";
+        #[cfg(not(windows))]
+        let cmd = "printf 'hello world'\nexit\n";
+
         host.write(WriteRequest {
             term_id: spawn.term_id.clone(),
-            utf8: "printf 'hello world'\nexit\n".to_string(),
+            utf8: cmd.to_string(),
         })
         .await?;
 
@@ -671,6 +683,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "cmd.exe has limited unicode support")]
     async fn unicode_output_roundtrip() -> Result<()> {
         let sink = Arc::new(RecordingSink::new());
         let temp_dir = tempfile::tempdir()?;
@@ -738,9 +751,14 @@ mod tests {
             })
             .await?;
 
+        #[cfg(windows)]
+        let cmd = "echo ready\r\nexit\r\n";
+        #[cfg(not(windows))]
+        let cmd = "echo ready && exit\n";
+
         host.write(WriteRequest {
             term_id: spawn.term_id.clone(),
-            utf8: "echo ready && exit\n".to_string(),
+            utf8: cmd.to_string(),
         })
         .await?;
 

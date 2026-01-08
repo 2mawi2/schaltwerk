@@ -100,6 +100,7 @@ jobs:
 
       - name: Run frontend tests
         shell: bash
+        timeout-minutes: 10
         run: |
           bun run test:frontend
           bun run test:mcp
