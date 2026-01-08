@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{PROJECT_MANAGER, SETTINGS_MANAGER, get_core_read, get_core_write};
+use crate::{PROJECT_MANAGER, get_core_read, get_core_write, get_settings_manager};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
     HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences, ProjectSessionsSettings,
@@ -10,6 +10,7 @@ use schaltwerk::services::{
     AgentPreference, DiffViewPreferences, McpServerConfig, SessionPreferences, TerminalSettings,
     TerminalUIPreferences,
 };
+use tauri::AppHandle;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -72,48 +73,42 @@ pub async fn list_installed_fonts() -> Result<Vec<InstalledFont>, String> {
 }
 
 #[tauri::command]
-pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_agent_env_vars(
+    app: AppHandle,
+    agent_type: String,
+) -> Result<HashMap<String, String>, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_env_vars(&agent_type))
 }
 
 #[tauri::command]
 pub async fn set_agent_env_vars(
+    app: AppHandle,
     agent_type: String,
     env_vars: HashMap<String, String>,
 ) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_agent_env_vars(&agent_type, env_vars)
 }
 
 #[tauri::command]
-pub async fn get_agent_cli_args(agent_type: String) -> Result<String, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_agent_cli_args(app: AppHandle, agent_type: String) -> Result<String, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_cli_args(&agent_type))
 }
 
 #[tauri::command]
-pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<(), String> {
+pub async fn set_agent_cli_args(
+    app: AppHandle,
+    agent_type: String,
+    cli_args: String,
+) -> Result<(), String> {
     log::info!("Setting CLI args for agent '{agent_type}': '{cli_args}'");
 
-    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
-        let error = "Settings manager not initialized".to_string();
-        log::error!("Failed to set CLI args: {error}");
-        error
-    })?;
-
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     match manager.set_agent_cli_args(&agent_type, cli_args.clone()) {
         Ok(()) => {
@@ -128,17 +123,18 @@ pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<
 }
 
 #[tauri::command]
-pub async fn get_agent_preferences(agent_type: String) -> Result<AgentPreference, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_agent_preferences(
+    app: AppHandle,
+    agent_type: String,
+) -> Result<AgentPreference, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_preferences(&agent_type))
 }
 
 #[tauri::command]
 pub async fn set_agent_preferences(
+    app: AppHandle,
     agent_type: String,
     preferences: AgentPreference,
 ) -> Result<(), String> {
@@ -148,12 +144,7 @@ pub async fn set_agent_preferences(
         preferences.reasoning_effort
     );
 
-    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
-        let error = "Settings manager not initialized".to_string();
-        log::error!("Failed to set agent preferences: {error}");
-        error
-    })?;
-
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager
         .set_agent_preferences(&agent_type, preferences)
@@ -164,17 +155,18 @@ pub async fn set_agent_preferences(
 }
 
 #[tauri::command]
-pub async fn get_agent_initial_command(agent_type: String) -> Result<String, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_agent_initial_command(
+    app: AppHandle,
+    agent_type: String,
+) -> Result<String, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_initial_command(&agent_type))
 }
 
 #[tauri::command]
 pub async fn set_agent_initial_command(
+    app: AppHandle,
     agent_type: String,
     initial_command: String,
 ) -> Result<(), String> {
@@ -183,12 +175,7 @@ pub async fn set_agent_initial_command(
         initial_command.len()
     );
 
-    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
-        let error = "Settings manager not initialized".to_string();
-        log::error!("Failed to set initial command: {error}");
-        error
-    })?;
-
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     match manager.set_agent_initial_command(&agent_type, initial_command.clone()) {
         Ok(()) => {
@@ -206,71 +193,50 @@ pub async fn set_agent_initial_command(
 }
 
 #[tauri::command]
-pub async fn get_terminal_ui_preferences() -> Result<TerminalUIPreferences, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_terminal_ui_preferences(app: AppHandle) -> Result<TerminalUIPreferences, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_terminal_ui_preferences())
 }
 
 #[tauri::command]
-pub async fn set_terminal_collapsed(is_collapsed: bool) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_terminal_collapsed(app: AppHandle, is_collapsed: bool) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_terminal_collapsed(is_collapsed)
 }
 
 #[tauri::command]
-pub async fn set_terminal_divider_position(position: f64) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_terminal_divider_position(app: AppHandle, position: f64) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_terminal_divider_position(position)
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_get_theme() -> Result<String, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn schaltwerk_core_get_theme(app: AppHandle) -> Result<String, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_theme())
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_set_theme(theme: String) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn schaltwerk_core_set_theme(app: AppHandle, theme: String) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_theme(&theme)
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_get_language() -> Result<String, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn schaltwerk_core_get_language(app: AppHandle) -> Result<String, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_language())
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_set_language(language: String) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn schaltwerk_core_set_language(app: AppHandle, language: String) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_language(&language)
 }
@@ -447,21 +413,15 @@ pub async fn set_project_merge_preferences(
 }
 
 #[tauri::command]
-pub async fn get_terminal_settings() -> Result<TerminalSettings, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_terminal_settings(app: AppHandle) -> Result<TerminalSettings, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_terminal_settings())
 }
 
 #[tauri::command]
-pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_terminal_settings(app: AppHandle, terminal: TerminalSettings) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     // Persist first
     manager.set_terminal_settings(terminal.clone()).map(|_| {
@@ -474,121 +434,97 @@ pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), Str
 }
 
 #[tauri::command]
-pub async fn get_diff_view_preferences() -> Result<DiffViewPreferences, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_diff_view_preferences(app: AppHandle) -> Result<DiffViewPreferences, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_diff_view_preferences())
 }
 
 #[tauri::command]
-pub async fn set_diff_view_preferences(preferences: DiffViewPreferences) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_diff_view_preferences(
+    app: AppHandle,
+    preferences: DiffViewPreferences,
+) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_diff_view_preferences(preferences)
 }
 
 #[tauri::command]
-pub async fn get_session_preferences() -> Result<SessionPreferences, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_session_preferences(app: AppHandle) -> Result<SessionPreferences, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_session_preferences())
 }
 
 #[tauri::command]
-pub async fn set_session_preferences(preferences: SessionPreferences) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_session_preferences(
+    app: AppHandle,
+    preferences: SessionPreferences,
+) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_session_preferences(preferences)
 }
 
 #[tauri::command]
-pub async fn get_auto_update_enabled() -> Result<bool, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_auto_update_enabled(app: AppHandle) -> Result<bool, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_auto_update_enabled())
 }
 
 #[tauri::command]
-pub async fn set_auto_update_enabled(enabled: bool) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_auto_update_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_auto_update_enabled(enabled)
 }
 
 #[tauri::command]
-pub async fn get_dev_error_toasts_enabled() -> Result<bool, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_dev_error_toasts_enabled(app: AppHandle) -> Result<bool, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_dev_error_toasts_enabled())
 }
 
 #[tauri::command]
-pub async fn set_dev_error_toasts_enabled(enabled: bool) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_dev_error_toasts_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_dev_error_toasts_enabled(enabled)
 }
 
 #[tauri::command]
-pub async fn get_last_project_parent_directory() -> Result<Option<String>, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_last_project_parent_directory(app: AppHandle) -> Result<Option<String>, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_last_project_parent_directory())
 }
 
 #[tauri::command]
-pub async fn set_last_project_parent_directory(path: Option<String>) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_last_project_parent_directory(
+    app: AppHandle,
+    path: Option<String>,
+) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_last_project_parent_directory(path)
 }
 
 #[tauri::command]
-pub async fn get_keyboard_shortcuts() -> Result<HashMap<String, Vec<String>>, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_keyboard_shortcuts(app: AppHandle) -> Result<HashMap<String, Vec<String>>, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_keyboard_shortcuts())
 }
 
 #[tauri::command]
-pub async fn set_keyboard_shortcuts(shortcuts: HashMap<String, Vec<String>>) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_keyboard_shortcuts(
+    app: AppHandle,
+    shortcuts: HashMap<String, Vec<String>>,
+) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_keyboard_shortcuts(shortcuts)
 }
@@ -673,21 +609,15 @@ pub async fn reset_project_action_buttons_to_defaults() -> Result<Vec<HeaderActi
 }
 
 #[tauri::command]
-pub async fn get_tutorial_completed() -> Result<bool, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_tutorial_completed(app: AppHandle) -> Result<bool, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_tutorial_completed())
 }
 
 #[tauri::command]
-pub async fn set_tutorial_completed(completed: bool) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_tutorial_completed(app: AppHandle, completed: bool) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager
         .set_tutorial_completed(completed)
@@ -727,43 +657,32 @@ pub async fn set_project_run_script(run_script: RunScript) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn get_amp_mcp_servers() -> Result<HashMap<String, McpServerConfig>, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_amp_mcp_servers(app: AppHandle) -> Result<HashMap<String, McpServerConfig>, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_amp_mcp_servers())
 }
 
 #[tauri::command]
 pub async fn set_amp_mcp_servers(
+    app: AppHandle,
     mcp_servers: HashMap<String, McpServerConfig>,
 ) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_amp_mcp_servers(mcp_servers)
 }
 
 #[tauri::command]
-pub async fn get_agent_command_prefix() -> Result<Option<String>, String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn get_agent_command_prefix(app: AppHandle) -> Result<Option<String>, String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_command_prefix())
 }
 
 #[tauri::command]
-pub async fn set_agent_command_prefix(prefix: Option<String>) -> Result<(), String> {
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
-
+pub async fn set_agent_command_prefix(app: AppHandle, prefix: Option<String>) -> Result<(), String> {
+    let settings_manager = get_settings_manager(&app).await?;
     let mut manager = settings_manager.lock().await;
     manager.set_agent_command_prefix(prefix)
 }
@@ -837,17 +756,6 @@ mod tests {
 
         let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, config);
-    }
-
-    #[tokio::test]
-    async fn test_settings_manager_not_initialized() {
-        let result = get_agent_env_vars("claude".to_string()).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
     }
 
     #[tokio::test]
@@ -1003,130 +911,6 @@ mod tests {
         assert!(
             error_msg.contains("Failed to get current project")
                 || error_msg.contains("Project manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_agent_env_vars_uninitialized_manager() {
-        let result = get_agent_env_vars("claude".to_string()).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_agent_env_vars_uninitialized_manager() {
-        let env_vars = HashMap::new();
-        let result = set_agent_env_vars("claude".to_string(), env_vars).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_agent_cli_args_uninitialized_manager() {
-        let result = get_agent_cli_args("claude".to_string()).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_agent_cli_args_uninitialized_manager() {
-        let result = set_agent_cli_args("claude".to_string(), "--test".to_string()).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_terminal_ui_preferences_uninitialized_manager() {
-        let result = get_terminal_ui_preferences().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_terminal_collapsed_uninitialized_manager() {
-        let result = set_terminal_collapsed(true).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_terminal_divider_position_uninitialized_manager() {
-        let result = set_terminal_divider_position(0.5).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_terminal_settings_uninitialized_manager() {
-        let result = get_terminal_settings().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_terminal_settings_uninitialized_manager() {
-        let settings = crate::settings::TerminalSettings::default();
-        let result = set_terminal_settings(settings).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_diff_view_preferences_uninitialized_manager() {
-        let result = get_diff_view_preferences().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_diff_view_preferences_uninitialized_manager() {
-        let preferences = crate::settings::DiffViewPreferences::default();
-        let result = set_diff_view_preferences(preferences).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
         );
     }
 
@@ -1296,50 +1080,6 @@ mod tests {
         assert!(
             error_msg.contains("Failed to get current project")
                 || error_msg.contains("Project manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_tutorial_completed_uninitialized_core() {
-        let result = get_tutorial_completed().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_tutorial_completed_uninitialized_core() {
-        let result = set_tutorial_completed(true).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_dev_error_toasts_enabled_uninitialized_manager() {
-        let result = get_dev_error_toasts_enabled().await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_set_dev_error_toasts_enabled_uninitialized_manager() {
-        let result = set_dev_error_toasts_enabled(true).await;
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Settings manager not initialized")
         );
     }
 
