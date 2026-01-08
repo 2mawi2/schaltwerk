@@ -312,6 +312,18 @@ pub async fn get_project_manager() -> Arc<ProjectManager> {
         .clone()
 }
 
+pub async fn get_settings_manager(
+    app_handle: &tauri::AppHandle,
+) -> Result<Arc<Mutex<SettingsManager>>, String> {
+    let handle = app_handle.clone();
+    SETTINGS_MANAGER
+        .get_or_try_init(|| async move {
+            SettingsManager::new(&handle).map(|manager| Arc::new(Mutex::new(manager)))
+        })
+        .await
+        .map(Clone::clone)
+}
+
 pub async fn get_terminal_manager()
 -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
     let manager = get_project_manager().await;
@@ -1499,10 +1511,8 @@ fn main() {
             // Initialize settings manager asynchronously
             let settings_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                match SettingsManager::new(&settings_handle) {
-                    Ok(manager) => {
-                        let arc_mgr = Arc::new(Mutex::new(manager));
-                        let _ = SETTINGS_MANAGER.set(arc_mgr.clone());
+                match get_settings_manager(&settings_handle).await {
+                    Ok(arc_mgr) => {
                         log::info!("Settings manager initialized successfully");
 
                         // Propagate terminal shell preferences to the domain layer and schedule updater

@@ -4,9 +4,19 @@ import { renderHook, act } from '@testing-library/react'
 import { useSettings, AgentType } from './useSettings'
 import { invoke, InvokeArgs } from '@tauri-apps/api/core'
 import { KeyboardShortcutAction, KeyboardShortcutConfig, defaultShortcutConfig } from '../keyboardShortcuts/config'
+import { logger } from '../utils/logger'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
+}))
+
+vi.mock('../utils/logger', () => ({
+  logger: {
+    error: vi.fn(),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }))
 
 describe('useSettings', () => {
@@ -655,6 +665,25 @@ describe('useSettings', () => {
 
       expect(prefs).toEqual({ autoCancelAfterMerge: true, autoCancelAfterPr: false })
     })
+
+    it('does not log as error when no active project is open', async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === TauriCommands.GetProjectMergePreferences) {
+          throw new Error('Failed to get current project: No active project')
+        }
+        return null
+      })
+
+      const { result } = renderHook(() => useSettings())
+
+      const prefs = await act(async () => {
+        return await result.current.loadMergePreferences()
+      })
+
+      expect(prefs).toEqual({ autoCancelAfterMerge: true, autoCancelAfterPr: false })
+      expect(logger.error).not.toHaveBeenCalled()
+      expect(logger.info).toHaveBeenCalled()
+    })
   })
 
   describe('loadEnvVars', () => {
@@ -820,6 +849,29 @@ describe('useSettings', () => {
         branchPrefix: '',
         environmentVariables: []
       })
+    })
+
+    it('does not log as error when no active project is open', async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === TauriCommands.GetProjectSettings) {
+          throw new Error('Failed to get current project: No active project')
+        }
+        return null
+      })
+
+      const { result } = renderHook(() => useSettings())
+
+      const settings = await act(async () => {
+        return await result.current.loadProjectSettings()
+      })
+
+      expect(settings).toEqual({
+        setupScript: '',
+        branchPrefix: '',
+        environmentVariables: []
+      })
+      expect(logger.error).not.toHaveBeenCalled()
+      expect(logger.info).toHaveBeenCalled()
     })
 
     it('handles partial data gracefully', async () => {
