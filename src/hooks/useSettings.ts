@@ -48,7 +48,12 @@ const extractErrorMessage = (error: unknown): string => {
 
 const isProjectUnavailableError = (error: unknown): boolean => {
     const message = extractErrorMessage(error)
-    return message.includes('Project manager not initialized') || message.includes('Failed to get current project')
+    const lowered = message.toLowerCase()
+    return (
+        lowered.includes('project manager not initialized') ||
+        lowered.includes('failed to get current project') ||
+        lowered.includes('no active project')
+    )
 }
 
 const isCommandUnavailableError = (error: unknown, command: string): boolean => {
@@ -310,7 +315,11 @@ export const useSettings = () => {
                 environmentVariables: envVarArray,
             }
         } catch (error) {
-            logger.error('Failed to load project settings:', error)
+            if (isProjectUnavailableError(error)) {
+                logger.info('Project settings not available - requires active project', error)
+            } else {
+                logger.error('Failed to load project settings:', error)
+            }
             return { setupScript: '', branchPrefix: DEFAULT_BRANCH_PREFIX, environmentVariables: [] }
         }
     }, [])
@@ -359,7 +368,13 @@ export const useSettings = () => {
                 autoCancelAfterPr: preferences?.auto_cancel_after_pr === true,
             }
         } catch (error) {
-            logger.error('Failed to load project merge preferences:', error)
+            if (isProjectUnavailableError(error)) {
+                logger.info('Project merge preferences not available - requires active project', error)
+            } else if (isCommandUnavailableError(error, TauriCommands.GetProjectMergePreferences)) {
+                logger.info('Merge preferences command unavailable - using defaults', error)
+            } else {
+                logger.error('Failed to load project merge preferences:', error)
+            }
             return { autoCancelAfterMerge: true, autoCancelAfterPr: false }
         }
     }, [])
