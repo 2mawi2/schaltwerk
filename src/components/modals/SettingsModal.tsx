@@ -13,6 +13,8 @@ import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { ThemeSettings } from '../settings/ThemeSettings'
+import { LanguageSettings } from '../settings/LanguageSettings'
+import { useTranslation } from '../../common/i18n/useTranslation'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
@@ -294,6 +296,7 @@ interface SessionPreferences {
 
 export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Props) {
     const { registerModal, unregisterModal } = useModal()
+    const { t } = useTranslation()
     const [terminalFontSize, setTerminalFontSize] = useAtom(terminalFontSizeAtom)
     const [uiFontSize, setUiFontSize] = useAtom(uiFontSizeAtom)
     const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
@@ -541,7 +544,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             await invoke(TauriCommands.SetAutoUpdateEnabled, { enabled: next })
             toast?.pushToast({
                 tone: 'success',
-                title: next ? 'Automatic updates enabled' : 'Automatic updates disabled',
+                title: next ? t.toasts.autoUpdatesEnabled : t.toasts.autoUpdatesDisabled,
                 durationMs: 2400,
             })
         } catch (error) {
@@ -549,8 +552,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             setAutoUpdateEnabled(previous)
             toast?.pushToast({
                 tone: 'error',
-                title: 'Could not update preference',
-                description: 'Try again or restart Schaltwerk.',
+                title: t.toasts.updatePreferenceFailed,
+                description: t.toasts.updatePreferenceFailedDesc,
                 durationMs: 5000,
             })
         } finally {
@@ -566,14 +569,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             logger.error('Failed to start manual update check:', error)
             toast?.pushToast({
                 tone: 'error',
-                title: 'Unable to check for updates',
-                description: 'Please try again in a few minutes.',
+                title: t.toasts.checkUpdatesFailed,
+                description: t.toasts.checkUpdatesFailedDesc,
                 durationMs: 5000,
             })
         } finally {
             setCheckingUpdate(false)
         }
-    }, [toast])
+    }, [toast, t])
     
     // JS normalizers removed; native fix handles inputs globally.
 
@@ -1079,9 +1082,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Branch Prefix</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.branchPrefix}</h3>
                         <div className="text-body text-text-tertiary mb-3">
-                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups (for example <code className="text-accent-blue">team/frontend</code>). Spaces will be converted to hyphens automatically.
+                            {t.settings.projectGeneral.branchPrefixDesc.split('. ').map((sentence, i, arr) => (
+                                <span key={i}>{sentence}{i < arr.length - 1 ? '. ' : ''}</span>
+                            ))}
                         </div>
                         <input
                             type="text"
@@ -1098,9 +1103,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Merge Defaults</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.mergeDefaults}</h3>
                         <div className="text-body text-text-tertiary mb-3">
-                            Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
+                            {t.settings.projectGeneral.mergeDefaultsDesc}
                         </div>
                         <label className="flex items-center gap-3 text-sm text-text-primary">
                             <input
@@ -1115,10 +1120,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 }}
                                 className="rounded border-border-strong bg-bg-elevated text-accent-blue focus:ring-accent-blue"
                             />
-                            <span>Auto-cancel sessions after successful merge</span>
+                            <span>{t.settings.projectGeneral.autoCancelAfterMerge}</span>
                         </label>
                         <p className="text-caption text-text-muted mt-2">
-                            You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
+                            {t.settings.projectGeneral.mergeToggleNote}
                         </p>
                     </div>
                 </div>
@@ -1131,15 +1136,15 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-8">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Worktree Setup Script</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectRun.worktreeSetup}</h3>
                         <div className="text-body text-text-tertiary mb-4">
-                            Configure a script that runs automatically when a new worktree is created for this project.
-                            The script will be executed in the new worktree directory.
+                            {t.settings.projectRun.worktreeSetupDesc}
+                            
                         </div>
 
                         <div className="mb-4 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary mb-2">
-                                <strong>Available variables:</strong>
+                                <strong>{t.settings.projectRun.availableVariables}</strong>
                             </div>
                             <ul className="text-caption text-text-muted space-y-1 list-disc list-inside">
                                 <li><code className="text-accent-blue">$WORKTREE_PATH</code> - Path to the new worktree</li>
@@ -1169,7 +1174,7 @@ fi`}
 
                         <div className="mt-4 p-3 border rounded bg-accent-blue/10 border-accent-blue/50">
                             <div className="text-caption mb-2 text-accent-blue">
-                                <strong>Example use cases:</strong>
+                                <strong>{t.settings.projectRun.exampleUseCases}</strong>
                             </div>
                             <ul className="text-caption text-text-tertiary space-y-1 list-disc list-inside">
                                 <li>Copy environment files (.env, .env.local)</li>
@@ -1182,33 +1187,33 @@ fi`}
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Run Script</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectRun.runScript}</h3>
                         <div className="text-body text-text-tertiary mb-4">
-                            Configure the command executed by Run Mode (⌘E). When it finishes or is killed, the run terminal becomes read-only and shows the exit status.
+                            {t.settings.projectRun.runScriptDesc}
                         </div>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-caption text-text-tertiary mb-1">Command</label>
+                                <label className="block text-caption text-text-tertiary mb-1">{t.settings.projectRun.command}</label>
                                 <input
                                     type="text"
                                     value={runScript.command}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
-                                    placeholder="e.g., bun run dev or npm run dev"
+                                    placeholder={t.settings.projectRun.commandPlaceholder}
                                     className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                 />
                             </div>
                             <div>
-                                <label className="block text-caption text-text-tertiary mb-1">Working Directory (optional)</label>
+                                <label className="block text-caption text-text-tertiary mb-1">{t.settings.projectRun.workingDirectory}</label>
                                 <input
                                     type="text"
                                     value={runScript.workingDirectory || ''}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
-                                    placeholder="Defaults to active project folder"
+                                    placeholder={t.settings.projectRun.workingDirectoryPlaceholder}
                                     className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                                 />
                             </div>
                             <div>
-                                <label className="block text-caption text-text-tertiary mb-2">Environment Variables</label>
+                                <label className="block text-caption text-text-tertiary mb-2">{t.settings.projectRun.envVars}</label>
                                 <div className="space-y-2">
                                     {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
                                         <div key={index} className="flex gap-2">
@@ -1243,37 +1248,36 @@ fi`}
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add Environment Variable
+                                {t.settings.projectRun.addEnvVar}
                             </button>
                             <div className="space-y-2 pt-3">
-                                <div className="text-caption text-text-tertiary">Preview automation</div>
+                                <div className="text-caption text-text-tertiary">{t.settings.projectRun.previewAutomation}</div>
                                 <div className="flex items-center justify-between bg-bg-tertiary rounded px-3 py-2">
                                     <div>
-                                        <div className="text-body text-text-primary">Preview localhost on terminal click</div>
-                                        <div className="text-caption text-text-tertiary">Intercept localhost links in terminals and open them in Preview.</div>
+                                        <div className="text-body text-text-primary">{t.settings.projectRun.previewLocalhost}</div>
+                                        <div className="text-caption text-text-tertiary">{t.settings.projectRun.previewLocalhostDesc}</div>
                                     </div>
                                     <input
                                         type="checkbox"
                                         className="h-4 w-4"
                                         checked={Boolean(runScript.previewLocalhostOnClick)}
                                         onChange={(e) => setRunScript(prev => ({ ...prev, previewLocalhostOnClick: e.target.checked }))}
-                                        aria-label="Preview localhost on terminal click"
+                                        aria-label={t.settings.projectRun.previewLocalhost}
                                     />
                                 </div>
                             </div>
                         </div>
                             </div>
                             <div className="p-3 bg-bg-elevated rounded text-caption text-text-muted">
-                                Tip: Use a package manager script (for example, "bun run dev" or "npm run dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
+                                {t.settings.projectRun.runScriptTip}
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Project Environment Variables</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectRun.projectEnvVars}</h3>
                         <div className="text-body text-text-tertiary mb-4">
-                            Configure environment variables that will be set for all agents in this project.
-                            These variables are applied to all terminals and agent processes.
+                            {t.settings.projectRun.projectEnvVarsDesc}
                         </div>
 
                         <div className="space-y-2">
@@ -1311,13 +1315,13 @@ fi`}
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add Environment Variable
+                                {t.settings.projectRun.addEnvVar}
                             </button>
                         </div>
 
                         <div className="mt-4 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong>Common project environment variables:</strong>
+                                <strong>{t.settings.projectRun.commonEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>API keys and tokens specific to this project</li>
                                     <li>Database connection strings</li>
@@ -1337,21 +1341,20 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Action Buttons</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectActions.title}</h3>
                         <p className="text-body text-text-tertiary">
-                            Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
-                            These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
+                            {t.settings.projectActions.description}
                         </p>
                     </div>
 
                     <div className="border rounded p-3 bg-accent-blue/10 border-accent-blue/50">
                         <div className="text-caption text-accent-blue">
-                            <strong>💡 How it works:</strong>
+                            <strong>{t.settings.projectActions.howItWorks}</strong>
                             <ul className="mt-2 space-y-1 list-disc list-inside text-accent-blue">
-                                <li>Click any action button to instantly paste its prompt into Claude</li>
-                                <li>Use keyboard shortcuts F1-F6 for even faster access</li>
-                                <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
-                                <li>Maximum of 6 custom buttons allowed</li>
+                                <li>{t.settings.projectActions.howItWorksItems.click}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.keyboard}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.buttons}</li>
+                                <li>{t.settings.projectActions.howItWorksItems.maximum}</li>
                             </ul>
                         </div>
                     </div>
@@ -1361,7 +1364,7 @@ fi`}
                             <div key={button.id} className="bg-bg-elevated rounded-lg p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-body text-text-secondary mb-2">Label</label>
+                                        <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.label}</label>
                                         <input
                                             type="text"
                                             value={button.label}
@@ -1376,7 +1379,7 @@ fi`}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-body text-text-secondary mb-2">Color</label>
+                                        <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.color}</label>
                                         <select
                                             value={button.color || 'slate'}
                                             onChange={(e) => {
@@ -1387,15 +1390,15 @@ fi`}
                                             }}
                                             className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 focus:border-white/20 focus:outline-none"
                                         >
-                                            <option value="slate">Default (Slate)</option>
-                                            <option value="green">Green</option>
-                                            <option value="blue">Blue</option>
-                                            <option value="amber">Amber</option>
+                                            <option value="slate">{t.settings.projectActions.colorOptions.slate}</option>
+                                            <option value="green">{t.settings.projectActions.colorOptions.green}</option>
+                                            <option value="blue">{t.settings.projectActions.colorOptions.blue}</option>
+                                            <option value="amber">{t.settings.projectActions.colorOptions.amber}</option>
                                         </select>
                                     </div>
                                 </div>
                                 <div className="mt-4">
-                                    <label className="block text-body text-text-secondary mb-2">AI Prompt</label>
+                                    <label className="block text-body text-text-secondary mb-2">{t.settings.projectActions.aiPrompt}</label>
                                     <textarea
                                         value={button.prompt}
                                         onChange={(e) => {
@@ -1405,7 +1408,7 @@ fi`}
                                             setHasUnsavedChanges(true)
                                         }}
                                         className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 focus:border-white/20 focus:outline-none font-mono text-body min-h-[80px] resize-y"
-                                        placeholder="Enter the AI prompt that will be pasted into Claude chat..."
+                                        placeholder={t.settings.projectActions.promptPlaceholder}
                                     />
                                 </div>
                                 <div className="mt-4 flex justify-end">
@@ -1419,7 +1422,7 @@ fi`}
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
-                                        Remove
+                                        {t.settings.projectActions.removeButton}
                                     </button>
                                 </div>
                             </div>
@@ -1442,14 +1445,14 @@ fi`}
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                Add New Action Button
+                                {t.settings.projectActions.addButton}
                             </button>
                         ) : (
                             <div className="w-full border-2 border-dashed border-border-subtle rounded-lg p-4 text-text-muted flex items-center justify-center gap-2">
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
-                                Maximum of 6 action buttons allowed
+                                {t.settings.projectActions.maxReached}
                             </div>
                         )}
                     </div>
@@ -1469,10 +1472,10 @@ fi`}
                     }}
                     className="text-text-tertiary hover:text-text-secondary text-body"
                 >
-                    Reset to Defaults
+                    {t.settings.projectActions.resetToDefaults}
                 </button>
                 <span className={`text-caption ${hasUnsavedChanges ? 'text-amber-300' : 'text-text-muted'}`}>
-                    {hasUnsavedChanges ? 'Unsaved changes' : 'Saved'}
+                    {hasUnsavedChanges ? t.settings.projectActions.unsavedChanges : t.settings.projectActions.saved}
                 </span>
             </div>
         </div>
@@ -1572,28 +1575,28 @@ fi`}
                     {/* Binary Path Configuration */}
                     {activeAgentTab !== 'terminal' && (
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Binary Path</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.environment.binaryPath}</h3>
                         <div className="text-body text-text-tertiary mb-4">
-                            Configure which {displayNameForAgent(activeAgentTab)} binary to use.
-                            Auto-detection finds all installed versions and recommends the best one.
+                            {t.settings.environment.binaryPathDesc.replace('{agent}', displayNameForAgent(activeAgentTab))}
+                            
                             <span className="block mt-2 text-caption text-text-muted">
-                                Note: Agent binary configurations are stored globally and apply to all projects.
+                                {t.settings.environment.binaryNote}
                             </span>
                         </div>
 
                         {/* Current Configuration */}
                         <div className="mb-4 p-3 bg-bg-elevated rounded">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-caption text-text-tertiary">Current Binary</span>
+                                <span className="text-caption text-text-tertiary">{t.settings.environment.currentBinary}</span>
                                 <button
                                     onClick={() => { void handleRefreshBinaryDetection(activeAgentTab) }}
                                     className="px-3 py-1.5 bg-bg-hover/50 hover:bg-bg-active active:bg-bg-hover border border-border-strong hover:border-accent-blue/50 rounded transition-all duration-150 text-caption text-text-secondary hover:text-accent-blue flex items-center gap-1.5 active:scale-95"
-                                    title="Refresh detection"
+                                    title={t.settings.common.refresh}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
-                                    Refresh
+                                    {t.settings.common.refresh}
                                 </button>
                             </div>
                             
@@ -1602,12 +1605,12 @@ fi`}
                                     <div className="font-mono text-body text-green-400">
                                         {binaryConfigs[activeAgentTab].custom_path}
                                     </div>
-                                    <div className="text-caption text-text-muted">Custom path (user configured)</div>
+                                    <div className="text-caption text-text-muted">{t.settings.environment.customPath}</div>
                                     <button
                                         onClick={() => { void handleBinaryPathChange(activeAgentTab, null) }}
                                         className="text-caption text-orange-400 hover:text-orange-300 transition-colors"
                                     >
-                                        Reset to auto-detection
+                                        {t.settings.environment.resetToAutoDetect}
                                     </button>
                                 </div>
                             ) : binaryConfigs[activeAgentTab].detected_binaries.length > 0 ? (
@@ -1620,7 +1623,7 @@ fi`}
                                                     {recommended.path}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-caption">
-                                                    <span className="text-green-400">✓ Recommended</span>
+                                                    <span className="text-green-400">✓ {t.settings.environment.recommended}</span>
                                                     <span className="text-text-muted">•</span>
                                                     <span className="text-text-tertiary">{recommended.installation_method}</span>
                                                     {recommended.version && (
@@ -1640,7 +1643,7 @@ fi`}
                                 </div>
                             ) : (
                                 <div className="text-body text-yellow-400">
-                                    No {activeAgentTab} binary detected
+                                    {t.settings.environment.noBinaryDetected.replace('{agent}', activeAgentTab)}
                                 </div>
                             )}
                         </div>
@@ -1658,16 +1661,16 @@ fi`}
                                 <button
                                     onClick={() => { void openFilePicker(activeAgentTab) }}
                                     className="px-3 py-2 bg-bg-hover hover:bg-bg-active text-text-primary rounded border border-border-strong text-body transition-colors"
-                                    title="Browse for binary"
+                                    title={t.settings.common.browse}
                                 >
-                                    Browse
+                                    {t.settings.common.browse}
                                 </button>
                             </div>
 
                             {/* Detected Binaries List */}
                             {binaryConfigs[activeAgentTab].detected_binaries.length > 0 && (
                                 <div className="mt-4">
-                                    <h4 className="text-caption font-medium text-text-secondary mb-2">Detected Binaries</h4>
+                                    <h4 className="text-caption font-medium text-text-secondary mb-2">{t.settings.environment.detectedBinaries}</h4>
                                     <div className="space-y-1 max-h-32 overflow-y-auto">
                                         {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
                                             <div
@@ -1681,7 +1684,7 @@ fi`}
                                                     </div>
                                                     <div className="flex items-center gap-2 text-caption mt-1">
                                                         {binary.is_recommended && (
-                                                            <span className="text-green-400">Recommended</span>
+                                                            <span className="text-green-400">{t.settings.environment.recommended}</span>
                                                         )}
                                                         <span className="text-text-tertiary">{binary.installation_method}</span>
                                                         {binary.version && (
@@ -1721,13 +1724,13 @@ fi`}
 
                         return (
                             <div className="border-t border-border-subtle pt-6">
-                                <h3 className="text-body font-medium text-text-primary mb-2">Model &amp; Reasoning</h3>
+                                <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.environment.modelAndReasoning}</h3>
                                 <div className="text-body text-text-tertiary mb-4">
-                                    Set default parameters for {displayNameForAgent(activeAgentTab)} launches. Leave blank to use the agent&apos;s built-in defaults.
+                                    {t.settings.environment.modelReasoningDesc.replace('{agent}', displayNameForAgent(activeAgentTab))}
                                 </div>
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <label className="block text-caption text-text-tertiary">Model</label>
+                                        <label className="block text-caption text-text-tertiary">{t.settings.environment.model}</label>
                                         <input
                                             type="text"
                                             value={currentPrefs.model ?? ''}
@@ -1748,7 +1751,7 @@ fi`}
                                         )}
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="block text-caption text-text-tertiary">Reasoning Effort</label>
+                                        <label className="block text-caption text-text-tertiary">{t.settings.environment.reasoningEffort}</label>
                                         <input
                                             type="text"
                                             value={currentPrefs.reasoningEffort ?? ''}
@@ -1770,7 +1773,7 @@ fi`}
                                     </div>
                                 </div>
                                 <div className="mt-2 text-caption text-text-muted">
-                                    Preferences apply when launching new processes for this agent. Existing CLI arguments still run afterwards.
+                                    {t.settings.environment.preferencesNote}
                                 </div>
                             </div>
                         )
@@ -1778,9 +1781,9 @@ fi`}
 
                     {activeAgentTab !== 'terminal' && (
                     <div className="border-t border-border-subtle pt-6">
-                        <h3 className="text-body font-medium text-text-primary mb-2">CLI Arguments</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.environment.cliArgs}</h3>
                         <div className="text-body text-text-tertiary mb-3">
-                            Add custom command-line arguments that will be appended to the {displayNameForAgent(activeAgentTab)} command.
+                            {t.settings.environment.cliArgsDesc.replace('{agent}', displayNameForAgent(activeAgentTab))}
                         </div>
                         <input
                             type="text"
@@ -1796,27 +1799,27 @@ fi`}
                             style={{ fontVariantLigatures: 'none' }}
                         />
                         <div className="mt-2 text-caption text-text-muted">
-                            Examples: <code className="text-accent-blue">--profile test</code>, <code className="text-accent-blue">-d</code>, <code className="text-accent-blue">--model gpt-4</code>
+                            {t.settings.environment.cliArgsExamples} <code className="text-accent-blue">--profile test</code>, <code className="text-accent-blue">-d</code>, <code className="text-accent-blue">--model gpt-4</code>
                         </div>
                     </div>
                     )}
 
                     <div className="border-t border-border-subtle pt-6">
-                        <h3 className="text-body font-medium text-text-primary mb-2">Environment Variables</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.environment.envVars}</h3>
                         <div className="text-body text-text-tertiary mb-4">
                             {activeAgentTab === 'terminal' ? (
                                 <>
-                                    Configure environment variables for {displayNameForAgent(activeAgentTab)} sessions.
-                                    These variables will be available in the terminal shell.
+                                    {t.settings.environment.envVarsTerminalDesc}
+                                    
                                     <div className="mt-3 p-3 bg-accent-blue/10 border border-accent-blue/50 rounded text-caption text-accent-blue">
-                                        <p className="font-medium mb-1">Terminal-only mode</p>
-                                        <p>Terminal mode opens a session with your default system shell. No binary configuration or CLI arguments are needed.</p>
+                                        <p className="font-medium mb-1">{t.settings.environment.terminalOnlyMode}</p>
+                                        <p>{t.settings.environment.terminalOnlyModeDesc}</p>
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    Configure environment variables for {displayNameForAgent(activeAgentTab)} agent.
-                                    These variables will be available when starting agents with this agent type.
+                                    {t.settings.environment.envVarsDesc.replace('{agent}', displayNameForAgent(activeAgentTab))}
+                                    
                                 </>
                             )}
                         </div>
@@ -1828,7 +1831,7 @@ fi`}
                                         type="text"
                                         value={item.key}
                                         onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
-                                        placeholder="Variable name (e.g., API_KEY)"
+                                        placeholder={t.settings.environment.varNamePlaceholder}
                                         className="flex-1 bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted"
                                         autoCorrect="off"
                                         autoCapitalize="off"
@@ -1841,7 +1844,7 @@ fi`}
                                         type="text"
                                         value={item.value}
                                         onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
-                                        placeholder="Value"
+                                        placeholder={t.settings.environment.valuePlaceholder}
                                         className="flex-1 bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted"
                                         autoCorrect="off"
                                         autoCapitalize="off"
@@ -1869,20 +1872,20 @@ fi`}
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Add Environment Variable
+                            {t.settings.environment.addEnvVar}
                         </button>
                     </div>
 
                     {activeAgentTab === 'claude' && (
                         <div className="mt-6 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong>Common Claude CLI arguments:</strong>
+                                <strong>{t.settings.environment.commonClaudeArgs}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>-d</code> or <code>--dangerously-skip-permissions</code> - Skip permission prompts</li>
                                     <li><code>--profile test</code> - Use a specific profile</li>
                                     <li><code>--model claude-3-opus-20240229</code> - Specify model</li>
                                 </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
+                                <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>ANTHROPIC_API_KEY - Your Anthropic API key</li>
                                     <li>CLAUDE_MODEL - Model to use</li>
@@ -1899,7 +1902,7 @@ fi`}
                                     <li><code>--model gpt-4-turbo</code> - Specify OpenAI model</li>
                                     <li><code>--temperature 0.7</code> - Set temperature</li>
                                 </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
+                                <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>OPENAI_API_KEY - Your OpenAI API key</li>
                                     <li>OPENCODE_MODEL - Model to use</li>
@@ -1916,7 +1919,7 @@ fi`}
                                     <li><code>--model gemini-1.5-pro</code> - Specify Gemini model</li>
                                     <li><code>--temperature 0.9</code> - Set temperature</li>
                                 </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
+                                <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>GOOGLE_API_KEY - Your Google AI Studio API key</li>
                                     <li>GEMINI_MODEL - Model to use</li>
@@ -1934,7 +1937,7 @@ fi`}
                                     <li><code>--sandbox danger-full-access</code> - Full system access</li>
                                     <li><code>--model o3</code> - Use specific model</li>
                                 </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
+                                <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
                                     <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
@@ -1952,7 +1955,7 @@ fi`}
                                     <li><code>--auto "Prompt"</code> - Run in autonomous mode</li>
                                     <li><code>--mode architect</code> - Start in Architect mode</li>
                                 </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
+                                <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>KILO_API_KEY - Your Kilo Code API key</li>
                                     <li>KILO_PROVIDER - Provider override</li>
@@ -1973,12 +1976,13 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <ThemeSettings />
+                    <LanguageSettings />
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-4">Font Sizes</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-4">{t.settings.appearance.fontSizes}</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-text-secondary">Terminal Font Size</span>
+                                    <span className="text-body text-text-secondary">{t.settings.appearance.terminalFontSize}</span>
                                     <span className="text-body text-text-tertiary">{terminalFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
@@ -1997,14 +2001,14 @@ fi`}
                                         onClick={() => setTerminalFontSize(13)}
                                         className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
                                     >
-                                        Reset
+                                        {t.settings.common.reset}
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-body text-text-secondary">UI Font Size</span>
+                                    <span className="text-body text-text-secondary">{t.settings.appearance.uiFontSize}</span>
                                     <span className="text-body text-text-tertiary">{uiFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
@@ -2023,26 +2027,26 @@ fi`}
                                         onClick={() => setUiFontSize(12)}
                                         className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
                                     >
-                                        Reset
+                                        {t.settings.common.reset}
                                     </button>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div className="mt-6">
-                            <label className="block text-body text-text-secondary mb-2">Terminal Font Family</label>
+                            <label className="block text-body text-text-secondary mb-2">{t.settings.appearance.terminalFontFamily}</label>
                             <input
                                 type="text"
                                 value={terminalSettings.fontFamily || ''}
                                 onChange={(e) => setTerminalSettings({ ...terminalSettings, fontFamily: e.target.value || null })}
-                                placeholder='Examples: "JetBrains Mono, MesloLGS NF" or "Monaspace Neon"'
+                                placeholder={t.settings.appearance.fontFamilyPlaceholder}
                                 className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted font-mono text-body"
                             />
                             <div className="mt-2">
                                 <button
                                     onClick={() => setShowFontPicker(v => !v)}
                                     className="px-3 py-1.5 text-caption bg-bg-tertiary hover:bg-bg-hover rounded text-text-secondary"
-                                >Browse installed fonts</button>
+                                >{t.settings.appearance.browseFonts}</button>
                             </div>
                             {showFontPicker && (
                                 <FontPicker
@@ -2055,7 +2059,7 @@ fi`}
                                 />
                             )}
                             <div className="mt-2 text-caption text-text-muted">
-                                Uses your system-installed fonts. Powerline/ glyphs need a Nerd Font. A safe fallback chain is applied automatically.
+                                {t.settings.appearance.fontFamilyDesc}
                             </div>
                         </div>
 
@@ -2067,17 +2071,17 @@ fi`}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, webglEnabled: e.target.checked })}
                                     className="w-4 h-4 bg-bg-tertiary border border-white/10 rounded cursor-pointer"
                                 />
-                                <span className="text-body text-text-secondary">Enable GPU-accelerated rendering (WebGL)</span>
+                                <span className="text-body text-text-secondary">{t.settings.appearance.gpuAcceleration}</span>
                             </label>
                             <div className="mt-2 text-caption text-text-muted">
-                                Uses hardware acceleration for better performance with multiple terminals. Automatically falls back to the DOM renderer if WebGL is unavailable.
+                                {t.settings.appearance.gpuAccelerationDesc}
                             </div>
                         </div>
 
                         <div className="mt-6">
-                            <h3 className="text-body font-medium text-text-primary mb-2">Development Diagnostics</h3>
+                            <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.appearance.devDiagnostics}</h3>
                             <div className="text-body text-text-tertiary mb-3">
-                                Surface popup toasts whenever frontend or backend errors occur while running Schaltwerk in development mode. Release builds ignore this toggle.
+                                {t.settings.appearance.devDiagnosticsDesc}
                             </div>
                             <label className="flex items-center gap-3 text-sm text-text-primary">
                                 <input
@@ -2088,17 +2092,17 @@ fi`}
                                     }}
                                     className="rounded border-border-strong bg-bg-elevated text-accent-blue focus:ring-accent-blue"
                                 />
-                                <span>Show error toasts automatically during dev runs</span>
+                                <span>{t.settings.appearance.showErrorToasts}</span>
                             </label>
                         </div>
 
                         <div className="mt-6 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong>Keyboard shortcuts:</strong>
+                                <strong>{t.settings.appearance.keyboardShortcuts}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">+</kbd> Increase both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">-</kbd> Decrease both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">0</kbd> Reset both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">+</kbd> {t.settings.appearance.increaseFontSize}</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">-</kbd> {t.settings.appearance.decreaseFontSize}</li>
+                                    <li><kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption"><ModifierKeyDisplay>Cmd/Ctrl</ModifierKeyDisplay></kbd> + <kbd className="px-1 py-0.5 bg-bg-hover rounded text-caption">0</kbd> {t.settings.appearance.resetFontSize}</li>
                                 </ul>
                             </div>
                         </div>
@@ -2120,7 +2124,7 @@ fi`}
                 {KEYBOARD_SHORTCUT_SECTIONS.map(section => (
                     <div key={section.id} className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-body font-medium text-text-primary">{section.title}</h3>
+                            <h3 className="text-body font-medium text-text-primary">{t.shortcuts.sections[section.id as keyof typeof t.shortcuts.sections] ?? section.title}</h3>
                         </div>
                         <div className="keyboard-shortcuts-list bg-bg-elevated rounded-xl">
                             {section.items.map((item, index) => {
@@ -2207,25 +2211,25 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-4">Terminal Shell Configuration</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-4">{t.settings.terminal.title}</h3>
                         
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-body text-text-secondary mb-2">Shell Path</label>
+                                <label className="block text-body text-text-secondary mb-2">{t.settings.terminal.shellPath}</label>
                                 <input
                                     type="text"
                                     value={terminalSettings.shell || ''}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, shell: e.target.value || null })}
-                                    placeholder="Leave empty to use system default ($SHELL)"
+                                    placeholder={t.settings.terminal.shellPathPlaceholder}
                                     className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-text-muted">
-                                    Examples: <code className="text-accent-blue">/usr/local/bin/nu</code>, <code className="text-accent-blue">/opt/homebrew/bin/fish</code>, <code className="text-accent-blue">/bin/zsh</code>
+                                    {t.settings.terminal.shellPathExamples} <code className="text-accent-blue">/usr/local/bin/nu</code>, <code className="text-accent-blue">/opt/homebrew/bin/fish</code>, <code className="text-accent-blue">/bin/zsh</code>
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-body text-text-secondary mb-2">Shell Arguments</label>
+                                <label className="block text-body text-text-secondary mb-2">{t.settings.terminal.shellArgs}</label>
                                 <input
                                     type="text"
                                     value={(terminalSettings.shellArgs || []).join(' ')}
@@ -2234,18 +2238,18 @@ fi`}
                                         const args = raw.trim() ? raw.split(' ') : []
                                         setTerminalSettings({ ...terminalSettings, shellArgs: args })
                                     }}
-                                    placeholder="Default: -i (interactive mode)"
+                                    placeholder={t.settings.terminal.shellArgsPlaceholder}
                                     className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-text-muted">
-                                    Space-separated arguments passed to the shell. Leave empty for default interactive mode.
+                                    {t.settings.terminal.shellArgsDesc}
                                 </div>
                             </div>
                         </div>
                         
                         <div className="mt-6 p-4 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong className="text-text-secondary">Popular Shell Configurations:</strong>
+                                <strong className="text-text-secondary">{t.settings.terminal.popularShells}</strong>
                                 <ul className="mt-3 space-y-2">
                                      <li className="flex items-start gap-2">
                                         <span className="text-accent-blue">Nushell:</span>
@@ -2278,45 +2282,45 @@ fi`}
                                 </ul>
                                 
                                 <div className="mt-4 pt-3 border-t border-border-strong">
-                                    <strong className="text-text-secondary">Note:</strong> Changes will apply to new terminals only. Existing terminals will continue using their current shell.
+                                    {t.settings.terminal.shellNote}
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div className="pt-6 border-t border-border-subtle">
-                        <h3 className="text-body font-medium text-text-primary mb-4">Agent Command Prefix</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-4">{t.settings.terminal.agentCommandPrefix}</h3>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-body text-text-secondary mb-2">Command Prefix</label>
+                                <label className="block text-body text-text-secondary mb-2">{t.settings.terminal.commandPrefix}</label>
                                 <input
                                     type="text"
                                     value={agentCommandPrefix}
                                     onChange={(e) => setAgentCommandPrefix(e.target.value)}
-                                    placeholder="e.g., vt"
+                                    placeholder={t.settings.terminal.commandPrefixPlaceholder}
                                     className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-text-muted">
-                                    Prefix command for all agent executions. Transforms <code className="text-accent-blue">claude ...</code> into <code className="text-accent-blue">[prefix] claude ...</code>
+                                    {t.settings.terminal.commandPrefixDesc}
                                 </div>
                             </div>
                         </div>
 
                         <div className="mt-4 p-4 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong className="text-text-secondary">Use Cases:</strong>
+                                <strong className="text-text-secondary">{t.settings.terminal.useCases}</strong>
                                 <ul className="mt-3 space-y-2">
                                     <li className="flex items-start gap-2">
-                                        <span className="text-accent-blue">Remote Access:</span>
+                                        <span className="text-accent-blue"><strong>{t.settings.terminal.remoteAccess}</strong></span>
                                         <div>
-                                            Set prefix to <code>vt</code> to use <a href="https://vt.sh" target="_blank" rel="noopener noreferrer" className="hover:underline text-accent-blue">VibeTunnel</a> for browser-based remote terminal access
+                                            {t.settings.terminal.remoteAccessDesc}
                                         </div>
                                     </li>
                                     <li className="flex items-start gap-2">
-                                        <span className="text-accent-blue">Wrappers:</span>
+                                        <span className="text-accent-blue"><strong>{t.settings.terminal.wrappers}</strong></span>
                                         <div>
-                                            Use custom wrappers for logging, resource limiting, or environment setup
+                                            {t.settings.terminal.wrappersDesc}
                                         </div>
                                     </li>
                                 </ul>
@@ -2333,9 +2337,9 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-2">Session Review Settings</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.sessions.title}</h3>
                         <div className="text-body text-text-tertiary mb-4">
-                            Configure how sessions are handled when marked as reviewed.
+                            {t.settings.sessions.description}
                         </div>
                         
                         <div className="space-y-4">
@@ -2351,11 +2355,11 @@ fi`}
                                  />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-text-primary">
-                                        Skip Confirmation Dialogs
+                                        {t.settings.sessions.skipConfirmation}
                                     </div>
                                     <div className="text-caption text-text-tertiary mt-1">
-                                        Skip confirmation dialogs for actions that ask "Don't ask me again".
-                                        When enabled, previously dismissed confirmations will be automatically applied.
+                                        {t.settings.sessions.skipConfirmationDesc}
+                                        
                                     </div>
                                 </div>
                             </label>
@@ -2372,18 +2376,18 @@ fi`}
                                  />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-text-primary">
-                                        Always Show Large Diffs
+                                        {t.settings.sessions.alwaysShowLargeDiffs}
                                     </div>
                                     <div className="text-caption text-text-tertiary mt-1">
-                                        Always render large diffs instead of collapsing them by default.
-                                        When disabled, diffs over 500 lines or 100KB will be collapsed for performance.
+                                        {t.settings.sessions.alwaysShowLargeDiffsDesc}
+                                        
                                     </div>
                                 </div>
                             </label>
 
                             <div className="pt-4 mt-6 border-t border-border-subtle/60 space-y-3">
                                 <h4 className="text-body font-medium text-text-primary">
-                                    Idle Notifications
+                                    {t.settings.sessions.idleNotifications}
                                 </h4>
                                 <label className="flex items-center gap-3 cursor-pointer select-none">
                                     <input
@@ -2395,7 +2399,7 @@ fi`}
                                         })}
                                         className="w-4 h-4 text-accent-blue bg-bg-elevated border-border-strong rounded focus:ring-accent-blue focus:ring-2"
                                     />
-                                    <span className="text-body text-text-primary">Notify on idle</span>
+                                    <span className="text-body text-text-primary">{t.settings.sessions.notifyOnIdle}</span>
                                 </label>
                                 <label
                                     className={`flex items-start gap-3 cursor-pointer transition-opacity ${
@@ -2412,7 +2416,7 @@ fi`}
                                         })}
                                         className="w-4 h-4 text-accent-blue bg-bg-elevated border-border-strong rounded focus:ring-accent-blue focus:ring-2"
                                     />
-                                    <span className="text-body text-text-primary">Remember idle sessions when I switch away</span>
+                                    <span className="text-body text-text-primary">{t.settings.sessions.rememberIdleSessions}</span>
                                 </label>
                                 {attentionNotificationsEnabled && (
                                     <button
@@ -2420,7 +2424,7 @@ fi`}
                                         onClick={() => { void requestDockBounce() }}
                                         className="mt-2 px-3 py-1.5 bg-bg-tertiary hover:bg-bg-hover rounded text-body text-text-secondary transition-colors"
                                     >
-                                        Test notification
+                                        {t.settings.sessions.testNotification}
                                     </button>
                                 )}
                             </div>
@@ -2428,12 +2432,12 @@ fi`}
 
                         <div className="mt-4 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
-                                <strong>Skip Confirmation Dialogs:</strong>
+                                <strong>{t.settings.sessions.skipConfirmationInfo}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li>Applies to dialogs that have "Don't ask me again" options</li>
-                                    <li>When enabled, actions will proceed without confirmation</li>
-                                    <li>Useful for experienced users who want faster workflow</li>
-                                    <li>Can be toggled at any time to restore confirmation prompts</li>
+                                    <li>{t.settings.sessions.skipConfirmationInfoItems.applies}</li>
+                                    <li>{t.settings.sessions.skipConfirmationInfoItems.proceed}</li>
+                                    <li>{t.settings.sessions.skipConfirmationInfoItems.useful}</li>
+                                    <li>{t.settings.sessions.skipConfirmationInfoItems.toggle}</li>
                                 </ul>
                             </div>
                         </div>
@@ -2448,12 +2452,12 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-body font-medium text-text-primary mb-4">Application Information</h3>
+                        <h3 className="text-body font-medium text-text-primary mb-4">{t.settings.version.title}</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-text-primary">Version</span>
-                                    <span className="text-caption text-text-tertiary">Current application version</span>
+                                    <span className="text-body font-medium text-text-primary">{t.settings.version.versionLabel}</span>
+                                    <span className="text-caption text-text-tertiary">{t.settings.version.versionDesc}</span>
                                 </div>
                                 <span className="text-body font-mono text-text-secondary bg-bg-tertiary/50 px-3 py-1 rounded">
                                     {appVersion || 'Loading...'}
@@ -2461,9 +2465,9 @@ fi`}
                             </div>
                             <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-text-primary">Automatic updates</span>
+                                    <span className="text-body font-medium text-text-primary">{t.settings.version.autoUpdates}</span>
                                     <span className="text-caption text-text-tertiary mt-1">
-                                        Keep Schaltwerk up to date by installing releases on startup.
+                                        {t.settings.version.autoUpdatesDesc}
                                     </span>
                                 </div>
                                 <label className="flex items-center gap-3" htmlFor="auto-update-toggle">
@@ -2483,9 +2487,9 @@ fi`}
                             </div>
                             <div className="flex items-center justify-between py-3 px-4 bg-bg-elevated/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-body font-medium text-text-primary">Manual update check</span>
+                                    <span className="text-body font-medium text-text-primary">{t.settings.version.manualCheck}</span>
                                     <span className="text-caption text-text-tertiary mt-1">
-                                        Fetch the latest release information from GitHub and install it immediately if available.
+                                        {t.settings.version.manualCheckDesc}
                                     </span>
                                 </div>
                                 <button
@@ -2494,7 +2498,7 @@ fi`}
                                     disabled={checkingUpdate}
                                     className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover border border-border-subtle rounded text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {checkingUpdate ? 'Checking...' : 'Check for updates'}
+                                    {checkingUpdate ? t.settings.version.checking : t.settings.version.checkForUpdates}
                                 </button>
                             </div>
                         </div>
@@ -2548,7 +2552,7 @@ fi`}
                 >
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
-                    <span>Settings</span>
+                    <span>{t.settings.title}</span>
                     <button
                         onClick={onClose}
                         className="text-text-tertiary hover:text-text-primary transition-colors"
@@ -2570,7 +2574,7 @@ fi`}
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
-                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Project</div>
+                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionProject}</div>
                                     </div>
                                     <nav className="space-y-1 px-2">
                                         {projectCategories.map(category => (
@@ -2585,18 +2589,18 @@ fi`}
                                                 style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
                                             >
                                                 {category.icon}
-                                                <span>{category.label}</span>
+                                                <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
                                             </button>
                                         ))}
                                     </nav>
                                     <div className="px-3 mt-6 mb-2">
-                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Application</div>
+                                        <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionApplication}</div>
                                     </div>
                                 </>
                             )}
                             {projectCategories.length === 0 && (
                                 <div className="px-3 mb-2">
-                                    <div className="text-caption font-medium text-text-muted uppercase tracking-wider">Application</div>
+                                    <div className="text-caption font-medium text-text-muted uppercase tracking-wider">{t.settings.sectionApplication}</div>
                                 </div>
                             )}
                             <nav className="space-y-1 px-2">
@@ -2612,7 +2616,7 @@ fi`}
                                         style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
                                     >
                                         {category.icon}
-                                        <span>{category.label}</span>
+                                        <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
                                     </button>
                                 ))}
                             </nav>
@@ -2650,7 +2654,7 @@ fi`}
                                 onClick={onClose}
                                 className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-secondary"
                             >
-                                Cancel
+                                {t.settings.common.cancel}
                             </button>
                             <button
                                 onClick={() => { void handleSave() }}
@@ -2680,7 +2684,7 @@ fi`}
                                 {saving ? (
                                     <span className="text-button text-white/80">Saving...</span>
                                 ) : (
-                                    'Save'
+                                    t.settings.common.save
                                 )}
                             </button>
                         </div>

@@ -1,6 +1,7 @@
 import { Tab } from './Tab'
 import { ProjectTab } from '../common/projectTabs'
 import { AddTabButton } from './AddTabButton'
+import { useTranslation } from '../common/i18n'
 
 interface TabBarProps {
   tabs: ProjectTab[]
@@ -11,6 +12,7 @@ interface TabBarProps {
 }
 
 export function TabBar({ tabs, activeTabPath, onSelectTab, onCloseTab, onOpenProjectSelector }: TabBarProps) {
+  const { t } = useTranslation()
   if (tabs.length === 0) return null
 
   return (
@@ -29,8 +31,8 @@ export function TabBar({ tabs, activeTabPath, onSelectTab, onCloseTab, onOpenPro
       {onOpenProjectSelector && (
         <AddTabButton
           onClick={onOpenProjectSelector}
-          title="Open another project"
-          ariaLabel="Open another project"
+          title={t.tabBar.openAnotherProject}
+          ariaLabel={t.tabBar.openAnotherProject}
           className="ml-1"
         />
       )}

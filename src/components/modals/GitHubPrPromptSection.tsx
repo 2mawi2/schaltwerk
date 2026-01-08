@@ -10,6 +10,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { withOpacity } from '../../common/colorUtils'
 import { buildPrPreview, buildPrPrompt, formatPrUpdatedTimestamp } from './githubPrFormatting'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   selection: GithubPrSelectionResult | null
@@ -24,6 +25,7 @@ export function GitHubPrPromptSection({
   onClearSelection,
   onLoadingChange,
 }: Props) {
+  const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
   const isCliInstalled = github.status?.installed ?? !github.isGhMissing
@@ -90,12 +92,12 @@ export function GitHubPrPromptSection({
     if (error) {
       pushToast({
         tone: 'error',
-        title: 'GitHub PR search failed',
+        title: t.githubPr.searchFailed,
         description: error,
       })
       clearError()
     }
-  }, [error, pushToast, clearError])
+  }, [error, pushToast, clearError, t])
 
   const handlePrClick = useCallback(
     async (summary: GithubPrSummary) => {
@@ -109,7 +111,7 @@ export function GitHubPrPromptSection({
         logger.error(`Failed to load GitHub PR details for #${summary.number}`, err)
         pushToast({
           tone: 'error',
-          title: 'Failed to load PR details',
+          title: t.githubPr.failedToLoadDetails,
           description: err instanceof Error ? err.message : String(err),
         })
       } finally {
@@ -133,12 +135,12 @@ export function GitHubPrPromptSection({
         }
         pushToast({
           tone: 'error',
-          title: 'Failed to open link',
+          title: t.githubPr.failedToOpenLink,
           description: error instanceof Error ? error.message : String(error),
         })
       }
     },
-    [pushToast]
+    [pushToast, t]
   )
 
   const previewMarkdown = useMemo(() => {
@@ -166,11 +168,11 @@ export function GitHubPrPromptSection({
     const commentCount = details.comments.length
     const commentLabel =
       commentCount === 0
-        ? 'No comments yet'
-        : `${commentCount} comment${commentCount === 1 ? '' : 's'}`
+        ? t.githubPr.noCommentsYet
+        : `${commentCount} ${commentCount === 1 ? t.githubPr.comment : t.githubPr.comments}`
     const metaParts = [`#${details.number}`, commentLabel]
     if (updatedDisplay) {
-      metaParts.unshift(`Updated ${updatedDisplay}`)
+      metaParts.unshift(t.githubPr.updated.replace('{time}', updatedDisplay))
     }
 
     const statusLabel = state.charAt(0).toUpperCase() + state.slice(1)
@@ -267,7 +269,7 @@ export function GitHubPrPromptSection({
                 fontSize: theme.fontSize.button,
               }}
             >
-              View on GitHub
+              {t.githubPr.viewOnGithub}
             </button>
             <button
               type="button"
@@ -279,7 +281,7 @@ export function GitHubPrPromptSection({
                 color: 'var(--color-text-secondary)',
               }}
             >
-              Clear selection
+              {t.githubPr.clearSelection}
             </button>
           </div>
         </div>
@@ -314,7 +316,7 @@ export function GitHubPrPromptSection({
           type="search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search GitHub pull requests"
+          placeholder={t.githubPr.searchPlaceholder}
           disabled
           className="px-3 py-2 rounded text-sm"
           style={{
@@ -335,14 +337,14 @@ export function GitHubPrPromptSection({
     >
       <div className="p-3 border-b space-y-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-          Search by title to import the latest GitHub PR context.
+          {t.githubPr.searchHint}
         </p>
         <input
           type="search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search GitHub pull requests"
-          aria-label="Search GitHub pull requests"
+          placeholder={t.githubPr.searchPlaceholder}
+          aria-label={t.githubPr.searchPlaceholder}
           className="w-full px-3 py-2 text-sm rounded"
           style={{
             backgroundColor: 'var(--color-bg-primary)',
@@ -368,7 +370,7 @@ export function GitHubPrPromptSection({
               className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: 'var(--color-accent-blue)' }}
             />
-            Loading pull requests…
+            {t.githubPr.loadingPrs}
           </div>
         ) : results.length === 0 ? (
           <div
@@ -376,9 +378,9 @@ export function GitHubPrPromptSection({
             style={{ color: 'var(--color-text-secondary)' }}
           >
             <span role="img" aria-hidden="true">🔍</span>
-            <span>No pull requests found for this project.</span>
+            <span>{t.githubPr.noPrsFound}</span>
             <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              Adjust your search or ensure pull requests exist on GitHub.
+              {t.githubPr.adjustSearch}
             </span>
           </div>
         ) : (
@@ -407,12 +409,12 @@ export function GitHubPrPromptSection({
                   : 'var(--color-border-subtle)'
 
               const metadata: string[] = [
-                `Updated ${formatPrUpdatedTimestamp(pr)}`,
+                t.githubPr.updated.replace('{time}', formatPrUpdatedTimestamp(pr)),
                 `#${pr.number}`,
               ]
 
               if (pr.author) {
-                metadata.push(`opened by ${pr.author}`)
+                metadata.push(t.githubPr.openedBy.replace('{author}', pr.author))
               }
 
               const statusLabel = state.charAt(0).toUpperCase() + state.slice(1)
@@ -507,7 +509,7 @@ export function GitHubPrPromptSection({
                           className="text-xs"
                           style={{ color: 'var(--color-text-secondary)' }}
                         >
-                          Loading…
+                          {t.githubPr.loading}
                         </span>
                       )}
                     </div>

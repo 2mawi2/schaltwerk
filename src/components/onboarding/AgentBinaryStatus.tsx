@@ -7,6 +7,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { theme } from '../../common/theme'
 import { displayNameForAgent } from '../shared/agentDefaults'
 import { AGENT_TYPES, AgentType } from '../../types/session'
+import { useTranslation } from '../../common/i18n'
 
 type Status = 'present' | 'missing'
 
@@ -25,6 +26,7 @@ function StatusIcon({ status }: { status: Status }) {
 }
 
 export function AgentBinaryStatus() {
+  const { t } = useTranslation()
   const { loading, error, statusByAgent, allMissing, refresh } = useAgentBinarySnapshot()
   const { getOrchestratorAgentType } = useClaudeSession()
   const { switchModel } = useSessionManagement()
@@ -57,7 +59,7 @@ export function AgentBinaryStatus() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <div className="text-slate-200 text-sm font-semibold">Select your default agent</div>
+        <div className="text-slate-200 text-sm font-semibold">{t.agentBinaryStatus.selectDefault}</div>
         <button
           onClick={() => { void refresh() }}
           className="px-2 py-1 text-xs rounded border"
@@ -67,16 +69,16 @@ export function AgentBinaryStatus() {
             backgroundColor: 'var(--color-bg-elevated)',
           }}
         >
-          Refresh
+          {t.agentBinaryStatus.refresh}
         </button>
-        {loading && <span className="text-xs text-slate-400">Scanning…</span>}
-        {error && <span className="text-xs text-red-400">Failed: {error}</span>}
+        {loading && <span className="text-xs text-slate-400">{t.agentBinaryStatus.scanning}</span>}
+        {error && <span className="text-xs text-red-400">{t.agentBinaryStatus.failed.replace('{error}', error)}</span>}
         {!loading && !error && allMissing && (
-          <span className="text-xs text-amber-400">No CLIs found</span>
+          <span className="text-xs text-amber-400">{t.agentBinaryStatus.noClis}</span>
         )}
       </div>
       <p className="text-xs text-slate-400">
-        Click on an agent to set it as your default. This is the agent that will start in the orchestrator.
+        {t.agentBinaryStatus.clickToSetDefault}
       </p>
       <div className="grid grid-cols-2 gap-2.5">
         {SELECTABLE_AGENTS.map(agent => {
@@ -122,7 +124,7 @@ export function AgentBinaryStatus() {
                       border: '1px solid rgba(var(--color-accent-blue-rgb), 0.5)',
                     }}
                   >
-                    Default
+                    {t.agentBinaryStatus.default}
                   </span>
                 ) : (
                   <span
@@ -136,7 +138,7 @@ export function AgentBinaryStatus() {
                       border: `1px solid ${status === 'present' ? 'rgba(var(--color-accent-green-rgb), 0.5)' : 'rgba(var(--color-border-subtle-rgb), 0.6)'}`,
                     }}
                   >
-                    {status === 'present' ? 'Found' : 'Missing'}
+                    {status === 'present' ? t.agentBinaryStatus.found : t.agentBinaryStatus.missing}
                   </span>
                 )}
               </div>
@@ -144,7 +146,7 @@ export function AgentBinaryStatus() {
                 className="text-xs break-all"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
-                {preferred ?? 'No path detected'}
+                {preferred ?? t.agentBinaryStatus.noPathDetected}
               </div>
             </button>
           )

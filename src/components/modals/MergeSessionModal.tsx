@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { LoadingSpinner } from '../common/LoadingSpinner'
+import { useTranslation } from '../../common/i18n'
 
 export type MergeModeOption = 'squash' | 'reapply'
 
@@ -58,6 +59,7 @@ export function MergeSessionModal({
   autoCancelEnabled,
   onToggleAutoCancel,
 }: MergeSessionModalProps) {
+  const { t } = useTranslation()
   const { registerModal, unregisterModal } = useModal()
   const [mode, setMode] = useState<MergeModeOption>('squash')
   const [commitMessage, setCommitMessage] = useState(() => cachedCommitMessage ?? '')
@@ -142,14 +144,14 @@ export function MergeSessionModal({
     isCommitMessageMissing
 
   const confirmTitle = hasConflicts
-    ? 'Resolve merge conflicts before merging.'
+    ? t.mergeSessionModal.tooltips.hasConflicts
     : isUpToDate
-    ? 'Session has no commits to merge into the parent branch.'
+    ? t.mergeSessionModal.tooltips.isUpToDate
     : status === 'running'
-    ? 'Merging…'
+    ? t.mergeSessionModal.tooltips.isMerging
     : isCommitMessageMissing
-    ? 'Enter a commit message to enable merge.'
-    : 'Merge session (⌘↵)'
+    ? t.mergeSessionModal.tooltips.needsCommitMessage
+    : t.mergeSessionModal.tooltips.readyToMerge
 
   const handleToggleAutoCancel = useCallback(() => {
     onToggleAutoCancel(!autoCancelEnabled)
@@ -193,8 +195,8 @@ export function MergeSessionModal({
   }
 
   const modeDescriptions: Record<MergeModeOption, string> = {
-    squash: 'Create a single commit with your message, then fast-forward the parent branch.',
-    reapply: 'Replay all session commits onto the latest parent branch, preserving history.',
+    squash: t.mergeSessionModal.squashDesc,
+    reapply: t.mergeSessionModal.reapplyDesc,
   }
 
   return (
@@ -211,7 +213,7 @@ export function MergeSessionModal({
         <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div>
             <h2 id="merge-session-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Merge Session
+              {t.mergeSessionModal.title}
             </h2>
             <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               {sessionName} → {parentBranch}
@@ -224,16 +226,16 @@ export function MergeSessionModal({
                 checked={autoCancelEnabled}
                 onChange={handleToggleAutoCancel}
                 className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
-                aria-label="Auto-cancel after merge"
+                aria-label={t.mergeSessionModal.autoCancelAfterMerge}
               />
-              <span>Auto-cancel after merge</span>
+              <span>{t.mergeSessionModal.autoCancelAfterMerge}</span>
             </label>
             <button
               onClick={onClose}
               className="text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
-              aria-label="Close merge dialog"
-              title="Close (Esc)"
+              aria-label={t.ariaLabels.closeMergeDialog}
+              title={t.mergeSessionModal.closeEsc}
             >
               ×
             </button>
@@ -257,17 +259,17 @@ export function MergeSessionModal({
                 }}
               >
                 <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                  Auto-cancel after a successful merge is currently {autoCancelEnabled ? 'enabled' : 'disabled'}. This preference is stored per project and can also be adjusted in Settings → Project.
+                  {t.mergeSessionModal.autoCancelStatus.replace('{status}', autoCancelEnabled ? t.settings.common.enabled.toLowerCase() : t.settings.common.disabled.toLowerCase())}
                 </span>
               </div>
 
               <div>
-                <span style={fieldLabelStyle}>Session branch</span>
+                <span style={fieldLabelStyle}>{t.mergeSessionModal.sessionBranch}</span>
                 <div className="text-sm" style={{ color: 'var(--color-text-primary)' }}>{sessionBranch}</div>
               </div>
 
               <div>
-                <span style={fieldLabelStyle}>Merge strategy</span>
+                <span style={fieldLabelStyle}>{t.mergeSessionModal.mergeStrategy}</span>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -280,7 +282,7 @@ export function MergeSessionModal({
                       color: 'var(--color-text-primary)',
                     }}
                   >
-                    Squash & fast-forward
+                    {t.mergeSessionModal.squashFastForward}
                   </button>
                   <button
                     type="button"
@@ -293,7 +295,7 @@ export function MergeSessionModal({
                       color: 'var(--color-text-primary)',
                     }}
                   >
-                    Reapply commits
+                    {t.mergeSessionModal.reapplyCommits}
                   </button>
                 </div>
                 <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
@@ -304,7 +306,7 @@ export function MergeSessionModal({
               {mode === 'squash' && (
                 <div>
                   <label style={fieldLabelStyle} htmlFor="merge-commit-message">
-                    Commit message
+                    {t.mergeSessionModal.commitMessage}
                   </label>
                   <input
                     id="merge-commit-message"
@@ -318,7 +320,7 @@ export function MergeSessionModal({
                       border: '1px solid var(--color-border-subtle)',
                       color: 'var(--color-text-primary)',
                     }}
-                    placeholder={preview?.defaultCommitMessage || 'Describe the changes that landed in this session'}
+                    placeholder={preview?.defaultCommitMessage || t.mergeSessionModal.commitPlaceholder}
                   />
                 </div>
               )}
@@ -332,11 +334,11 @@ export function MergeSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Resolve merge conflicts before proceeding.</p>
+                  <p className="font-medium">{t.mergeSessionModal.resolveConflicts}</p>
                   <p className="mt-1">
-                    Updating {sessionBranch} with {parentBranch} would conflict.
+                    {t.mergeSessionModal.conflictsBody.replace('{sessionBranch}', sessionBranch).replace('{parentBranch}', parentBranch)}
                     {conflictingPaths.length > 0 && (
-                      <span> Conflicting paths: {conflictingPaths.join(', ')}.</span>
+                      <span> {t.mergeSessionModal.conflictingPaths.replace('{paths}', conflictingPaths.join(', '))}</span>
                     )}
                   </p>
                 </div>
@@ -351,8 +353,8 @@ export function MergeSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Nothing to merge</p>
-                  <p className="mt-1">{sessionBranch} has no commits to merge into {parentBranch}.</p>
+                  <p className="font-medium">{t.mergeSessionModal.nothingToMerge}</p>
+                  <p className="mt-1">{t.mergeSessionModal.nothingToMergeBody.replace('{sessionBranch}', sessionBranch).replace('{parentBranch}', parentBranch)}</p>
                 </div>
               )}
 
@@ -375,7 +377,7 @@ export function MergeSessionModal({
 
         <div className="flex items-center justify-between gap-3 border-t px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Shortcut: ⌘⇧M
+            {t.mergeSessionModal.shortcutHint}
           </div>
           <div className="flex gap-3">
             <button
@@ -387,9 +389,9 @@ export function MergeSessionModal({
                 borderColor: 'var(--color-border-subtle)',
                 color: 'var(--color-text-secondary)',
               }}
-              title="Cancel (Esc)"
+              title={t.newSessionModal.cancelEsc}
             >
-              <span>Cancel</span>
+              <span>{t.mergeSessionModal.cancel}</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">Esc</span>
             </button>
             <button
@@ -408,7 +410,7 @@ export function MergeSessionModal({
                   opacity: confirmDisabled ? 0.6 : 1,
                 }}
             >
-              <span>{status === 'running' ? 'Merging…' : 'Merge session'}</span>
+              <span>{status === 'running' ? t.mergeSessionModal.merging : t.mergeSessionModal.mergeSession}</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">⌘↵</span>
             </button>
           </div>

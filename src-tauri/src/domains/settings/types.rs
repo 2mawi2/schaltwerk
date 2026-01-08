@@ -114,6 +114,10 @@ fn default_theme() -> String {
     "dark".to_string()
 }
 
+fn default_language() -> String {
+    "en".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AttentionNotificationMode {
@@ -292,6 +296,8 @@ pub struct Settings {
     pub font_sizes: FontSizes,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_language")]
+    pub language: String,
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
     pub session: SessionPreferences,
@@ -322,6 +328,7 @@ impl Default for Settings {
             terminal: TerminalSettings::default(),
             font_sizes: FontSizes::default(),
             theme: default_theme(),
+            language: default_language(),
             agent_binaries: AgentBinaryConfigs::default(),
             diff_view: DiffViewPreferences::default(),
             session: SessionPreferences::default(),

@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useTranslation } from '../../common/i18n'
 
 type Props = {
   searchTerm: string
@@ -11,6 +12,7 @@ type Props = {
 
 export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
   ({ searchTerm, onSearchTermChange, onFindNext, onFindPrevious, onClose }, ref) => {
+    const { t } = useTranslation()
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
       if (event.key === 'Escape') {
         onClose()
@@ -37,14 +39,14 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
           value={searchTerm}
           onChange={(event) => onSearchTermChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search..."
+          placeholder={t.terminalSearch.placeholder}
           className="bg-transparent text-sm text-slate-200 outline-none w-40 placeholder:text-slate-500"
           autoFocus
         />
         <button
           onClick={onFindPrevious}
           className="text-slate-400 hover:text-slate-200 ml-1"
-          title="Previous match (Shift+Enter)"
+          title={t.terminalSearch.previousMatch}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M7 12L3 8L7 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -53,7 +55,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
         <button
           onClick={onFindNext}
           className="text-slate-400 hover:text-slate-200 ml-1"
-          title="Next match (Enter)"
+          title={t.terminalSearch.nextMatch}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M9 4L13 8L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -62,7 +64,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
         <button
           onClick={onClose}
           className="text-slate-400 hover:text-slate-200 ml-2"
-          title="Close search (Escape)"
+          title={t.terminalSearch.closeSearch}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

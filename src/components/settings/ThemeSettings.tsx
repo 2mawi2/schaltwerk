@@ -2,6 +2,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { currentThemeIdAtom, setThemeActionAtom } from '../../store/atoms/theme'
 import { ThemeId } from '../../common/themes/types'
 import { theme } from '../../common/theme'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 interface ThemeOption {
   id: ThemeId
@@ -147,6 +148,7 @@ function ThemePreviewCard({
   isSelected: boolean
   onClick: () => void
 }) {
+  const { t } = useTranslation()
   const isGradient = option.colors.bg.includes('gradient')
 
   return (
@@ -245,7 +247,7 @@ function ThemePreviewCard({
                 backgroundColor: 'var(--color-accent-amber-bg)',
               }}
             >
-              Beta
+              {t.settings.theme.beta}
             </span>
           )}
         </div>
@@ -257,6 +259,7 @@ function ThemePreviewCard({
 export function ThemeSettings() {
   const currentTheme = useAtomValue(currentThemeIdAtom)
   const setTheme = useSetAtom(setThemeActionAtom)
+  const { t } = useTranslation()
 
   return (
     <div className="space-y-3">
@@ -266,7 +269,7 @@ export function ThemeSettings() {
           fontSize: theme.fontSize.label,
         }}
       >
-        Theme
+        {t.settings.theme.label}
       </label>
       <div className="flex flex-wrap gap-3">
         {themeOptions.map((option) => (
@@ -285,7 +288,7 @@ export function ThemeSettings() {
           marginTop: '0.5rem',
         }}
       >
-        More themes coming soon: Nord, and more.
+        {t.settings.theme.moreThemes}
       </p>
     </div>
   )

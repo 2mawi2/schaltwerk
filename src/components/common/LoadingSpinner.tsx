@@ -1,5 +1,6 @@
 import React from 'react'
 import { AnimatedText } from './AnimatedText'
+import { useTranslation } from '../../common/i18n'
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg'
@@ -9,15 +10,17 @@ interface LoadingSpinnerProps {
 
 export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 'md',
-  message = 'Loading...',
+  message,
   className = ''
 }) => {
+  const { t } = useTranslation()
+  const displayMessage = message ?? t.loadingSpinner.loading
   const animatedTextSize = size === 'sm' ? 'xs' as const : size === 'lg' ? 'lg' as const : undefined
 
   return (
     <div className={`flex flex-col items-center justify-center ${className}`}>
       <AnimatedText
-        text={message.toLowerCase().replace(/[^\w\s]/g, '')}
+        text={displayMessage.toLowerCase().replace(/[^\w\s]/g, '')}
         size={animatedTextSize}
       />
     </div>

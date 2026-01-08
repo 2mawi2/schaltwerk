@@ -3,6 +3,7 @@ import { DiffFileList } from './DiffFileList'
 import { UnifiedDiffView } from './UnifiedDiffView'
 import { ProjectFileTree } from './ProjectFileTree'
 import { FileContentViewer } from './FileContentViewer'
+import { useTranslation } from '../../common/i18n'
 import {
   VscScreenFull,
   VscChevronLeft,
@@ -67,6 +68,7 @@ export function SimpleDiffPanel({
   onInlineLayoutPreferenceChange,
   onHasFilesChange,
 }: SimpleDiffPanelProps) {
+  const { t } = useTranslation()
   const [hasFiles, setHasFiles] = useState(true)
   const [preferInline, setPreferInline] = useAtom(inlineSidebarDefaultPreferenceAtom)
   const [linkPrModalOpen, setLinkPrModalOpen] = useState(false)
@@ -224,10 +226,10 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         prUrl: prUrlValue
       })
       await reloadSessions()
-      pushToast({ tone: 'success', title: 'PR linked', description: `Session linked to PR #${prNum}` })
+      pushToast({ tone: 'success', title: t.toasts.prLinked, description: t.toasts.prLinkedDesc.replace('{prNum}', String(prNum)) })
     } catch (error) {
       logger.error('Failed to link session to PR:', error)
-      pushToast({ tone: 'error', title: 'Failed to link PR', description: String(error) })
+      pushToast({ tone: 'error', title: t.toasts.prLinkFailed, description: String(error) })
     }
   }, [sessionName, reloadSessions, pushToast])
 
@@ -238,10 +240,10 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         name: sessionName
       })
       await reloadSessions()
-      pushToast({ tone: 'success', title: 'PR unlinked', description: `PR #${prNumber} unlinked from session` })
+      pushToast({ tone: 'success', title: t.toasts.prUnlinked, description: t.toasts.prUnlinkedDesc.replace('{prNumber}', String(prNumber)) })
     } catch (error) {
       logger.error('Failed to unlink PR from session:', error)
-      pushToast({ tone: 'error', title: 'Failed to unlink PR', description: String(error) })
+      pushToast({ tone: 'error', title: t.toasts.prUnlinkFailed, description: String(error) })
     }
   }, [sessionName, prNumber, reloadSessions, pushToast])
 
@@ -276,7 +278,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
             onClick={() => onOpenDiff(activeFile, true)}
             className="p-1 rounded transition-colors"
             style={{ color: 'var(--color-text-secondary)' }}
-            title="Open in Modal"
+            title={t.simpleDiffPanel.openInModal}
           >
             <VscScreenFull />
           </button>
@@ -328,7 +330,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={handleCancelReview}
                 className="px-2 py-1 rounded transition-colors"
                 style={{ border: '1px solid var(--color-border-default)', color: 'var(--color-text-primary)' }}
-                title="Discard pending comments"
+                title={t.simpleDiffPanel.discardPendingComments}
               >
                 Cancel Review
               </button>
@@ -336,7 +338,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={() => { void handleFinishReview() }}
                 className="px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-90"
                 style={{ backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
-                title="Send review comments"
+                title={t.simpleDiffPanel.sendReviewComments}
               >
                 Finish Review ({currentReview.comments.length})
               </button>
@@ -356,7 +358,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         onClick={() => { setViewSource('changes'); setFileViewerPath(null) }}
         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
         style={viewSource === 'changes' ? { backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' } : { color: 'var(--color-text-secondary)' }}
-        title="Show changed files"
+        title={t.simpleDiffPanel.showChangedFiles}
       >
         <VscGitCompare className="w-3 h-3" />
         <span>Changes</span>
@@ -365,7 +367,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
         onClick={() => { setViewSource('files'); setFileViewerPath(null) }}
         className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors"
         style={viewSource === 'files' ? { backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)' } : { color: 'var(--color-text-secondary)' }}
-        title="Browse all project files"
+        title={t.simpleDiffPanel.browseAllFiles}
       >
         <VscFiles className="w-3 h-3" />
         <span>Files</span>
@@ -484,7 +486,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                 onClick={() => setLinkPrModalOpen(true)}
                 className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-secondary)' }}
-                title="Link to GitHub PR"
+                title={t.simpleDiffPanel.linkToGithubPr}
               >
                 <VscLink />
               </button>
@@ -495,7 +497,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
               onClick={() => onOpenDiff(activeFile, true)}
               className="p-1 rounded transition-colors"
               style={{ color: 'var(--color-text-secondary)' }}
-              title="Open in Modal"
+              title={t.simpleDiffPanel.openInModal}
             >
               <VscScreenFull />
             </button>

@@ -4,6 +4,7 @@ import { ConfirmModal } from './ConfirmModal'
 import { SessionVersionGroup } from '../../utils/sessionVersions'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface SessionPreferences {
   skip_confirmation_modals: boolean
@@ -24,6 +25,7 @@ export function PromoteVersionConfirmation({
   onClose,
   onConfirm
 }: PromoteVersionConfirmationProps) {
+  const { t } = useTranslation()
   const [dontAskAgain, setDontAskAgain] = useState(false)
   const [shouldSkipDialog, setShouldSkipDialog] = useState(false)
   const [checkingPreference, setCheckingPreference] = useState(true)
@@ -97,12 +99,12 @@ export function PromoteVersionConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title={`Promote "${sessionToKeep.session.info.session_id}" as best version?`}
+      title={t.promoteVersionConfirmation.title.replace('{session}', sessionToKeep.session.info.session_id)}
       body={
         <div className="space-y-4">
           <div>
             <p className="text-sm text-slate-300 mb-3">
-              This will permanently delete the following sessions:
+              {t.promoteVersionConfirmation.deleteDescription}
             </p>
             <ul className="space-y-1 text-sm text-slate-400 bg-slate-800/50 rounded p-3 border border-slate-700">
               {sessionsToDelete.map((version) => (
@@ -116,10 +118,10 @@ export function PromoteVersionConfirmation({
               ))}
             </ul>
           </div>
-          
+
           <div>
             <p className="text-sm text-slate-300 mb-2">
-              The selected session will remain in <strong>Running</strong> state for continued work.
+              {t.promoteVersionConfirmation.remainRunning}
             </p>
           </div>
 
@@ -132,13 +134,13 @@ export function PromoteVersionConfirmation({
               className="rounded border-slate-600 bg-slate-700 text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
             />
             <label htmlFor="dont-ask-again" className="text-xs text-slate-400">
-              Don't ask again
+              {t.promoteVersionConfirmation.dontAskAgain}
             </label>
           </div>
         </div>
       }
-      confirmText="Delete Others"
-      cancelText="Cancel"
+      confirmText={t.promoteVersionConfirmation.deleteOthers}
+      cancelText={t.promoteVersionConfirmation.cancel}
       onConfirm={() => { void handleConfirm() }}
       onCancel={onClose}
       variant="warning"

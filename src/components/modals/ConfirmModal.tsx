@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from '../../common/i18n'
 
 interface ConfirmModalProps {
   open: boolean
@@ -29,6 +30,7 @@ export function ConfirmModal({
   loading = false,
   variant = 'default',
 }: ConfirmModalProps) {
+  const { t } = useTranslation()
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleConfirm = useCallback(() => {
@@ -94,20 +96,20 @@ export function ConfirmModal({
           <button
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 group"
-            title={cancelTitle || 'Cancel (Esc)'}
+            title={cancelTitle || t.confirmModal.cancelDefault}
           >
             {cancelText}
-            <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
+            <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">{t.confirmModal.escKey}</span>
           </button>
           <button
             ref={confirmButtonRef}
             onClick={handleConfirm}
             disabled={loading || confirmDisabled}
             className={`${confirmBaseClasses} ${confirmVariantClasses}`}
-            title={confirmTitle || 'Confirm (Enter)'}
+            title={confirmTitle || t.confirmModal.confirmDefault}
           >
             <span>{confirmText}</span>
-            <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>
+            <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">{t.confirmModal.enterKey}</span>
           </button>
         </div>
       </div>

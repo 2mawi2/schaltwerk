@@ -28,6 +28,7 @@ import {
   initializeFontSizesActionAtom,
 } from './store/atoms/fontSize'
 import { initializeThemeActionAtom } from './store/atoms/theme'
+import { initializeLanguageActionAtom } from './store/atoms/language'
 import { initializeInlineDiffPreferenceActionAtom } from './store/atoms/diffPreferences'
 import {
   initializeSelectionEventsActionAtom,
@@ -124,6 +125,7 @@ function AppContent() {
   const resetFontSizes = useSetAtom(resetFontSizesActionAtom)
   const initializeFontSizes = useSetAtom(initializeFontSizesActionAtom)
   const initializeTheme = useSetAtom(initializeThemeActionAtom)
+  const initializeLanguage = useSetAtom(initializeLanguageActionAtom)
   const initializeInlineDiffPreference = useSetAtom(initializeInlineDiffPreferenceActionAtom)
   const initializeSelectionEvents = useSetAtom(initializeSelectionEventsActionAtom)
   const setSelectionProjectPath = useSetAtom(setProjectPathActionAtom)
@@ -153,9 +155,10 @@ function AppContent() {
 
   useEffect(() => {
     void initializeTheme()
+    void initializeLanguage()
     void initializeFontSizes()
     void initializeInlineDiffPreference()
-  }, [initializeTheme, initializeFontSizes, initializeInlineDiffPreference])
+  }, [initializeTheme, initializeLanguage, initializeFontSizes, initializeInlineDiffPreference])
 
   useEffect(() => {
     void isNotificationPermissionGranted()

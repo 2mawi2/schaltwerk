@@ -12,6 +12,7 @@ import {
 import { formatDateTime } from '../../utils/dateTime'
 import { detectPlatformSafe } from '../../keyboardShortcuts/helpers'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
+import { useTranslation } from '../../common/i18n'
 
 const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   dateStyle: 'medium'
@@ -24,9 +25,10 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ onOpenProject, initialError, onClearInitialError }: HomeScreenProps) {
+  const { t } = useTranslation()
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
-  
+
   const platform = detectPlatformSafe()
 
   const {
@@ -136,7 +138,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               }}
             >
               <VscNewFolder className="text-2xl" />
-              <span className="text-lg font-medium">New Project</span>
+              <span className="text-lg font-medium">{t.homeScreen.newProject}</span>
             </button>
             <button
               onClick={() => { void handleSelectDirectory() }}
@@ -148,7 +150,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               }}
             >
               <VscFolderOpened className="text-2xl" />
-              <span className="text-lg font-medium">Open Repository</span>
+              <span className="text-lg font-medium">{t.homeScreen.openRepository}</span>
             </button>
             <button
               onClick={() => setShowCloneDialog(true)}
@@ -160,7 +162,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
               }}
             >
               <VscRepoClone className="text-2xl" />
-              <span className="text-lg font-medium">Clone from Git</span>
+              <span className="text-lg font-medium">{t.homeScreen.cloneFromGit}</span>
             </button>
           </div>
 
@@ -171,7 +173,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                 style={{ color: 'var(--color-text-muted)' }}
               >
                 <VscHistory className="text-lg" />
-                <h2 className="text-sm font-medium uppercase tracking-wider">Recent Projects</h2>
+                <h2 className="text-sm font-medium uppercase tracking-wider">{t.homeScreen.recentProjects}</h2>
               </div>
 
               <div
@@ -249,7 +251,7 @@ export function HomeScreen({ onOpenProject, initialError, onClearInitialError }:
                       style={{ color: 'var(--color-text-tertiary)' }}
                       onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent-red)' }}
                       onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-                      title={`Remove ${project.name} from recent projects`}
+                      title={t.homeScreen.removeFromRecent.replace('{name}', project.name)}
                     >
                       <VscTrash className="text-sm" />
                     </button>

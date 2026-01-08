@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -13,23 +14,24 @@ interface ConvertToDraftConfirmationProps {
   onSuccess: (newSpecName?: string) => void
 }
 
-export function ConvertToSpecConfirmation({ 
-  open, 
-  sessionName, 
+export function ConvertToSpecConfirmation({
+  open,
+  sessionName,
   sessionDisplayName,
-  hasUncommittedChanges, 
+  hasUncommittedChanges,
   onClose,
-  onSuccess 
+  onSuccess,
 }: ConvertToDraftConfirmationProps) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
-  
+
   const handleConfirm = useCallback(async () => {
     if (loading) return
-    
+
     setLoading(true)
     try {
       const result = await invoke<string | void>(TauriCommands.SchaltwerkCoreConvertSessionToDraft, {
-        name: sessionName
+        name: sessionName,
       })
       const newSpecName = typeof result === 'string' ? result : undefined
 
@@ -42,7 +44,7 @@ export function ConvertToSpecConfirmation({
       setLoading(false)
     }
   }, [loading, sessionName, onSuccess, onClose])
-  
+
   if (!open) return null
 
   const displayName = sessionDisplayName || sessionName
@@ -50,35 +52,36 @@ export function ConvertToSpecConfirmation({
   const body = (
     <div>
       <p className="text-slate-300 mb-4">
-        Convert <span className="font-mono" style={{ color: 'var(--color-accent-cyan)' }}>{displayName}</span> back to a spec agent?
+        {t.dialogs.convertToSpec.body.replace('{name}', '')}
+        <span className="font-mono" style={{ color: 'var(--color-accent-cyan)' }}>{displayName}</span>
       </p>
       {hasUncommittedChanges && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
-          <p className="text-amber-200 text-sm font-semibold mb-2">⚠ Warning: Uncommitted changes will be lost</p>
+          <p className="text-amber-200 text-sm font-semibold mb-2">{t.dialogs.convertToSpec.warningTitle}</p>
           <p className="text-amber-100 text-sm">
-            This session has uncommitted changes in the worktree. Converting to spec will:
+            {t.dialogs.convertToSpec.warningBody}
           </p>
           <ul className="text-amber-100 text-sm mt-2 ml-4 list-disc">
-            <li>Remove the worktree and all uncommitted changes</li>
-            <li>Archive the branch</li>
-            <li>Preserve the agent description as a spec</li>
+            <li>{t.dialogs.convertToSpec.warningItem1}</li>
+            <li>{t.dialogs.convertToSpec.warningItem2}</li>
+            <li>{t.dialogs.convertToSpec.warningItem3}</li>
           </ul>
         </div>
       )}
       {!hasUncommittedChanges && (
         <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
           <p className="text-slate-300 text-sm">
-            This will:
+            {t.dialogs.convertToSpec.normalBody}
           </p>
           <ul className="text-slate-300 text-sm mt-2 ml-4 list-disc">
-            <li>Remove the worktree</li>
-            <li>Archive the branch</li>
-            <li>Preserve the agent description as a spec</li>
+            <li>{t.dialogs.convertToSpec.normalItem1}</li>
+            <li>{t.dialogs.convertToSpec.warningItem2}</li>
+            <li>{t.dialogs.convertToSpec.warningItem3}</li>
           </ul>
         </div>
       )}
       <p className="text-slate-400 text-sm">
-        The agent content will be preserved and can be started again later.
+        {t.dialogs.convertToSpec.footnote}
       </p>
     </div>
   )
@@ -86,12 +89,12 @@ export function ConvertToSpecConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title="Convert Session to Spec"
+      title={t.dialogs.convertToSpec.title}
       body={body}
-      confirmText="Convert to Spec"
-      confirmTitle="Convert to spec (Enter)"
-      cancelText="Cancel"
-      cancelTitle="Cancel (Esc)"
+      confirmText={t.dialogs.convertToSpec.confirm}
+      confirmTitle={t.dialogs.convertToSpec.confirmTitle}
+      cancelText={t.dialogs.convertToSpec.cancel}
+      cancelTitle={t.dialogs.convertToSpec.cancelTitle}
       onConfirm={() => { void handleConfirm() }}
       onCancel={onClose}
       confirmDisabled={loading}

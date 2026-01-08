@@ -24,6 +24,7 @@ import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
+import { useTranslation } from '../../common/i18n'
 
 interface WebPreviewPanelProps {
   previewKey: string
@@ -56,6 +57,7 @@ const normalizeUrl = (input: string): string | null => {
 const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
 
 export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPanelProps) => {
+  const { t } = useTranslation()
   const getPreviewState = useAtom(previewStateAtom)[0]
   const getIsElementPickerActive = useAtom(isElementPickerActiveAtom)[0]
   const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
@@ -131,7 +133,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
       event.preventDefault()
       const normalized = normalizeUrl(inputValue)
       if (!normalized) {
-        setError('Enter a valid http(s) URL, hostname, or port.')
+        setError(t.webPreview.invalidUrl)
         return
       }
       setError(null)
@@ -280,30 +282,30 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
     <div className="h-full w-full flex flex-col">
       <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Back" className={buttonClass(!canGoBack)} onClick={() => handleNavigate(-1)} disabled={!canGoBack}>
+          <button type="button" aria-label={t.webPreview.back} className={buttonClass(!canGoBack)} onClick={() => handleNavigate(-1)} disabled={!canGoBack}>
             <VscChevronLeft className="text-lg" />
           </button>
-          <button type="button" aria-label="Forward" className={buttonClass(!canGoForward)} onClick={() => handleNavigate(1)} disabled={!canGoForward}>
+          <button type="button" aria-label={t.webPreview.forward} className={buttonClass(!canGoForward)} onClick={() => handleNavigate(1)} disabled={!canGoForward}>
             <VscChevronRight className="text-lg" />
           </button>
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Hard reload" className={buttonClass(!hasUrl)} onClick={() => handleRefresh(true)} disabled={!hasUrl} title="Hard reload (clears cache)">
+          <button type="button" aria-label={t.webPreview.hardReload} className={buttonClass(!hasUrl)} onClick={() => handleRefresh(true)} disabled={!hasUrl} title={t.webPreview.hardReloadTitle}>
             <VscRefresh className="text-lg" />
           </button>
-          <button type="button" aria-label="Open in browser" className={buttonClass(!hasUrl)} onClick={() => { void handleOpenInBrowser() }} disabled={!hasUrl} title="Open in browser (for DevTools/logs)">
+          <button type="button" aria-label={t.webPreview.openInBrowser} className={buttonClass(!hasUrl)} onClick={() => { void handleOpenInBrowser() }} disabled={!hasUrl} title={t.webPreview.openInBrowserTitle}>
             <VscLinkExternal className="text-lg" />
           </button>
           <button
             type="button"
-            aria-label="Select element"
+            aria-label={t.webPreview.selectElement}
             className={[
               buttonClass(!hasUrl),
               isPickerActive ? 'ring-2 ring-cyan-500 bg-slate-800' : ''
             ].join(' ')}
             onClick={() => { void handleToggleElementPicker() }}
             disabled={!hasUrl}
-            title="Select an element to paste its HTML into the terminal"
+            title={t.webPreview.selectElementTitle}
           >
             <VscInspect className="text-lg" />
           </button>
@@ -316,24 +318,24 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           onClick={(e) => e.stopPropagation()}
         >
           <label htmlFor="preview-url-input" className="sr-only">
-            Preview URL
+            {t.webPreview.previewUrl}
           </label>
           <input
             id="preview-url-input"
             className="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             value={inputValue}
             onChange={handleChange}
-            placeholder="Enter URL (e.g. http://localhost:3000)"
+            placeholder={t.webPreview.urlPlaceholder}
             autoComplete="off"
           />
-          <button type="submit" className="h-8 w-8 rounded bg-cyan-600 flex items-center justify-center text-slate-900 hover:bg-cyan-500 disabled:opacity-40" disabled={!inputValue.trim()} aria-label="Navigate">
+          <button type="submit" className="h-8 w-8 rounded bg-cyan-600 flex items-center justify-center text-slate-900 hover:bg-cyan-500 disabled:opacity-40" disabled={!inputValue.trim()} aria-label={t.webPreview.navigate}>
             <VscArrowRight className="text-lg" />
           </button>
         </form>
         <div className="flex items-center gap-0.5 border-l border-slate-700 pl-2">
           <button
             type="button"
-            aria-label="Zoom out"
+            aria-label={t.webPreview.zoomOut}
             className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
             onClick={() => handleZoomDelta(-PREVIEW_ZOOM_STEP)}
             disabled={!canZoomOut}
@@ -342,7 +344,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           </button>
           <button
             type="button"
-            aria-label="Reset zoom"
+            aria-label={t.webPreview.resetZoom}
             className="px-1 text-xs text-slate-400 hover:text-cyan-300 rounded min-w-[2.5rem] text-center"
             onClick={handleZoomReset}
           >
@@ -350,7 +352,7 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           </button>
           <button
             type="button"
-            aria-label="Zoom in"
+            aria-label={t.webPreview.zoomIn}
             className="h-6 w-6 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-center text-xs"
             onClick={() => handleZoomDelta(PREVIEW_ZOOM_STEP)}
             disabled={!canZoomIn}
@@ -366,9 +368,9 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
       )}
       <div className="flex-1 bg-slate-950 text-slate-400 overflow-hidden">
         {modalOpen ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while dialog is open…</div>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">{t.webPreview.pausedDialog}</div>
         ) : isResizing ? (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">Preview paused while resizing…</div>
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-400">{t.webPreview.pausedResizing}</div>
         ) : hasUrl ? (
           <div className="h-full w-full overflow-hidden" data-preview-zoom={zoom.toFixed(2)}>
             <div ref={setHostElement} className="h-full w-full overflow-hidden" />
@@ -377,8 +379,8 @@ export const WebPreviewPanel = ({ previewKey, isResizing = false }: WebPreviewPa
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
             <VscGlobe className="text-4xl text-slate-600" />
             <div>
-              <p className="text-base font-semibold text-slate-200">Browser</p>
-              <p className="text-sm text-slate-500">Enter a URL above to load your preview.</p>
+              <p className="text-base font-semibold text-slate-200">{t.webPreview.browserTitle}</p>
+              <p className="text-sm text-slate-500">{t.webPreview.browserHint}</p>
             </div>
           </div>
         )}

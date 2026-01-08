@@ -744,6 +744,7 @@ describe('Terminal', () => {
       expect(primaryOnData).toBeTypeOf('function')
       expect(secondaryOnData).toBeTypeOf('function')
 
+      vi.mocked(writeTerminalBackend).mockClear()
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')
 

@@ -6,6 +6,7 @@ import { VscFiles } from 'react-icons/vsc'
 import { SpecEditor } from './SpecEditor'
 import { SpecPickerOverlay } from './SpecPickerOverlay'
 import { UnifiedTab } from '../UnifiedTab'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   specs: EnrichedSession[]
@@ -32,6 +33,7 @@ export function SpecWorkspacePanel({
   onPickerClose,
   onReviewModeChange
 }: Props) {
+  const { t } = useTranslation()
   const [unsavedTabs] = useState<Set<string>>(new Set())
 
   const activeSpec = specs.find(s => s.info.session_id === activeTab)
@@ -55,7 +57,7 @@ export function SpecWorkspacePanel({
             backgroundColor: 'transparent',
             borderRight: '1px solid var(--color-border-subtle)'
           }}
-          title="Open spec"
+          title={t.specWorkspacePanel.openSpec}
         >
           <VscFiles size={16} />
         </button>
@@ -94,7 +96,7 @@ export function SpecWorkspacePanel({
                     borderRadius: '4px'
                   }}
                 >
-                  Edited
+                  {t.specWorkspacePanel.edited}
                 </span>
               ) : undefined}
             />
@@ -116,7 +118,7 @@ export function SpecWorkspacePanel({
             className="h-full flex flex-col items-center justify-center gap-4"
             style={{ color: 'var(--color-text-tertiary)' }}
           >
-            <p style={{ fontSize: theme.fontSize.body }}>No spec selected</p>
+            <p style={{ fontSize: theme.fontSize.body }}>{t.specWorkspacePanel.noSpecSelected}</p>
             <button
               onClick={onOpenPicker}
               className="px-4 py-2 rounded transition-colors"
@@ -126,7 +128,7 @@ export function SpecWorkspacePanel({
                 fontSize: theme.fontSize.button
               }}
             >
-              Open Spec
+              {t.specWorkspacePanel.openSpecButton}
             </button>
           </div>
         )}

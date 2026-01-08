@@ -6,6 +6,7 @@ import { theme } from '../../common/theme'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface GithubMenuButtonProps {
   className?: string
@@ -41,6 +42,7 @@ function useOutsideDismiss(ref: React.RefObject<HTMLElement | null>, onDismiss: 
 }
 
 export function GithubMenuButton({ className, hasActiveProject = false }: GithubMenuButtonProps) {
+  const { t } = useTranslation()
   const { pushToast } = useToast()
   const github = useGithubIntegrationContext()
   const [open, setOpen] = useState(false)
@@ -79,16 +81,16 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
   const statusLabel = useMemo(() => {
     switch (overallState) {
       case 'connected':
-        return repository?.nameWithOwner || (userLogin ? `Signed in as ${userLogin}` : 'GitHub ready')
+        return repository?.nameWithOwner || (userLogin ? t.githubMenu.statusLabels.signedInAs.replace('{login}', userLogin) : t.githubMenu.statusLabels.githubReady)
       case 'disconnected':
-        return hasActiveProject ? 'Connect project' : 'No project selected'
+        return hasActiveProject ? t.githubMenu.statusLabels.connectProject : t.githubMenu.statusLabels.noProjectSelected
       case 'unauthenticated':
-        return 'Not authenticated'
+        return t.githubMenu.statusLabels.notAuthenticated
       case 'missing':
       default:
-        return 'CLI not installed'
+        return t.githubMenu.statusLabels.cliNotInstalled
     }
-  }, [overallState, repository?.nameWithOwner, userLogin, hasActiveProject])
+  }, [overallState, repository?.nameWithOwner, userLogin, hasActiveProject, t.githubMenu.statusLabels])
 
   const busy = github.isAuthenticating || github.isConnecting
 
@@ -101,27 +103,27 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
       const info = await github.connectProject()
       pushToast({
         tone: 'success',
-        title: 'Repository connected',
+        title: t.githubMenu.toasts.repositoryConnected,
         description: `${info.nameWithOwner} • default branch ${info.defaultBranch}`,
       })
     } catch (error) {
       logger.error('Failed to connect GitHub project', error)
       const message = error instanceof Error ? error.message : String(error)
-      pushToast({ tone: 'error', title: 'Failed to connect project', description: message })
+      pushToast({ tone: 'error', title: t.githubMenu.toasts.connectionFailed, description: message })
     }
-  }, [closeMenu, github, pushToast])
+  }, [closeMenu, github, pushToast, t.githubMenu.toasts])
 
   const handleRefreshStatus = useCallback(async () => {
     closeMenu()
     try {
       await github.refreshStatus()
-      pushToast({ tone: 'success', title: 'GitHub status refreshed' })
+      pushToast({ tone: 'success', title: t.githubMenu.toasts.statusRefreshed })
     } catch (error) {
       logger.error('Failed to refresh GitHub status', error)
       const message = error instanceof Error ? error.message : String(error)
-      pushToast({ tone: 'error', title: 'Failed to refresh status', description: message })
+      pushToast({ tone: 'error', title: t.githubMenu.toasts.refreshFailed, description: message })
     }
-  }, [closeMenu, github, pushToast])
+  }, [closeMenu, github, pushToast, t.githubMenu.toasts])
 
   const canConnectProject = installed && authenticated && !repository && hasActiveProject
   const connectDisabled = !canConnectProject || github.isConnecting
@@ -207,36 +209,36 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
           <div className="px-3 py-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
             <div className="flex items-center gap-2">
               <FaGithub className="text-[14px]" />
-              <span style={{ color: 'var(--color-text-primary)' }}>GitHub CLI</span>
+              <span style={{ color: 'var(--color-text-primary)' }}>{t.githubMenu.title}</span>
             </div>
             <div className="mt-2 space-y-1">
-              <div>Installed: <strong>{installed ? 'Yes' : 'No'}</strong></div>
-              <div>Authenticated: <strong>{authenticated ? 'Yes' : 'No'}</strong></div>
+              <div>{t.githubMenu.installed} <strong>{installed ? t.settings.common.yes : t.settings.common.no}</strong></div>
+              <div>{t.githubMenu.authenticated} <strong>{authenticated ? t.settings.common.yes : t.settings.common.no}</strong></div>
               {repository ? (
                 <div>
-                  Repository: <strong>{repository.nameWithOwner}</strong>
+                  {t.githubMenu.repository} <strong>{repository.nameWithOwner}</strong>
                   <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                    Default branch {repository.defaultBranch}
+                    {t.githubMenu.defaultBranch.replace('{branch}', repository.defaultBranch)}
                   </div>
                 </div>
               ) : (
-                <div>Repository: <strong>Not connected</strong></div>
+                <div>{t.githubMenu.repository} <strong>{t.githubMenu.notConnected}</strong></div>
               )}
               {userLogin && (
-                <div>Account: <strong>{userLogin}</strong></div>
+                <div>{t.githubMenu.account} <strong>{userLogin}</strong></div>
               )}
             </div>
             {!installed && (
               <div className="mt-3 pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
                 <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                  Install the GitHub CLI to enable PR automation.
+                  {t.githubMenu.installCliHint}
                 </div>
               </div>
             )}
             {installed && !authenticated && (
               <div className="mt-3 pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
                 <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                  To authenticate, run <code className="px-1 py-0.5 rounded" style={{ backgroundColor: 'var(--color-bg-hover)' }}>gh auth login</code> in your terminal, then refresh status.
+                  {t.githubMenu.authHint}
                 </div>
               </div>
             )}
@@ -257,7 +259,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
               onFocus={() => !connectDisabled && setFocusedButton('connect')}
               onBlur={() => setFocusedButton((prev) => (prev === 'connect' ? null : prev))}
             >
-              <span>Connect active project</span>
+              <span>{t.githubMenu.connectActiveProject}</span>
             </button>
 
             {repository && hasActiveProject && (
@@ -273,7 +275,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
                 onFocus={() => !github.isConnecting && setFocusedButton('reconnect')}
                 onBlur={() => setFocusedButton((prev) => (prev === 'reconnect' ? null : prev))}
               >
-                <span>Reconnect project</span>
+                <span>{t.githubMenu.reconnectProject}</span>
               </button>
             )}
 
@@ -289,7 +291,7 @@ export function GithubMenuButton({ className, hasActiveProject = false }: Github
               onBlur={() => setFocusedButton((prev) => (prev === 'refresh' ? null : prev))}
             >
               <VscRefresh className="text-[13px]" />
-              <span>Refresh status</span>
+              <span>{t.githubMenu.refreshStatus}</span>
             </button>
           </div>
         </div>

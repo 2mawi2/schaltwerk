@@ -130,6 +130,15 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_language(&self) -> String {
+        self.settings.language.clone()
+    }
+
+    pub fn set_language(&mut self, language: &str) -> Result<(), SettingsServiceError> {
+        self.settings.language = language.to_string();
+        self.save()
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         if agent_type == "terminal" {
             return String::new();
@@ -720,6 +729,28 @@ mod tests {
 
         assert_eq!(service.get_theme(), "dark");
         assert_eq!(repo_handle.snapshot().theme, "dark");
+    }
+
+    #[test]
+    fn language_defaults_to_en() {
+        let repo = InMemoryRepository::default();
+        let service = SettingsService::new(Box::new(repo));
+
+        assert_eq!(service.get_language(), "en");
+    }
+
+    #[test]
+    fn set_language_persists_value() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_language("zh")
+            .expect("should persist language selection");
+
+        assert_eq!(service.get_language(), "zh");
+        assert_eq!(repo_handle.snapshot().language, "zh");
     }
 
     #[test]

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { useToast } from '../../common/toast/ToastProvider'
+import { useTranslation } from '../../common/i18n'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import type { ChangedFile, SessionsRefreshedEventPayload } from '../../common/events'
 import { logger } from '../../utils/logger'
@@ -67,12 +68,16 @@ function sanitizeSelection(base: SelectionState, availability: AvailabilityState
   return sanitized
 }
 
-function formatSectionSummary(sections: SectionName[], fileCount: number) {
-  if (sections.length === 0) return 'Nothing selected'
+function formatSectionSummary(
+  sections: SectionName[],
+  fileCount: number,
+  translations: { nothingSelected: string; oneFile: string; nFiles: string }
+) {
+  if (sections.length === 0) return translations.nothingSelected
   return sections
     .map((section) => {
       if (section === 'Files') {
-        return fileCount === 1 ? '1 file' : `${fileCount} files`
+        return fileCount === 1 ? translations.oneFile : translations.nFiles.replace('{count}', String(fileCount))
       }
       return section
     })
@@ -80,6 +85,7 @@ function formatSectionSummary(sections: SectionName[], fileCount: number) {
 }
 
 export function CopyContextBar({ sessionName }: CopyContextBarProps) {
+  const { t } = useTranslation()
   const projectPath = useAtomValue(projectPathAtom)
   const { pushToast } = useToast()
 
@@ -402,13 +408,13 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
     try {
       const { text, included, sizeBytes } = await assembleBundle()
       if (!text) {
-        pushToast({ tone: 'warning', title: 'Nothing to copy', description: 'No bundle content available.' })
+        pushToast({ tone: 'warning', title: t.toasts.nothingToCopy, description: t.toasts.nothingToCopyDesc })
         return
       }
 
       const success = await writeClipboard(text)
       if (!success) {
-        pushToast({ tone: 'error', title: 'Clipboard blocked', description: 'Clipboard access was denied.' })
+        pushToast({ tone: 'error', title: t.toasts.clipboardBlocked, description: t.toasts.clipboardBlockedDesc })
         return
       }
 
@@ -419,21 +425,21 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
 
       pushToast({
         tone: 'success',
-        title: 'Copied to clipboard',
-        description: formatSectionSummary(included, selectedChangedFilesCount),
+        title: t.toasts.copiedToClipboard,
+        description: formatSectionSummary(included, selectedChangedFilesCount, t.toasts),
       })
 
       if (sizeBytes > LARGE_BUNDLE_BYTES) {
         const megabytes = (sizeBytes / (1024 * 1024)).toFixed(1)
         pushToast({
           tone: 'warning',
-          title: `Copied ${megabytes} MB`,
-          description: 'Clipboard may truncate large bundles in some apps.',
+          title: t.toasts.copiedLargeBundle.replace('{size}', megabytes),
+          description: t.toasts.copiedLargeBundleDesc,
         })
       }
     } catch (err) {
       logger.error('[CopyContextBar] Clipboard copy failed', err)
-      pushToast({ tone: 'error', title: 'Copy failed', description: 'Unable to build bundle.' })
+      pushToast({ tone: 'error', title: t.toasts.copyFailed, description: t.toasts.copyFailedDesc })
     } finally {
       setIsCopying(false)
     }
@@ -504,9 +510,9 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
             e.currentTarget.style.color = style.color as string
             e.currentTarget.style.borderColor = style.borderColor as string
           }}
-          title={availability.spec ? 'Include spec content' : 'Spec content unavailable'}
+          title={availability.spec ? t.copyContextBar.includeSpec : t.copyContextBar.specUnavailable}
         >
-          <span>Spec</span>
+          <span>{t.copyContextBar.spec}</span>
         </div>
 
         {/* Diff Pill */}
@@ -526,11 +532,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           }}
           title={availability.diff
             ? (selectedChangedFilesCount === totalChangedFilesCount
-              ? `Include diff (${totalChangedFilesCount})`
-              : `Include diff (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
-            : 'No diff available'}
+              ? t.copyContextBar.includeDiff.replace('{count}', String(totalChangedFilesCount))
+              : t.copyContextBar.includeDiffSelected.replace('{selected}', String(selectedChangedFilesCount)).replace('{total}', String(totalChangedFilesCount)))
+            : t.copyContextBar.noDiffAvailable}
         >
-          <span>Diff</span>
+          <span>{t.copyContextBar.diff}</span>
           {availability.diff && (
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
@@ -561,11 +567,11 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           }}
           title={availability.files
             ? (selectedChangedFilesCount === totalChangedFilesCount
-              ? `Include file contents (${totalChangedFilesCount})`
-              : `Include file contents (${selectedChangedFilesCount} selected of ${totalChangedFilesCount})`)
-            : 'No touched files'}
+              ? t.copyContextBar.includeFiles.replace('{count}', String(totalChangedFilesCount))
+              : t.copyContextBar.includeFilesSelected.replace('{selected}', String(selectedChangedFilesCount)).replace('{total}', String(totalChangedFilesCount)))
+            : t.copyContextBar.noTouchedFiles}
         >
-          <span>Files</span>
+          <span>{t.copyContextBar.files}</span>
           {availability.files && (
             <span
               className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-sm text-[9px] font-bold"
@@ -584,7 +590,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
         <div
           className="text-xs font-mono tracking-wide uppercase"
           style={{ color: 'var(--color-text-secondary)' }}
-          title={tokenCount !== null ? `${tokenCount.toLocaleString()} tokens` : 'Token count unavailable'}
+          title={tokenCount !== null ? t.copyContextBar.tokens.replace('{count}', tokenCount.toLocaleString()) : t.copyContextBar.tokenCountUnavailable}
         >
           {tokenCount !== null ? `${tokenCount.toLocaleString()} TOKENS` : '—'}
         </div>
@@ -593,7 +599,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
           type="button"
           onClick={() => { void handleCopy() }}
           disabled={isCopying || nothingSelected}
-          title="Copy the selected spec, diffs, and files to paste into an external AI"
+          title={t.copyContextBar.copyTitle}
           className="flex items-center gap-2 px-4 py-1.5 text-xs font-semibold transition-all rounded-md shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
           style={{
             backgroundColor: 'var(--color-accent-blue)',
@@ -622,7 +628,7 @@ export function CopyContextBar({ sessionName }: CopyContextBarProps) {
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
             </svg>
           )}
-          <span>{isCopying ? 'Copying Context...' : 'Copy Context'}</span>
+          <span>{isCopying ? t.copyContextBar.copyingContext : t.copyContextBar.copyContext}</span>
         </button>
       </div>
     </div>

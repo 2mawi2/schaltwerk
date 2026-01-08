@@ -18,6 +18,7 @@ import { buildSpecRefineReference, runSpecRefineWithOrchestrator } from '../../u
 import { theme } from '../../common/theme'
 import { typography } from '../../common/typography'
 import { useAtom, useSetAtom } from 'jotai'
+import { useTranslation } from '../../common/i18n'
 import {
   markSpecEditorSessionSavedAtom,
   specEditorContentAtomFamily,
@@ -71,6 +72,7 @@ interface Props {
 }
 
 export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false, onReviewModeChange }: Props) {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -456,7 +458,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             <span
               className="px-1.5 py-0.5 rounded bg-slate-700/50"
               style={specText.badge}
-              title={viewMode === 'edit' ? 'Focus spec content' : 'Edit spec content'}
+              title={viewMode === 'edit' ? t.specEditor.focusSpecContent : t.specEditor.editSpecContent}
             >
               ⌘T
             </span>
@@ -468,7 +470,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 ...specText.saving,
                 backgroundColor: 'var(--color-accent-blue-bg)',
               }}
-              title="Saving..."
+              title={t.specEditor.saving}
             >
               💾
             </span>
@@ -486,7 +488,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             title={buildSpecRefineReference(sessionName, displayName)}
           >
             <VscBeaker />
-            Refine
+            {t.specEditor.refine}
           </button>
           {viewMode !== 'review' ? (
             <>
@@ -494,10 +496,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 onClick={() => setViewMode(viewMode === 'edit' ? 'preview' : 'edit')}
                 className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
                 style={specText.toolbarButton}
-                title={viewMode === 'edit' ? 'Preview markdown' : 'Edit markdown'}
+                title={viewMode === 'edit' ? t.specEditor.previewMarkdown : t.specEditor.editMarkdown}
               >
                 {viewMode === 'edit' ? <VscEye /> : <VscEdit />}
-                {viewMode === 'edit' ? 'Preview' : 'Edit'}
+                {viewMode === 'edit' ? t.specEditor.preview : t.specEditor.edit}
               </button>
               <button
                 onClick={handleEnterReviewMode}
@@ -510,10 +512,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                   borderColor: 'var(--color-accent-purple-border)',
                   color: 'var(--color-accent-purple)'
                 }}
-                title="Add comments to this spec"
+                title={t.specEditor.addComments}
               >
                 <VscComment />
-                Comment
+                {t.specEditor.comment}
               </button>
             </>
           ) : (
@@ -521,10 +523,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
               onClick={handleExitReviewMode}
               className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-1"
               style={specText.toolbarButton}
-              title="Exit review mode"
+              title={t.specEditor.exitReviewMode}
             >
               <VscEdit />
-              Exit Review
+              {t.specEditor.exitReview}
             </button>
           )}
           <button
@@ -532,13 +534,13 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             disabled={starting}
             className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             style={specText.toolbarButton}
-            title="Run agent"
+            title={t.specEditor.runAgent}
           >
             <VscPlay />
             {starting ? (
               <AnimatedText text="loading" size="xs" />
             ) : (
-              'Run Agent'
+              t.specEditor.runAgentButton
             )}
           </button>
           <button
@@ -546,10 +548,10 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             disabled={copying || !currentContent}
             className="px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
             style={{ ...specText.toolbarButton, backgroundColor: 'var(--color-accent-blue)', color: 'var(--color-text-inverse)' }}
-            title="Copy content"
+            title={t.specEditor.copyContent}
           >
             <VscCopy />
-            {copying ? 'Copied!' : 'Copy'}
+            {copying ? t.specEditor.copied : t.specEditor.copy}
           </button>
         </div>
       </div>
@@ -559,11 +561,11 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
           {error ? (
             <span style={specText.toolbarMetaError}>{error}</span>
           ) : viewMode === 'edit' ? (
-            'Editing spec — Type @ to reference project files'
+            t.specEditor.editingSpec
           ) : viewMode === 'review' ? (
-            'Review mode — Select lines to add comments'
+            t.specEditor.reviewMode
           ) : (
-            'Preview mode'
+            t.specEditor.previewMode
           )}
         </div>
       </div>
@@ -574,7 +576,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
             ref={markdownEditorRef}
             value={currentContent}
             onChange={handleContentChange}
-            placeholder="Enter agent description in markdown…"
+            placeholder={t.specEditor.enterAgentDescription}
             className="h-full"
             fileReferenceProvider={projectFileIndex}
           />
@@ -615,18 +617,20 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <div className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-                  <div className="font-medium mb-1" style={{ fontSize: theme.fontSize.body }}>Add Review Comment</div>
+                  <div className="font-medium mb-1" style={{ fontSize: theme.fontSize.body }}>{t.specEditor.addReviewComment}</div>
                   <div style={{ fontSize: theme.fontSize.caption, color: 'var(--color-text-muted)' }}>
                     {lineSelection.selection.startLine === lineSelection.selection.endLine
-                      ? `Line ${lineSelection.selection.startLine}`
-                      : `Lines ${lineSelection.selection.startLine}-${lineSelection.selection.endLine}`}
+                      ? t.specEditor.line.replace('{line}', String(lineSelection.selection.startLine))
+                      : t.specEditor.lines
+                          .replace('{start}', String(lineSelection.selection.startLine))
+                          .replace('{end}', String(lineSelection.selection.endLine))}
                   </div>
                 </div>
                 <textarea
                   ref={commentTextareaRef}
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Write your comment..."
+                  placeholder={t.specEditor.writeComment}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded focus:outline-none focus:border-cyan-400 resize-none"
                   style={{ fontSize: theme.fontSize.body }}
                   rows={4}
@@ -654,7 +658,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded"
                     style={{ fontSize: theme.fontSize.body }}
                   >
-                    Cancel
+                    {t.specEditor.cancel}
                   </button>
                   <button
                     onClick={handleSubmitComment}
@@ -663,7 +667,7 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                     style={{ fontSize: theme.fontSize.body }}
                   >
                     <VscSend />
-                    Submit
+                    {t.specEditor.submit}
                   </button>
                 </div>
               </div>
@@ -682,17 +686,17 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
                   onClick={handleExitReviewMode}
                   className="px-2 py-1 border border-slate-600 text-slate-200 rounded hover:bg-slate-800 transition-colors"
                   style={{ fontSize: theme.fontSize.caption }}
-                  title="Discard pending comments"
+                  title={t.specEditor.discardPendingComments}
                 >
-                  Cancel Review
+                  {t.specEditor.cancelReview}
                 </button>
                 <button
                   onClick={() => { void handleFinishReview() }}
                   className="px-2 py-1 rounded font-medium transition-colors hover:opacity-90"
                   style={{ fontSize: theme.fontSize.caption, backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
-                  title="Send review comments"
+                  title={t.specEditor.sendReviewComments}
                 >
-                  Finish Review ({reviewComments.length})
+                  {t.specEditor.finishReview.replace('{count}', String(reviewComments.length))}
                 </button>
               </div>
             </div>

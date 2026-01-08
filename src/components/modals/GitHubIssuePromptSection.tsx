@@ -10,6 +10,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { withOpacity } from '../../common/colorUtils'
 import { buildIssuePreview, buildIssuePrompt, formatIssueUpdatedTimestamp } from './githubIssueFormatting'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   selection: GithubIssueSelectionResult | null
@@ -24,6 +25,7 @@ export function GitHubIssuePromptSection({
   onClearSelection,
   onLoadingChange,
 }: Props) {
+  const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const { pushToast } = useToast()
   const isCliInstalled = github.status?.installed ?? !github.isGhMissing
@@ -90,12 +92,12 @@ export function GitHubIssuePromptSection({
     if (error) {
       pushToast({
         tone: 'error',
-        title: 'GitHub issue search failed',
+        title: t.githubIssue.searchFailed,
         description: error,
       })
       clearError()
     }
-  }, [error, pushToast, clearError])
+  }, [error, pushToast, clearError, t])
 
   const handleIssueClick = useCallback(
     async (summary: GithubIssueSummary) => {
@@ -109,7 +111,7 @@ export function GitHubIssuePromptSection({
         logger.error(`Failed to load GitHub issue details for #${summary.number}`, err)
         pushToast({
           tone: 'error',
-          title: 'Failed to load issue details',
+          title: t.githubIssue.failedToLoadDetails,
           description: err instanceof Error ? err.message : String(err),
         })
       } finally {
@@ -133,12 +135,12 @@ export function GitHubIssuePromptSection({
         }
         pushToast({
           tone: 'error',
-          title: 'Failed to open link',
+          title: t.githubIssue.failedToOpenLink,
           description: error instanceof Error ? error.message : String(error),
         })
       }
     },
-    [pushToast]
+    [pushToast, t]
   )
 
   const previewMarkdown = useMemo(() => {
@@ -161,11 +163,11 @@ export function GitHubIssuePromptSection({
     const commentCount = details.comments.length
     const commentLabel =
       commentCount === 0
-        ? 'No comments yet'
-        : `${commentCount} comment${commentCount === 1 ? '' : 's'}`
+        ? t.githubIssue.noCommentsYet
+        : `${commentCount} ${commentCount === 1 ? t.githubIssue.comment : t.githubIssue.comments}`
     const metaParts = [`#${details.number}`, commentLabel]
     if (updatedDisplay) {
-      metaParts.unshift(`Updated ${updatedDisplay}`)
+      metaParts.unshift(t.githubIssue.updated.replace('{time}', updatedDisplay))
     }
 
     return (
@@ -203,7 +205,7 @@ export function GitHubIssuePromptSection({
                   textTransform: 'uppercase',
                 }}
               >
-                {state === 'open' ? 'Open' : 'Closed'}
+                {state === 'open' ? t.githubIssue.open : t.githubIssue.closed}
               </span>
             </div>
 
@@ -240,7 +242,7 @@ export function GitHubIssuePromptSection({
                 fontSize: theme.fontSize.button,
               }}
             >
-              View on GitHub
+              {t.githubIssue.viewOnGithub}
             </button>
             <button
               type="button"
@@ -252,7 +254,7 @@ export function GitHubIssuePromptSection({
                 color: 'var(--color-text-secondary)',
               }}
             >
-              Clear selection
+              {t.githubIssue.clearSelection}
             </button>
           </div>
         </div>
@@ -287,7 +289,7 @@ export function GitHubIssuePromptSection({
           type="search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search GitHub issues"
+          placeholder={t.githubIssue.searchPlaceholder}
           disabled
           className="px-3 py-2 rounded text-sm"
           style={{
@@ -308,14 +310,14 @@ export function GitHubIssuePromptSection({
     >
       <div className="p-3 border-b space-y-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-          Search by title or label to import the latest GitHub issue context.
+          {t.githubIssue.searchHint}
         </p>
         <input
           type="search"
           value={query}
           onChange={event => setQuery(event.target.value)}
-          placeholder="Search GitHub issues"
-          aria-label="Search GitHub issues"
+          placeholder={t.githubIssue.searchPlaceholder}
+          aria-label={t.githubIssue.searchPlaceholder}
           className="w-full px-3 py-2 text-sm rounded"
           style={{
             backgroundColor: 'var(--color-bg-primary)',
@@ -341,7 +343,7 @@ export function GitHubIssuePromptSection({
               className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: 'var(--color-accent-blue)' }}
             />
-            Loading issues…
+            {t.githubIssue.loadingIssues}
           </div>
         ) : results.length === 0 ? (
           <div
@@ -349,9 +351,9 @@ export function GitHubIssuePromptSection({
             style={{ color: 'var(--color-text-secondary)' }}
           >
             <span role="img" aria-hidden="true">🔍</span>
-            <span>No issues found for this project.</span>
+            <span>{t.githubIssue.noIssuesFound}</span>
             <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              Adjust your search or ensure issues exist on GitHub.
+              {t.githubIssue.adjustSearch}
             </span>
           </div>
         ) : (
@@ -375,12 +377,12 @@ export function GitHubIssuePromptSection({
                   : 'var(--color-border-subtle)'
 
               const metadata: string[] = [
-                `Updated ${formatIssueUpdatedTimestamp(issue)}`,
+                t.githubIssue.updated.replace('{time}', formatIssueUpdatedTimestamp(issue)),
                 `#${issue.number}`,
               ]
 
               if (issue.author) {
-                metadata.push(`opened by ${issue.author}`)
+                metadata.push(t.githubIssue.openedBy.replace('{author}', issue.author))
               }
 
               const statusLabel = state.charAt(0).toUpperCase() + state.slice(1)
@@ -475,7 +477,7 @@ export function GitHubIssuePromptSection({
                           className="text-xs"
                           style={{ color: 'var(--color-text-secondary)' }}
                         >
-                          Loading…
+                          {t.githubIssue.loading}
                         </span>
                       )}
                     </div>

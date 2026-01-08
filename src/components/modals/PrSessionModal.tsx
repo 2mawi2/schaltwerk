@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { theme } from '../../common/theme'
+import { useTranslation } from '../../common/i18n'
 import { useModal } from '../../contexts/ModalContext'
 import { LoadingSpinner } from '../common/LoadingSpinner'
 
@@ -76,6 +77,7 @@ export function PrSessionModal({
   onToggleAutoCancel,
 }: PrSessionModalProps) {
   const { registerModal, unregisterModal } = useModal()
+  const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [baseBranch, setBaseBranch] = useState('')
@@ -155,16 +157,16 @@ export function PrSessionModal({
     status === 'loading' || status === 'running' || !preview || isTitleMissing || hasBranchConflict || hasSquashConflict || hasUncommittedConflict
 
   const confirmTitle = status === 'running'
-    ? 'Creating PR…'
+    ? t.prModal.tooltips.creating
     : hasBranchConflict
-    ? 'Branch conflict: use a custom branch name or resolve the conflict first.'
+    ? t.prModal.tooltips.branchConflict
     : hasSquashConflict
-    ? 'Cannot squash: branch already pushed. Use "existing commits" mode or a custom branch name.'
+    ? t.prModal.tooltips.squashConflict
     : hasUncommittedConflict
-    ? 'Cannot create PR: uncommitted changes would conflict with pushed branch. Commit and push first, or use a custom branch name.'
+    ? t.prModal.tooltips.uncommittedConflict
     : isTitleMissing
-    ? 'Enter a PR title to continue.'
-    : 'Create Pull Request (⌘↵)'
+    ? t.prModal.tooltips.titleMissing
+    : t.prModal.tooltips.ready
 
   const handleConfirm = useCallback(() => {
     if (status === 'loading' || status === 'running') return
@@ -221,7 +223,7 @@ export function PrSessionModal({
         <div className="flex justify-between items-start gap-4 border-b px-6 py-4 flex-shrink-0" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div>
             <h2 id="pr-session-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              Create Pull Request
+              {t.prModal.title}
             </h2>
             <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               {sessionBranch} → {baseBranch || preview?.parentBranch || '—'}
@@ -234,16 +236,16 @@ export function PrSessionModal({
                 checked={autoCancelEnabled}
                 onChange={handleToggleAutoCancel}
                 className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
-                aria-label="Auto-cancel after PR"
+                aria-label={t.prModal.autoCancelAfterPr}
               />
-              <span>Auto-cancel after PR</span>
+              <span>{t.prModal.autoCancelAfterPr}</span>
             </label>
             <button
               onClick={onClose}
               className="text-sm"
               style={{ color: 'var(--color-text-secondary)' }}
-              aria-label="Close PR dialog"
-              title="Close (Esc)"
+              aria-label={t.ariaLabels.closePrDialog}
+              title={t.prModal.closeEsc}
             >
               ×
             </button>
@@ -253,7 +255,7 @@ export function PrSessionModal({
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1">
           {status === 'loading' && (
             <div className="flex items-center justify-center py-8">
-              <LoadingSpinner message="Loading PR preview…" />
+              <LoadingSpinner message={t.prModal.loadingPreview} />
             </div>
           )}
 
@@ -268,7 +270,7 @@ export function PrSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Branch conflict detected</p>
+                  <p className="font-medium">{t.prModal.branchConflict}</p>
                   <p className="mt-1">{preview.branchConflictWarning}</p>
                 </div>
               )}
@@ -282,12 +284,8 @@ export function PrSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Cannot squash pushed branch</p>
-                  <p className="mt-1">
-                    This branch has already been pushed to remote. Squashing would create a new commit
-                    that conflicts with the remote. Use "Use existing commits" mode instead, or specify
-                    a custom PR branch name.
-                  </p>
+                  <p className="font-medium">{t.prModal.cannotSquashPushed}</p>
+                  <p className="mt-1">{t.prModal.cannotSquashPushedDesc}</p>
                 </div>
               )}
 
@@ -300,12 +298,8 @@ export function PrSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Uncommitted changes conflict with pushed branch</p>
-                  <p className="mt-1">
-                    This branch has been pushed, but you have uncommitted changes. Committing them would
-                    create a new commit that conflicts with the remote. Either commit and push your changes
-                    first, or use a custom PR branch name.
-                  </p>
+                  <p className="font-medium">{t.prModal.uncommittedConflict}</p>
+                  <p className="mt-1">{t.prModal.uncommittedConflictDesc}</p>
                 </div>
               )}
 
@@ -318,11 +312,11 @@ export function PrSessionModal({
                     color: 'var(--color-text-primary)',
                   }}
                 >
-                  <p className="font-medium">Uncommitted changes detected</p>
+                  <p className="font-medium">{t.prModal.uncommittedChanges}</p>
                   <p className="mt-1">
                     {mode === 'squash'
-                      ? 'These changes will be included in the squash commit.'
-                      : 'These changes will be committed as an additional commit on the PR branch.'}
+                      ? t.prModal.uncommittedSquashHint
+                      : t.prModal.uncommittedReapplyHint}
                   </p>
                 </div>
               )}
@@ -336,16 +330,16 @@ export function PrSessionModal({
               >
                 <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   {mode === 'squash'
-                    ? 'All changes will be squashed into a single commit for this PR.'
-                    : `${commitCount} commit${commitCount !== 1 ? 's' : ''} will be included${
-                        hasUncommittedChanges ? ' plus an extra commit for uncommitted changes' : ''
+                    ? t.prModal.squashHint
+                    : `${t.prModal.commitsHint.replace('{count}', String(commitCount))}${
+                        hasUncommittedChanges ? t.prModal.plusUncommitted : ''
                       }.`}{' '}
-                  Auto-cancel after PR is {autoCancelEnabled ? 'enabled' : 'disabled'}.
+                  {t.prModal.autoCancelStatus.replace('{status}', autoCancelEnabled ? t.settings.common.enabled : t.settings.common.disabled)}.
                 </span>
               </div>
 
               <div>
-                <span style={fieldLabelStyle}>Strategy</span>
+                <span style={fieldLabelStyle}>{t.prModal.strategy}</span>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -360,7 +354,7 @@ export function PrSessionModal({
                       color: 'var(--color-text-primary)',
                     }}
                   >
-                    Squash changes
+                    {t.prModal.squashChanges}
                   </button>
                   <button
                     type="button"
@@ -375,20 +369,20 @@ export function PrSessionModal({
                       color: 'var(--color-text-primary)',
                     }}
                   >
-                    Use existing commits
+                    {t.prModal.useExistingCommits}
                   </button>
                 </div>
                 <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   {mode === 'squash'
-                    ? 'Create a single commit (including uncommitted changes), then create the PR.'
-                    : 'Create the PR with the existing commits, preserving history.'}
+                    ? t.prModal.squashDesc
+                    : t.prModal.reapplyDesc}
                 </p>
               </div>
 
               {(mode === 'squash' || hasUncommittedChanges) && (
                 <div>
                   <label style={fieldLabelStyle} htmlFor="pr-commit-message">
-                    {mode === 'squash' ? 'Commit message' : 'Commit message for uncommitted changes'}
+                    {mode === 'squash' ? t.prModal.commitMessage : t.prModal.commitMessageUncommitted}
                   </label>
                   <input
                     id="pr-commit-message"
@@ -407,7 +401,7 @@ export function PrSessionModal({
 
               <div>
                 <label style={fieldLabelStyle} htmlFor="pr-title">
-                  PR Title
+                  {t.prModal.prTitle}
                 </label>
                 <input
                   id="pr-title"
@@ -421,13 +415,13 @@ export function PrSessionModal({
                     border: '1px solid var(--color-border-subtle)',
                     color: 'var(--color-text-primary)',
                   }}
-                  placeholder="Enter a title for your pull request"
+                  placeholder={t.prModal.prTitlePlaceholder}
                 />
               </div>
 
               <div>
                 <label style={fieldLabelStyle} htmlFor="pr-body">
-                  Description
+                  {t.prModal.description}
                 </label>
                 <textarea
                   id="pr-body"
@@ -440,13 +434,13 @@ export function PrSessionModal({
                     border: '1px solid var(--color-border-subtle)',
                     color: 'var(--color-text-primary)',
                   }}
-                  placeholder="Describe the changes in this pull request"
+                  placeholder={t.prModal.descriptionPlaceholder}
                 />
               </div>
 
               <div>
                 <label style={fieldLabelStyle} htmlFor="pr-base-branch">
-                  Base Branch
+                  {t.prModal.baseBranch}
                 </label>
                 <input
                   id="pr-base-branch"
@@ -461,7 +455,7 @@ export function PrSessionModal({
                   placeholder={preview.parentBranch}
                 />
                 <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                  The branch this PR will be merged into (defaults to the session parent branch)
+                  {t.prModal.baseBranchHint}
                 </p>
               </div>
 
@@ -473,7 +467,7 @@ export function PrSessionModal({
                     onChange={(e) => setUsePrBranchName(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
                   />
-                  <span>Use custom PR branch name</span>
+                  <span>{t.prModal.useCustomBranch}</span>
                 </label>
                 {usePrBranchName && (
                   <>
@@ -490,7 +484,7 @@ export function PrSessionModal({
                       placeholder={`pr/${sessionName}`}
                     />
                     <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                      Your session will switch to this branch after the PR is created.
+                      {t.prModal.customBranchHint}
                     </p>
                   </>
                 )}
@@ -515,7 +509,7 @@ export function PrSessionModal({
 
         <div className="flex items-center justify-between gap-3 border-t px-6 py-4 flex-shrink-0" style={{ borderColor: 'var(--color-border-subtle)' }}>
           <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Shortcut: ⌘⇧P
+            {t.prModal.shortcutHint}
           </div>
           <div className="flex gap-3">
             <button
@@ -527,9 +521,9 @@ export function PrSessionModal({
                 borderColor: 'var(--color-border-subtle)',
                 color: 'var(--color-text-secondary)',
               }}
-              title="Cancel (Esc)"
+              title={`${t.prModal.cancel} (Esc)`}
             >
-              <span>Cancel</span>
+              <span>{t.prModal.cancel}</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">Esc</span>
             </button>
             <button
@@ -548,7 +542,7 @@ export function PrSessionModal({
                 opacity: confirmDisabled ? 0.6 : 1,
               }}
             >
-              <span>{status === 'running' ? 'Creating PR…' : 'Create PR'}</span>
+              <span>{status === 'running' ? t.prModal.creatingPr : t.prModal.createPr}</span>
               <span className="text-xs opacity-60 group-hover:opacity-100">⌘↵</span>
             </button>
           </div>

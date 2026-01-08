@@ -2,6 +2,7 @@ import { useMemo, useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { AgentType } from '../../types/session'
 import { AgentEnvVar, displayNameForAgent } from './agentDefaults'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
     agentType: AgentType
@@ -24,6 +25,7 @@ export function AgentDefaultsSection({
     onRemoveEnvVar,
     loading = false,
 }: Props) {
+    const { t } = useTranslation()
     const agentDisplayName = displayNameForAgent(agentType)
     const [envEditorOpen, setEnvEditorOpen] = useState(false)
     const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -40,11 +42,11 @@ export function AgentDefaultsSection({
 
     const summaryText = useMemo(() => {
         if (loading) {
-            return 'Loading agent defaults…'
+            return t.agentDefaults.loadingDefaults
         }
 
         if (envVars.length === 0) {
-            return 'No environment variables configured yet.'
+            return t.agentDefaults.noEnvVarsYet
         }
 
         const summaryItems = envVars
@@ -55,7 +57,7 @@ export function AgentDefaultsSection({
         return remaining > 0
             ? `${summaryItems.join(', ')} and ${remaining} more`
             : summaryItems.join(', ')
-    }, [envVars, loading])
+    }, [envVars, loading, t.agentDefaults.loadingDefaults, t.agentDefaults.noEnvVarsYet])
 
     const handleToggleEditor = () => {
         if (loading) {
@@ -101,11 +103,11 @@ export function AgentDefaultsSection({
         <div className="space-y-3" data-testid="agent-defaults-section">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <p className="text-sm text-slate-300">Advanced agent settings</p>
+                    <p className="text-sm text-slate-300">{t.agentDefaults.title}</p>
                     <p className="text-xs text-slate-400 mt-1">
                         {agentType === 'terminal'
-                            ? `Configure environment variables for ${agentDisplayName}.`
-                            : `Configure optional arguments and environment variables for ${agentDisplayName}.`
+                            ? t.agentDefaults.descriptionEnvOnly.replace('{agent}', agentDisplayName)
+                            : t.agentDefaults.descriptionWithArgs.replace('{agent}', agentDisplayName)
                         }
                     </p>
                 </div>
@@ -117,7 +119,7 @@ export function AgentDefaultsSection({
                     data-testid="advanced-agent-settings-toggle"
                     aria-expanded={advancedOpen}
                 >
-                    {advancedOpen ? 'Hide' : 'Show'} advanced
+                    {advancedOpen ? t.agentDefaults.hideAdvanced : t.agentDefaults.showAdvanced}
                 </button>
             </div>
 
@@ -125,26 +127,26 @@ export function AgentDefaultsSection({
                 <div className="space-y-3">
                     {agentType !== 'terminal' && (
                         <div>
-                            <label className="block text-sm text-slate-300 mb-1">Default custom arguments</label>
+                            <label className="block text-sm text-slate-300 mb-1">{t.agentDefaults.defaultCustomArgs}</label>
                             <textarea
                                 ref={cliArgsRef}
                                 data-testid="agent-cli-args-input"
                                 value={cliArgs}
                                 onChange={event => onCliArgsChange(event.target.value)}
                                 className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm"
-                                placeholder="e.g. --max-tokens 8000 --sampling-temp 0.2"
+                                placeholder={t.agentDefaults.argsPlaceholder}
                                 rows={2}
                                 disabled={loading}
                             />
                             <p className="text-xs text-slate-400 mt-1">
-                                These arguments are appended whenever {agentDisplayName} starts.
+                                {t.agentDefaults.argsHint.replace('{agent}', agentDisplayName)}
                             </p>
                         </div>
                     )}
                     <div>
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <label className="block text-sm text-slate-300">Environment variables</label>
+                                <label className="block text-sm text-slate-300">{t.agentDefaults.envVars}</label>
                                 <p className="text-xs text-slate-400 mt-1" data-testid="env-summary">
                                     {summaryText}
                                 </p>
@@ -159,7 +161,7 @@ export function AgentDefaultsSection({
                                     data-testid="toggle-env-vars"
                                     aria-expanded={envEditorOpen}
                                 >
-                                    {envEditorOpen ? 'Hide editor' : 'Edit variables'}
+                                    {envEditorOpen ? t.agentDefaults.hideEditor : t.agentDefaults.editVariables}
                                 </button>
                                 <button
                                     type="button"
@@ -169,7 +171,7 @@ export function AgentDefaultsSection({
                                     disabled={loading}
                                     data-testid="add-env-var"
                                 >
-                                    Add variable
+                                    {t.agentDefaults.addVariable}
                                 </button>
                             </div>
                         </div>
@@ -186,10 +188,10 @@ export function AgentDefaultsSection({
                                     data-testid="env-vars-scroll"
                                 >
                                     {loading ? (
-                                        <div className="p-3 text-xs text-slate-400">Loading agent defaults…</div>
+                                        <div className="p-3 text-xs text-slate-400">{t.agentDefaults.loadingDefaults}</div>
                                     ) : envVars.length === 0 ? (
                                         <div className="p-3 text-xs text-slate-400">
-                                            No environment variables configured.
+                                            {t.agentDefaults.noEnvVarsConfigured}
                                         </div>
                                     ) : (
                                         envVars.map((item, index) => (
@@ -202,7 +204,7 @@ export function AgentDefaultsSection({
                                                     data-testid={`env-var-key-${index}`}
                                                     value={item.key}
                                                     onChange={event => onEnvVarChange(index, 'key', event.target.value)}
-                                                    placeholder="KEY"
+                                                    placeholder={t.agentDefaults.keyPlaceholder}
                                                     className="col-span-4 bg-slate-800 text-slate-100 rounded px-2 py-1 border border-slate-700 text-xs"
                                                     disabled={loading}
                                                 />
@@ -210,7 +212,7 @@ export function AgentDefaultsSection({
                                                     data-testid={`env-var-value-${index}`}
                                                     value={item.value}
                                                     onChange={event => onEnvVarChange(index, 'value', event.target.value)}
-                                                    placeholder="Value"
+                                                    placeholder={t.agentDefaults.valuePlaceholder}
                                                     className="col-span-7 bg-slate-800 text-slate-100 rounded px-2 py-1 border border-slate-700 text-xs"
                                                     disabled={loading}
                                                 />
@@ -221,9 +223,9 @@ export function AgentDefaultsSection({
                                                     className={`col-span-1 ${buttonClasses} !px-0`}
                                                     style={buttonStyleVars}
                                                     disabled={loading}
-                                                    title="Remove variable"
+                                                    title={t.agentDefaults.remove}
                                                 >
-                                                    Remove
+                                                    {t.agentDefaults.remove}
                                                 </button>
                                             </div>
                                         ))
@@ -233,8 +235,8 @@ export function AgentDefaultsSection({
                         )}
                         <p className="text-xs text-slate-400 mt-1">
                             {agentType === 'terminal'
-                                ? `Environment variables are available in the ${agentDisplayName} shell.`
-                                : `Environment variables are injected into the ${agentDisplayName} process before it starts.`
+                                ? t.agentDefaults.envVarsShellHint.replace('{agent}', agentDisplayName)
+                                : t.agentDefaults.envVarsProcessHint.replace('{agent}', agentDisplayName)
                             }
                         </p>
                     </div>

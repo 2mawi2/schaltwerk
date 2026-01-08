@@ -1,5 +1,6 @@
 import { VscTrash } from 'react-icons/vsc'
 import type { CommentDisplay } from '../../hooks/useReviewComments'
+import { useTranslation } from '../../common/i18n'
 
 interface ReviewCommentsListProps {
   comments: CommentDisplay[]
@@ -7,6 +8,7 @@ interface ReviewCommentsListProps {
 }
 
 export function ReviewCommentsList({ comments, onDeleteComment }: ReviewCommentsListProps) {
+  const { t } = useTranslation()
   return (
     <div className="space-y-2 max-h-64 overflow-y-auto">
       {comments.map((comment) => (
@@ -29,8 +31,8 @@ export function ReviewCommentsList({ comments, onDeleteComment }: ReviewComments
             <button
               onClick={() => onDeleteComment(comment.id)}
               className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-red-400"
-              title="Delete comment"
-              aria-label={`Delete comment on ${comment.fileName}`}
+              title={t.reviewComments.deleteComment}
+              aria-label={t.reviewComments.deleteCommentOn.replace('{file}', comment.fileName)}
             >
               <VscTrash className="text-xs" />
             </button>

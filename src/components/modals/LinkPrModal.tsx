@@ -4,6 +4,7 @@ import { useGithubPrSearch } from '../../hooks/useGithubPrSearch'
 import type { GithubPrSummary } from '../../types/githubIssues'
 import { formatRelativeDate } from '../../utils/time'
 import { buildPrUrl } from '../../utils/githubUrls'
+import { useTranslation } from '../../common/i18n'
 
 interface LinkPrModalProps {
   open: boolean
@@ -17,6 +18,7 @@ export function LinkPrModal({
   onConfirm,
   onCancel,
 }: LinkPrModalProps) {
+  const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const isCliInstalled = github.status?.installed ?? !github.isGhMissing
   const isAuthenticated = github.status?.authenticated ?? false
@@ -66,18 +68,18 @@ export function LinkPrModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-slate-100 mb-3">Link to GitHub PR</h2>
+          <h2 className="text-lg font-semibold text-slate-100 mb-3">{t.linkPrModal.title}</h2>
 
           {!integrationReady ? (
             <p className="text-sm text-slate-400">
-              GitHub integration not available. Please ensure gh CLI is installed and authenticated.
+              {t.linkPrModal.integrationNotAvailable}
             </p>
           ) : (
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search pull requests..."
+              placeholder={t.linkPrModal.searchPlaceholder}
               autoFocus
               className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
@@ -87,7 +89,7 @@ export function LinkPrModal({
         <div className="flex-1 overflow-auto min-h-0">
           {!integrationReady ? (
             <div className="p-4 text-center text-slate-500 text-sm">
-              Connect to GitHub to see available PRs
+              {t.linkPrModal.connectToGithub}
             </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-slate-400">
@@ -95,13 +97,13 @@ export function LinkPrModal({
                 className="h-4 w-4 rounded-full border-2 border-t-transparent animate-spin"
                 style={{ borderColor: 'var(--color-accent-blue)' }}
               />
-              Loading pull requests…
+              {t.linkPrModal.loadingPrs}
             </div>
           ) : results.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-sm text-slate-400">
-              <span>No pull requests found</span>
+              <span>{t.linkPrModal.noPrsFound}</span>
               <span className="text-xs text-slate-500">
-                {query ? 'Try a different search term' : 'No open PRs in this repository'}
+                {query ? t.linkPrModal.tryDifferentSearch : t.linkPrModal.noOpenPrs}
               </span>
             </div>
           ) : (
@@ -143,7 +145,7 @@ export function LinkPrModal({
                             {pr.title}
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">
-                            #{pr.number} · Updated {formatRelativeDate(pr.updatedAt)}
+                            #{pr.number} · {t.linkPrModal.updated.replace('{time}', formatRelativeDate(pr.updatedAt))}
                             {pr.author && ` · ${pr.author}`}
                           </div>
                         </div>
@@ -161,7 +163,7 @@ export function LinkPrModal({
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-md hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
-            Cancel
+            {t.linkPrModal.cancel}
           </button>
         </div>
       </div>

@@ -10,6 +10,7 @@ import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 import { FALLBACK_CODEX_MODELS, CodexModelMetadata } from '../../common/codexModels'
+import { useTranslation } from '../../common/i18n'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
@@ -71,6 +72,7 @@ export function SessionConfigurationPanel({
     agentControlsDisabled = false,
     branchError
 }: SessionConfigurationPanelProps) {
+    const { t } = useTranslation()
     const [baseBranch, setBaseBranch] = useState(initialBaseBranch)
     const [branches, setBranches] = useState<string[]>([])
     const [loadingBranches, setLoadingBranches] = useState(false)
@@ -318,7 +320,7 @@ export function SessionConfigurationPanel({
                                 backgroundColor: 'var(--color-bg-elevated)'
                             }}
                         >
-                            <span className="text-slate-500 text-xs">Loading...</span>
+                            <span className="text-slate-500 text-xs">{t.sessionConfig.loading}</span>
                         </div>
                     ) : (
                         <div className="min-w-[120px]">
@@ -327,7 +329,7 @@ export function SessionConfigurationPanel({
                                 onChange={(branch) => { void handleBaseBranchChange(branch) }}
                                 branches={branches}
                                 disabled={disabled || branches.length === 0}
-                                placeholder={branches.length === 0 ? "No branches" : "Select branch"}
+                                placeholder={branches.length === 0 ? t.sessionConfig.noBranches : "Select branch"}
                                 onValidationChange={setIsValidBranch}
                                 className="text-xs py-1 px-2"
                             />
@@ -366,7 +368,7 @@ export function SessionConfigurationPanel({
                 <div data-onboarding="base-branch-selector">
                     <div className="flex items-center justify-between mb-1">
                         <label className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                            {useExistingBranch ? 'Existing branch' : 'Base branch'}
+                            {useExistingBranch ? t.sessionConfig.existingBranch : t.sessionConfig.baseBranch}
                         </label>
                         <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${branchError ? 'text-red-400' : ''}`} style={branchError ? undefined : { color: 'var(--color-text-secondary)' }}>
                             <input
@@ -376,7 +378,7 @@ export function SessionConfigurationPanel({
                                 disabled={disabled}
                                 className={`rounded ${branchError ? 'accent-red-500' : ''}`}
                             />
-                            <span>Use existing branch</span>
+                            <span>{t.sessionConfig.useExistingBranch}</span>
                         </label>
                     </div>
                     {loadingBranches ? (
@@ -387,7 +389,7 @@ export function SessionConfigurationPanel({
                                 borderColor: 'var(--color-border-default)'
                             }}
                         >
-                            <span className="text-slate-500 text-xs">Loading...</span>
+                            <span className="text-slate-500 text-xs">{t.sessionConfig.loading}</span>
                         </div>
                     ) : (
                         <BranchAutocomplete
@@ -395,7 +397,7 @@ export function SessionConfigurationPanel({
                             onChange={(branch) => { void handleBaseBranchChange(branch) }}
                             branches={branches}
                             disabled={disabled || branches.length === 0}
-                            placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
+                            placeholder={branches.length === 0 ? t.sessionConfig.noBranches : t.sessionConfig.searchBranches}
                             onValidationChange={setIsValidBranch}
                             hasError={!!branchError}
                         />
@@ -410,8 +412,8 @@ export function SessionConfigurationPanel({
                     ) : (
                         <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {useExistingBranch
-                                ? 'Branch to check out directly (must not be in use by another worktree)'
-                                : 'Existing branch to create the new worktree from'}
+                                ? t.sessionConfig.checkoutBranchHint
+                                : t.sessionConfig.existingBranchHint}
                         </p>
                     )}
                 </div>
@@ -419,7 +421,7 @@ export function SessionConfigurationPanel({
                 {!useExistingBranch && (
                     <div>
                         <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>
-                            Branch name (optional)
+                            {t.sessionConfig.branchNameOptional}
                         </label>
                         <input
                             value={customBranch}
@@ -434,7 +436,7 @@ export function SessionConfigurationPanel({
                             disabled={disabled}
                         />
                         <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                            New branch name for this session. Leave empty to auto-generate: {branchPlaceholder}
+                            {t.sessionConfig.branchNameHint.replace('{placeholder}', branchPlaceholder)}
                         </p>
                     </div>
                 )}
@@ -443,7 +445,7 @@ export function SessionConfigurationPanel({
             {!hideAgentType && (
                 <div>
                     <label className="block text-sm mb-2" style={{ color: 'var(--color-text-secondary)' }}>
-                        Agent
+                        {t.sessionConfig.agent}
                     </label>
                     <div className="space-y-3">
                         <ModelSelector
@@ -470,7 +472,7 @@ export function SessionConfigurationPanel({
                         )}
                     </div>
                     <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
-                        AI agent to use for this session
+                        {t.sessionConfig.agentHint}
                     </p>
                 </div>
             )}
@@ -501,6 +503,7 @@ function CodexModelSelector({
     onReasoningChange,
     selectedModelMetadata
 }: CodexModelSelectorProps) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [reasoningOpen, setReasoningOpen] = useState(false)
     const normalizedOptions = useMemo(
@@ -522,7 +525,7 @@ function CodexModelSelector({
     }, [normalizedOptions, value])
 
     const hasOptions = normalizedOptions.length > 0
-    const placeholder = hasOptions ? 'Select Codex model' : 'No models available'
+    const placeholder = hasOptions ? t.sessionConfig.selectModel.replace('{agent}', 'Codex') : t.sessionConfig.noModels
     const buttonDisabled = disabled || !hasOptions
     const modelItems = useMemo(
         () =>
@@ -575,7 +578,7 @@ function CodexModelSelector({
 
     const reasoningButtonDisabled =
         disabled || reasoningMetadata.length === 0 || !onReasoningChange
-    const reasoningPlaceholder = reasoningMetadata.length > 0 ? 'Select reasoning effort' : 'No reasoning options available'
+    const reasoningPlaceholder = reasoningMetadata.length > 0 ? t.sessionConfig.selectReasoning : t.sessionConfig.noReasoningOptions
     const selectedModelLabel = selectedKey
         ? codexMetadataById.get(selectedKey)?.label ?? selectedKey
         : placeholder
@@ -591,7 +594,7 @@ function CodexModelSelector({
         <div className="space-y-3">
             <div className="space-y-1">
                 <span className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    Model
+                    {t.sessionConfig.model}
                 </span>
                 <Dropdown
                 open={!buttonDisabled && open}
@@ -627,7 +630,7 @@ function CodexModelSelector({
             {showReasoningSelector && (
                 <div className="space-y-1">
                     <span className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                        Reasoning effort
+                        {t.sessionConfig.reasoningEffort}
                     </span>
                     <Dropdown
                         open={!reasoningButtonDisabled && reasoningOpen}

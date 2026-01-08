@@ -5,6 +5,7 @@ import { AgentType, AGENT_TYPES } from '../../types/session'
 import { Dropdown } from '../inputs/Dropdown'
 import { calculateDropdownGeometry, type DropdownGeometry } from '../inputs/dropdownGeometry'
 import { displayNameForAgent } from '../shared/agentDefaults'
+import { useTranslation } from '../../common/i18n'
 
 export const MAX_VERSION_COUNT = 4
 export const MULTI_AGENT_TYPES = AGENT_TYPES.filter(agent => agent !== 'terminal') as AgentType[]
@@ -67,6 +68,7 @@ export function MultiAgentAllocationDropdown({
     onToggleAgent,
     onChangeCount,
 }: MultiAgentAllocationDropdownProps) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const buttonRef = useRef<HTMLButtonElement>(null)
     const [menuGeometry, setMenuGeometry] = useState<DropdownGeometry | null>(null)
@@ -155,7 +157,7 @@ export function MultiAgentAllocationDropdown({
                             className="text-xs font-medium uppercase tracking-wide"
                             style={{ color: 'var(--color-text-secondary)' }}
                         >
-                            Multi-agent setup
+                            {t.multiAgentAllocation.multiAgentSetup}
                         </span>
                         <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                             {totalCount}/{maxCount}
@@ -230,7 +232,7 @@ export function MultiAgentAllocationDropdown({
                         strokeLinecap="round"
                     />
                 </svg>
-                <span style={{ lineHeight: 1 }}>Configure agents</span>
+                <span style={{ lineHeight: 1 }}>{t.multiAgentAllocation.configureAgents}</span>
                 <svg
                     width="12"
                     height="12"

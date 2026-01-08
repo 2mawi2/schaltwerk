@@ -15,6 +15,7 @@ import {
 import { terminalOutputManager } from '../../terminal/stream/terminalOutputManager'
 import { useStreamingDecoder } from '../../hooks/useStreamingDecoder'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
+import { useTranslation } from '../../common/i18n'
 
 interface RunScript {
   command: string
@@ -42,7 +43,7 @@ export interface RunTerminalHandle {
   isRunning: () => boolean
 }
 
-export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({ 
+export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   className,
   sessionName,
   onTerminalClick,
@@ -51,6 +52,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   previewKey,
   autoPreviewConfig,
 }, ref) => {
+  const { t } = useTranslation()
   const [runScript, setRunScript] = useState<RunScript | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -358,7 +360,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: 'var(--color-bg-primary)' }}>
         <div className="text-center">
           <AnimatedText text="loading" />
-          <div className="text-xs text-slate-600 mt-2">Loading run script...</div>
+          <div className="text-xs text-slate-600 mt-2">{t.runTerminal.loadingRunScript}</div>
         </div>
       </div>
     )
@@ -378,13 +380,13 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             className="text-lg font-medium mb-2"
             style={{ color: 'var(--color-text-primary)' }}
           >
-            No Run Configuration
+            {t.runTerminal.noRunConfiguration}
           </div>
           <div
             className="text-sm mb-6"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            Run tests or a development server to test changes in this workspace
+            {t.runTerminal.noRunConfigurationDesc}
           </div>
           <button
             onClick={() => {
@@ -396,7 +398,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               color: 'var(--color-text-primary)'
             }}
           >
-            Add run script
+            {t.runTerminal.addRunScript}
           </button>
         </div>
       </div>
@@ -416,7 +418,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           <span style={{ color: isRunning ? 'var(--color-accent-green)' : 'var(--color-text-muted)' }}>
             {isRunning ? '▶' : '■'}
           </span>
-          <span style={{ color: 'var(--color-text-muted)' }}>{isRunning ? 'Running:' : 'Ready to run:'}</span>
+          <span style={{ color: 'var(--color-text-muted)' }}>{isRunning ? t.runTerminal.running : t.runTerminal.readyToRun}</span>
           <code
             className="px-2 py-0.5 rounded font-mono"
             style={{
@@ -447,7 +449,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           <div className="h-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <div className="text-center">
               <div className="text-slate-600 text-4xl mb-4">▶</div>
-              <div className="text-slate-500 text-sm">Press ⌘E or click Run to start</div>
+              <div className="text-slate-500 text-sm">{t.runTerminal.pressToStart}</div>
             </div>
           </div>
         )}
@@ -455,7 +457,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
       {terminalCreated && !isRunning && (
         <div className="border-t border-slate-800 px-4 py-1 text-[11px] text-slate-500 flex-shrink-0" style={{ backgroundColor: 'var(--color-bg-elevated)' }}>
-          [process has ended]
+          [{t.runTerminal.processEnded}]
         </div>
       )}
     </div>

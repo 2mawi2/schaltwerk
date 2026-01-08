@@ -7,6 +7,7 @@ import { safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { TabInfo } from '../../types/terminalTabs'
 import { AddTabButton } from '../AddTabButton'
 import type { AutoPreviewConfig } from '../../utils/runScriptPreviewConfig'
+import { useTranslation } from '../../common/i18n'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -51,6 +52,7 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
   previewKey,
   autoPreviewConfig,
 }, ref) => {
+  const { t } = useTranslation()
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
     workingDirectory,
@@ -175,8 +177,8 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
         {canAddTab && (
           <AddTabButton
             onClick={() => { void addTab() }}
-            title="Add new terminal"
-            ariaLabel="Add new terminal"
+            title={t.terminalComponents.addNewTerminal}
+            ariaLabel={t.terminalComponents.addNewTerminal}
             className="ml-2 flex-shrink-0"
           />
         )}

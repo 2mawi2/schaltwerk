@@ -13,6 +13,7 @@ import {
 import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { AddTabButton } from '../AddTabButton'
+import { useTranslation } from '../../common/i18n'
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean
@@ -46,6 +47,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   isRunning = false,
   onRunScript
 }, ref) => {
+  const { t } = useTranslation()
   // Get dynamic shortcut displays
   const shortcuts = useMultipleShortcutDisplays([
     KeyboardShortcutAction.FocusTerminal,
@@ -113,8 +115,8 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                   event.stopPropagation()
                   onTabAdd()
                 }}
-                title="Add new terminal"
-                ariaLabel="Add new terminal"
+                title={t.terminalComponents.addNewTerminal}
+                ariaLabel={t.terminalComponents.addNewTerminal}
                 className="self-center ml-2 flex-shrink-0"
               />
             )}
@@ -160,7 +162,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-tertiary)',
           }}
           className="text-[10px] px-1.5 py-0.5 rounded"
-          title={`Focus Terminal (${shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'})`}
+          title={t.terminalComponents.focusTerminal.replace('{shortcut}', shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/')}
         >
           {shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'}
 
@@ -171,7 +173,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             e.stopPropagation()
             onToggleCollapse()
           }}
-          title={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
+          title={isCollapsed ? t.terminalComponents.expandPanel : t.terminalComponents.collapsePanel}
           style={{
             color: isFocused ? 'var(--color-accent-blue-light)' : 'var(--color-text-secondary)',
           }}
@@ -180,7 +182,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
               ? 'hover:bg-opacity-60 hover:text-white'
               : 'hover:bg-hover hover:text-primary'
           }`}
-          aria-label={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
+          aria-label={isCollapsed ? t.terminalComponents.expandPanel : t.terminalComponents.collapsePanel}
         >
           {isCollapsed ? (
             <VscChevronUp size={16} />

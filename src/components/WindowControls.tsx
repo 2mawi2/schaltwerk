@@ -2,9 +2,11 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { VscChromeMinimize, VscChromeMaximize, VscChromeClose } from 'react-icons/vsc'
 import { useState, useEffect } from 'react'
 import { logger } from '../utils/logger'
+import { useTranslation } from '../common/i18n'
 
 export function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const checkMaximized = async () => {
@@ -66,8 +68,8 @@ export function WindowControls() {
       <button
         onClick={() => { void handleMinimize() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors"
-        title="Minimize"
-        aria-label="Minimize window"
+        title={t.windowControls.minimize}
+        aria-label={t.windowControls.minimizeWindow}
         data-testid="window-minimize"
       >
         <VscChromeMinimize className="text-[14px]" />
@@ -75,8 +77,8 @@ export function WindowControls() {
       <button
         onClick={() => { void handleMaximize() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors"
-        title={isMaximized ? "Restore" : "Maximize"}
-        aria-label={isMaximized ? "Restore window" : "Maximize window"}
+        title={isMaximized ? t.windowControls.restore : t.windowControls.maximize}
+        aria-label={isMaximized ? t.windowControls.restoreWindow : t.windowControls.maximizeWindow}
         data-testid="window-maximize"
       >
         <VscChromeMaximize className="text-[14px]" />
@@ -84,8 +86,8 @@ export function WindowControls() {
       <button
         onClick={() => { void handleClose() }}
         className="h-6 w-8 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-accent-red transition-colors"
-        title="Close"
-        aria-label="Close window"
+        title={t.windowControls.close}
+        aria-label={t.windowControls.closeWindow}
         data-testid="window-close"
       >
         <VscChromeClose className="text-[14px]" />

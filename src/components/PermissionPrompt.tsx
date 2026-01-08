@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useFolderPermission } from '../hooks/usePermissions'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
+import { useTranslation } from '../common/i18n'
 
 type InstallKind = 'app-bundle' | 'homebrew' | 'justfile' | 'standalone' | 'other'
 
@@ -21,6 +22,7 @@ interface PermissionPromptProps {
 }
 
 export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true, onRetryAgent, folderPath }: PermissionPromptProps) {
+  const { t } = useTranslation()
   const { hasPermission, isChecking, requestPermission, checkPermission, deniedPath } = useFolderPermission(folderPath)
   const [isRetrying, setIsRetrying] = useState(false)
   const [attemptCount, setAttemptCount] = useState(0)
@@ -50,17 +52,17 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
     switch (diagnostics.installKind) {
       case 'app-bundle':
-        return 'Standard macOS app bundle'
+        return t.permissionPrompt.installLabels.appBundle
       case 'homebrew':
-        return 'Homebrew installation'
+        return t.permissionPrompt.installLabels.homebrew
       case 'justfile':
-        return 'Development build (just run)'
+        return t.permissionPrompt.installLabels.justfile
       case 'standalone':
-        return 'Direct binary execution'
+        return t.permissionPrompt.installLabels.standalone
       default:
-        return 'Custom installation'
+        return t.permissionPrompt.installLabels.other
     }
-  }, [diagnostics])
+  }, [diagnostics, t])
 
   const installGuidance = useMemo(() => {
     if (!diagnostics) {
@@ -69,17 +71,17 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
     switch (diagnostics.installKind) {
       case 'app-bundle':
-        return 'Look for "Schaltwerk" in Files and Folders and enable Documents access.'
+        return t.permissionPrompt.installGuidance.appBundle
       case 'homebrew':
-        return 'Look for the Schaltwerk entry added by Homebrew under Files and Folders.'
+        return t.permissionPrompt.installGuidance.homebrew
       case 'justfile':
-        return 'macOS lists the development binary path below - enable Documents access for that entry.'
+        return t.permissionPrompt.installGuidance.justfile
       case 'standalone':
-        return 'If System Settings shows a direct binary path, enable Documents access for that entry.'
+        return t.permissionPrompt.installGuidance.standalone
       default:
-        return 'Enable Documents access for the matching entry shown in Files and Folders.'
+        return t.permissionPrompt.installGuidance.other
     }
-  }, [diagnostics])
+  }, [diagnostics, t])
 
   useEffect(() => {
     let cancelled = false
@@ -165,7 +167,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
     try {
       await invoke(TauriCommands.OpenDocumentsPrivacySettings)
-      setSupportMessage('System Settings opened. Enable Documents access, then return here and click Try Again.')
+      setSupportMessage(t.permissionPrompt.supportMessages.settingsOpened)
     } catch (error) {
       logger.error('Failed to open macOS System Settings for folder permissions', error)
       setSupportError(`Failed to open System Settings: ${error}`)
@@ -181,7 +183,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
     try {
       await invoke(TauriCommands.ResetFolderPermissions)
-      setSupportMessage('Folder permissions were reset. macOS will prompt for access again the next time you try.')
+      setSupportMessage(t.permissionPrompt.supportMessages.permissionsReset)
     } catch (error) {
       logger.error('Failed to reset macOS folder permissions', error)
       setSupportError(`Failed to reset permissions: ${error}`)
@@ -200,10 +202,10 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           className="p-6 rounded-lg shadow-xl max-w-md mx-4"
           style={{ backgroundColor: 'var(--color-surface-modal)' }}
         >
-          <h2 className="text-xl font-semibold mb-4 text-white">Folder Access Required</h2>
-          
+          <h2 className="text-xl font-semibold mb-4 text-white">{t.permissionPrompt.title}</h2>
+
           <p className="text-gray-300 mb-4">
-            Schaltwerk needs access to the following folder to manage development sessions and run AI agents:
+            {t.permissionPrompt.description}
           </p>
           
           {displayPath && (
@@ -215,9 +217,9 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           {attemptCount > 0 && (
             <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded">
               <p className="text-yellow-200 text-sm">
-                {attemptCount === 1 
-                  ? "Please click 'OK' in the system permission dialog that appeared."
-                  : "If you granted permission, you may need to restart the agent for it to take effect."}
+                {attemptCount === 1
+                  ? t.permissionPrompt.clickOk
+                  : t.permissionPrompt.restartHint}
               </p>
             </div>
           )}
@@ -229,7 +231,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
               className="flex-1 px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors hover:opacity-90"
               style={{ backgroundColor: 'var(--color-accent-cyan)', color: 'var(--color-text-inverse)' }}
             >
-              {isRetrying ? 'Checking...' : attemptCount === 0 ? 'Grant Permission' : 'Try Again'}
+              {isRetrying ? t.permissionPrompt.checking : attemptCount === 0 ? t.permissionPrompt.grantPermission : t.permissionPrompt.tryAgain}
             </button>
             
               {attemptCount > 0 && (
@@ -238,7 +240,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 disabled={isRetrying}
                 className="px-4 py-2 border border-gray-600 text-gray-300 rounded hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Recheck
+                {t.permissionPrompt.recheck}
               </button>
             )}
           </div>
@@ -254,20 +256,20 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
               className="text-sm font-semibold"
               style={{ color: 'var(--color-text-primary)' }}
             >
-              Having trouble granting access?
+              {t.permissionPrompt.troubleTitle}
             </h3>
             <p
               className="text-sm leading-relaxed"
               style={{ color: 'var(--color-text-secondary)' }}
             >
-              Enable Documents access for {diagnostics?.appDisplayName ?? 'Schaltwerk'} in System Settings &gt; Privacy &amp; Security &gt; Files and Folders, then return here and click Try Again.
+              {t.permissionPrompt.troubleDesc.replace('{app}', diagnostics?.appDisplayName ?? 'Schaltwerk')}
             </p>
             {installLabel && (
               <p
                 className="text-sm"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
-                Detected install: {installLabel}
+                {t.permissionPrompt.detectedInstall.replace('{label}', installLabel)}
               </p>
             )}
             {installGuidance && (
@@ -283,7 +285,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                 className="text-xs break-all"
                 style={{ color: 'var(--color-text-muted)' }}
               >
-                Current executable: {diagnostics.executablePath}
+                {t.permissionPrompt.currentExecutable.replace('{path}', diagnostics.executablePath)}
               </p>
             )}
             {diagnosticsError && (
@@ -307,7 +309,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                   opacity: supportBusy && supportBusy !== 'open-settings' ? 0.6 : 1,
                 }}
               >
-                {supportBusy === 'open-settings' ? 'Opening...' : 'Open System Settings'}
+                {supportBusy === 'open-settings' ? t.permissionPrompt.opening : t.permissionPrompt.openSystemSettings}
               </button>
               <button
                 onClick={() => { void handleResetPermissions() }}
@@ -320,7 +322,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                   opacity: supportBusy && supportBusy !== 'reset-permission' ? 0.6 : 1,
                 }}
               >
-                {supportBusy === 'reset-permission' ? 'Resetting...' : 'Reset Folder Access'}
+                {supportBusy === 'reset-permission' ? t.permissionPrompt.resetting : t.permissionPrompt.resetFolderAccess}
               </button>
             </div>
 
@@ -345,7 +347,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
           {attemptCount > 1 && (
             <>
               <p className="text-gray-400 text-xs mt-4">
-                If issues persist, try restarting Schaltwerk after granting permission.
+                {t.permissionPrompt.persistHint}
               </p>
               {onRetryAgent && hasPermission && (
                 <button
@@ -355,7 +357,7 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
                   }}
                   className="mt-2 w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                 >
-                  Retry Starting Agent
+                  {t.permissionPrompt.retryAgent}
                 </button>
               )}
             </>

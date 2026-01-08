@@ -7,6 +7,7 @@ import {
 } from '../store/atoms/powerSettings'
 import { logger } from '../utils/logger'
 import { useOptionalToast } from '../common/toast/ToastProvider'
+import { useTranslation } from '../common/i18n'
 
 const CoffeeIcon = ({ state }: { state: KeepAwakeState }) => {
   const stroke = state === 'disabled' ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)'
@@ -22,6 +23,7 @@ const CoffeeIcon = ({ state }: { state: KeepAwakeState }) => {
 }
 
 export function GlobalKeepAwakeButton() {
+  const { t } = useTranslation()
   const [state] = useAtom(keepAwakeStateAtom)
   const [isLoading, setIsLoading] = useState(false)
   const [errorTooltip, setErrorTooltip] = useState<string | null>(null)
@@ -57,13 +59,13 @@ export function GlobalKeepAwakeButton() {
       return errorTooltip
     }
     if (state === 'disabled') {
-      return 'Keep machine awake while agents work — click to enable'
+      return t.globalKeepAwake.clickToEnable
     }
     if (state === 'auto_paused') {
-      return 'Auto-paused (all sessions idle) — click to disable'
+      return t.globalKeepAwake.autoPaused
     }
-    return 'Preventing sleep (sessions active) — click to disable'
-  }, [state, errorTooltip])
+    return t.globalKeepAwake.preventingSleep
+  }, [state, errorTooltip, t])
 
   const handleClick = async () => {
     setIsLoading(true)
@@ -71,19 +73,19 @@ export function GlobalKeepAwakeButton() {
       const next = await setToggle()
       setErrorTooltip(null)
       if (toast && next) {
-        const title = next === 'disabled' ? 'Keep-awake disabled' : 'Keep-awake enabled'
+        const title = next === 'disabled' ? t.globalKeepAwake.disabled : t.globalKeepAwake.enabled
         const description = next === 'disabled'
-          ? 'Machine can sleep normally'
-          : 'Machine will stay awake while sessions are active'
+          ? t.globalKeepAwake.canSleepNormally
+          : t.globalKeepAwake.willStayAwake
         toast.pushToast({ tone: next === 'disabled' ? 'info' : 'success', title, description })
       }
     } catch (error) {
       logger.error('Failed to toggle keep-awake', error)
-      setErrorTooltip('Keep-awake unavailable (see logs for details)')
+      setErrorTooltip(t.globalKeepAwake.unavailable)
       if (toast) {
         toast.pushToast({
           tone: 'error',
-          title: 'Keep-awake unavailable',
+          title: t.globalKeepAwake.unavailable,
           description: 'caffeinate/systemd-inhibit failed or missing',
         })
       }
@@ -100,7 +102,7 @@ export function GlobalKeepAwakeButton() {
       className="h-8 w-8 inline-flex items-center justify-center rounded-md border transition-colors duration-150 shadow-sm"
       style={style as CSSProperties}
       title={tooltip}
-      aria-label="Toggle keep-awake"
+      aria-label={t.globalKeepAwake.toggleLabel}
       disabled={isLoading || Boolean(errorTooltip)}
     >
       <div className="relative flex items-center justify-center">
