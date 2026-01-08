@@ -10,6 +10,8 @@ import { Provider, createStore } from 'jotai'
 import { agentTabsStateAtom, type AgentTab } from '../../store/atoms/agentTabs'
 import { useAgentTabs } from '../../hooks/useAgentTabs'
 import type { AgentType } from '../../types/session'
+import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../../common/tauriCommands'
 
 const ATLAS_CONTRAST_BASE = 1.1
 
@@ -382,6 +384,8 @@ beforeEach(() => {
   cleanupRegistryMock.addTimeout.mockClear()
   cleanupRegistryMock.addInterval.mockClear()
   vi.mocked(writeTerminalBackend).mockClear()
+  vi.mocked(invoke).mockReset()
+  vi.mocked(invoke).mockImplementation(async () => ({ fontFamily: null }))
   const navigatorAny = navigator as Navigator & { userAgent?: string }
   Object.defineProperty(navigatorAny, 'userAgent', {
     value: 'Macintosh',
@@ -744,8 +748,9 @@ describe('Terminal', () => {
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')
 
-      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
-      expect(writeTerminalBackend).toHaveBeenCalledWith(`${baseTerminalId}-1`, '\u001b')
+      const firstWrites = vi.mocked(writeTerminalBackend).mock.calls.filter((call) => call[1] === '\u001b')
+      expect(firstWrites).toHaveLength(1)
+      expect(firstWrites[0]).toEqual([`${baseTerminalId}-1`, '\u001b'])
 
       vi.mocked(writeTerminalBackend).mockClear()
 
@@ -757,8 +762,9 @@ describe('Terminal', () => {
       primaryOnData?.('\u001b')
       secondaryOnData?.('\u001b')
 
-      expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
-      expect(writeTerminalBackend).toHaveBeenCalledWith(baseTerminalId, '\u001b')
+      const secondWrites = vi.mocked(writeTerminalBackend).mock.calls.filter((call) => call[1] === '\u001b')
+      expect(secondWrites).toHaveLength(1)
+      expect(secondWrites[0]).toEqual([baseTerminalId, '\u001b'])
     } finally {
       terminalHarness.acquireMock.mockReset()
       if (originalAcquire) {
@@ -906,6 +912,123 @@ describe('Terminal', () => {
 
     await waitFor(() => {
       expect(writeTerminalBackend).toHaveBeenCalledWith('session-drop-bottom', './src/example.ts ')
+    })
+  })
+
+  it('opens absolute file links outside the active project root using the project root (not the worktree)', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetActiveProjectPath) return '/project'
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'vscode'
+      if (cmd === TauriCommands.OpenInApp) return undefined
+      return { fontFamily: null }
+    })
+
+    renderTerminal({
+      terminalId: 'session-file-links-bottom',
+      workingDirectory: '/project/.schaltwerk/worktrees/session-a',
+    })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).setFileLinkHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.setFileLinkHandler.mock.calls.at(-1)?.[0] as ((text: string) => Promise<boolean>) | null | undefined
+    expect(typeof handler).toBe('function')
+
+    const handled = await handler!('/tmp/outside.log:12')
+    expect(handled).toBe(true)
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        TauriCommands.OpenInApp,
+        expect.objectContaining({
+          appId: 'vscode',
+          worktreeRoot: '/project',
+          worktreePath: '/project',
+          targetPath: '/tmp/outside.log',
+          line: 12,
+        }),
+      )
+    })
+  })
+
+  it('opens absolute file links inside the active project root but outside the session root using the project root (not the worktree)', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetActiveProjectPath) return '/project'
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'vscode'
+      if (cmd === TauriCommands.OpenInApp) return undefined
+      return { fontFamily: null }
+    })
+
+    renderTerminal({
+      terminalId: 'session-file-links-project-bottom',
+      workingDirectory: '/project/.schaltwerk/worktrees/session-a',
+    })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).setFileLinkHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.setFileLinkHandler.mock.calls.at(-1)?.[0] as ((text: string) => Promise<boolean>) | null | undefined
+    expect(typeof handler).toBe('function')
+
+    const handled = await handler!('/project/src/inside.ts:7')
+    expect(handled).toBe(true)
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        TauriCommands.OpenInApp,
+        expect.objectContaining({
+          appId: 'vscode',
+          worktreeRoot: '/project',
+          worktreePath: '/project',
+          targetPath: '/project/src/inside.ts',
+          line: 7,
+        }),
+      )
+    })
+  })
+
+  it('opens relative file links that resolve outside the session root using the project root (not the worktree)', async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetActiveProjectPath) return '/project'
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'vscode'
+      if (cmd === TauriCommands.OpenInApp) return undefined
+      return { fontFamily: null }
+    })
+
+    renderTerminal({
+      terminalId: 'session-file-links-relative-outside-bottom',
+      workingDirectory: '/project/.schaltwerk/worktrees/session-a',
+    })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).setFileLinkHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.setFileLinkHandler.mock.calls.at(-1)?.[0] as ((text: string) => Promise<boolean>) | null | undefined
+    expect(typeof handler).toBe('function')
+
+    const handled = await handler!('../outside.log:12')
+    expect(handled).toBe(true)
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        TauriCommands.OpenInApp,
+        expect.objectContaining({
+          appId: 'vscode',
+          worktreeRoot: '/project',
+          worktreePath: '/project',
+          targetPath: '/project/.schaltwerk/worktrees/outside.log',
+          line: 12,
+        }),
+      )
     })
   })
 

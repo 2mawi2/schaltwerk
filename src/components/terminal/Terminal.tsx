@@ -124,6 +124,13 @@ type TerminalFileLinkHandler = (text: string) => Promise<boolean> | boolean;
 
 const normalizeForComparison = (value: string) => value.replace(/\\/g, '/');
 
+const isPathWithinBase = (basePath: string, candidatePath: string) => {
+    const baseNormalized = normalizeForComparison(basePath);
+    const candidateNormalized = normalizeForComparison(candidatePath);
+    const baseWithSlash = baseNormalized.endsWith('/') ? baseNormalized : `${baseNormalized}/`;
+    return candidateNormalized === baseNormalized || candidateNormalized.startsWith(baseWithSlash);
+};
+
 const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, onReady, inputFilter, workingDirectory, previewKey, autoPreviewConfig }, ref) => {
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
@@ -233,13 +240,24 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         const resolvedPath = resolveTerminalFileReference(parsed, workingDirectory);
         if (!resolvedPath) return false;
 
-        const baseNormalized = normalizeForComparison(workingDirectory);
-        const resolvedNormalized = normalizeForComparison(resolvedPath);
-        const baseWithSlash = baseNormalized.endsWith('/') ? baseNormalized : `${baseNormalized}/`;
-        const isWithinBase = resolvedNormalized === baseNormalized || resolvedNormalized.startsWith(baseWithSlash);
-        if (!isWithinBase) {
-            logger.warn(`[Terminal ${terminalId}] Ignoring file link outside session root: ${text}`);
-            return false;
+        if (!isPathWithinBase(workingDirectory, resolvedPath)) {
+            try {
+                const projectRoot = await invoke<string | null>(TauriCommands.GetActiveProjectPath);
+                const openRoot = projectRoot ?? workingDirectory;
+
+                const appId = await invoke<string>(TauriCommands.GetDefaultOpenApp);
+                await invoke(TauriCommands.OpenInApp, {
+                    appId,
+                    worktreeRoot: openRoot,
+                    worktreePath: openRoot, // backward compat
+                    targetPath: resolvedPath,
+                    line: parsed.startLine,
+                });
+                return true;
+            } catch (error) {
+                logger.error(`[Terminal ${terminalId}] Failed to open out-of-project file link ${text}`, error);
+                return false;
+            }
         }
 
         try {
