@@ -11,6 +11,7 @@ import { useSessions } from '../../hooks/useSessions'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 import { isSessionMissingError } from '../../types/errors'
+import { useTranslation } from '../../common/i18n'
 
 const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function SpecMetadataPanel({ sessionName }: Props) {
+  const { t } = useTranslation()
   const [metadata, setMetadata] = useState<SpecMetadata>({})
   const [loading, setLoading] = useState(true)
   const { sessions } = useSessions()
@@ -100,16 +102,16 @@ export function SpecMetadataPanel({ sessionName }: Props) {
             <VscNotebook style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.heading }} />
           </div>
           <div>
-            <h3 style={{ 
-              color: 'var(--color-text-primary)', 
+            <h3 style={{
+              color: 'var(--color-text-primary)',
               fontSize: theme.fontSize.heading,
               fontWeight: 600,
               marginBottom: '2px'
             }}>
-              Spec Information
+              {t.specMetadataPanel.title}
             </h3>
             <p style={{ color: 'var(--color-text-muted)', fontSize: theme.fontSize.caption }}>
-              View spec metadata
+              {t.specMetadataPanel.subtitle}
             </p>
           </div>
         </div>
@@ -128,18 +130,18 @@ export function SpecMetadataPanel({ sessionName }: Props) {
             style={{ color: 'var(--color-accent-blue)', fontSize: theme.fontSize.heading }} 
           />
           <div>
-            <div style={{ 
-              color: 'var(--color-text-secondary)', 
+            <div style={{
+              color: 'var(--color-text-secondary)',
               fontSize: theme.fontSize.caption,
               marginBottom: '4px'
             }}>
-              Created
+              {t.specMetadataPanel.created}
             </div>
-            <div style={{ 
-              color: 'var(--color-text-primary)', 
-              fontSize: theme.fontSize.body 
+            <div style={{
+              color: 'var(--color-text-primary)',
+              fontSize: theme.fontSize.body
             }}>
-              {formatDateTime(metadata.created_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}
+              {formatDateTime(metadata.created_at, METADATA_DATE_OPTIONS, t.specMetadataPanel.unknown, 'en-US')}
             </div>
           </div>
         </div>
@@ -151,18 +153,18 @@ export function SpecMetadataPanel({ sessionName }: Props) {
               style={{ color: 'var(--color-accent-amber)', fontSize: theme.fontSize.heading }} 
             />
             <div>
-              <div style={{ 
-                color: 'var(--color-text-secondary)', 
+              <div style={{
+                color: 'var(--color-text-secondary)',
                 fontSize: theme.fontSize.caption,
                 marginBottom: '4px'
               }}>
-                Last Modified
+                {t.specMetadataPanel.lastModified}
               </div>
-              <div style={{ 
-                color: 'var(--color-text-primary)', 
-                fontSize: theme.fontSize.body 
+              <div style={{
+                color: 'var(--color-text-primary)',
+                fontSize: theme.fontSize.body
               }}>
-                {formatDateTime(metadata.updated_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}
+                {formatDateTime(metadata.updated_at, METADATA_DATE_OPTIONS, t.specMetadataPanel.unknown, 'en-US')}
               </div>
             </div>
           </div>

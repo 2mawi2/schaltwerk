@@ -9,6 +9,7 @@ import { useSelection } from '../../hooks/useSelection'
 import { useHighlightWorker } from '../../hooks/useHighlightWorker'
 import { useOpenInEditor } from '../../hooks/useOpenInEditor'
 import { getLanguageFromPath, isMarkdownFile } from '../../utils/fileTypes'
+import { useTranslation } from '../../common/i18n'
 
 interface FileContentViewerProps {
   filePath: string | null
@@ -89,6 +90,7 @@ export function FileContentViewer({
   onBack,
   sessionNameOverride,
 }: FileContentViewerProps) {
+  const { t } = useTranslation()
   const { selection } = useSelection()
   const [content, setContent] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -183,7 +185,7 @@ export function FileContentViewer({
       return (
         <div className="h-full flex items-center justify-center">
           <div className="text-center" style={{ color: 'var(--color-text-muted)' }}>
-            <div className="text-sm">Loading...</div>
+            <div className="text-sm">{t.fileContentViewer.loading}</div>
           </div>
         </div>
       )
@@ -205,7 +207,7 @@ export function FileContentViewer({
         <div className="h-full flex items-center justify-center">
           <div className="text-center" style={{ color: 'var(--color-text-muted)' }}>
             <VscFileBinary className="mx-auto mb-2 text-4xl opacity-50" />
-            <div className="text-sm">Binary file</div>
+            <div className="text-sm">{t.fileContentViewer.binaryFile}</div>
             <div className="text-xs mt-1">{formatBytes(fileSize)}</div>
           </div>
         </div>
@@ -243,7 +245,7 @@ export function FileContentViewer({
           }}
         >
           <VscChevronLeft className="w-4 h-4" />
-          <span>Back</span>
+          <span>{t.fileContentViewer.back}</span>
         </button>
 
         <div className="flex-1 mx-4 truncate text-center">
@@ -258,7 +260,7 @@ export function FileContentViewer({
               <button
                 onClick={() => setViewMode('preview')}
                 className="p-1.5 rounded transition-colors"
-                title="Preview"
+                title={t.fileContentViewer.preview}
                 style={{
                   color: viewMode === 'preview' ? 'var(--color-accent-blue)' : 'var(--color-text-muted)',
                   backgroundColor: viewMode === 'preview' ? 'var(--color-bg-elevated)' : 'transparent',
@@ -269,7 +271,7 @@ export function FileContentViewer({
               <button
                 onClick={() => setViewMode('raw')}
                 className="p-1.5 rounded transition-colors"
-                title="Raw"
+                title={t.fileContentViewer.raw}
                 style={{
                   color: viewMode === 'raw' ? 'var(--color-accent-blue)' : 'var(--color-text-muted)',
                   backgroundColor: viewMode === 'raw' ? 'var(--color-bg-elevated)' : 'transparent',
@@ -282,7 +284,7 @@ export function FileContentViewer({
           <button
             onClick={() => { if (filePath) void openInEditor(filePath) }}
             className="p-1.5 rounded transition-colors"
-            title="Open in editor"
+            title={t.fileContentViewer.openInEditor}
             style={{ color: 'var(--color-text-muted)' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = 'var(--color-text-primary)'

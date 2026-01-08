@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { useTranslation } from '../../common/i18n'
 
 type BadgeLayout = 'row' | 'column'
 type BadgeSize = 'default' | 'compact'
@@ -37,6 +38,7 @@ export function DiffChangeBadges({
   layout = 'column',
   size = 'default',
 }: DiffChangeBadgesProps) {
+  const { t } = useTranslation()
   void changes
 
   const containerClasses = clsx(
@@ -49,7 +51,7 @@ export function DiffChangeBadges({
   if (isBinary) {
     return (
       <div className={containerClasses}>
-        <span className={clsx(baseNumberClass, binaryClass)}>Binary</span>
+        <span className={clsx(baseNumberClass, binaryClass)}>{t.diffChangeBadges.binary}</span>
       </div>
     )
   }

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 interface MCPStatus {
   mcp_server_path: string
@@ -38,7 +39,8 @@ function getAgentDisplayName(agent: Props['agent']): string {
   }
 }
 
-function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
+function NodeRequiredNotice({ agent, t }: { agent: Props['agent']; t: ReturnType<typeof useTranslation>['t'] }) {
+  const agentLabel = getAgentDisplayName(agent)
   return (
     <div
       className="p-3 border rounded text-xs space-y-2"
@@ -49,11 +51,11 @@ function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
       }}
     >
       <div className="font-medium" style={{ color: 'var(--color-accent-amber-light)' }}>
-        Node.js required
+        {t.settings.mcp.nodeRequired}
       </div>
-      <div>Node.js is required to run the Schaltwerk MCP server.</div>
+      <div>{t.settings.mcp.nodeRequiredDesc}</div>
       <div>
-        Install Node.js and restart {getAgentDisplayName(agent)} to enable MCP tools.
+        {t.settings.mcp.installNodeDesc.replace('{agent}', agentLabel)}
       </div>
       <a
         href="https://nodejs.org/en/download"
@@ -62,13 +64,14 @@ function NodeRequiredNotice({ agent }: { agent: Props['agent'] }) {
         className="inline-block underline"
         style={{ color: 'var(--color-accent-amber-light)' }}
       >
-        Download Node.js
+        {t.settings.mcp.downloadNode}
       </a>
     </div>
   )
 }
 
 export function MCPConfigPanel({ projectPath, agent }: Props) {
+  const { t } = useTranslation()
   const [status, setStatus] = useState<MCPStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -133,7 +136,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
   const copyCommand = async () => {
     if (status) {
       await navigator.clipboard.writeText(status.setup_command)
-      setSuccess('Command copied to clipboard!')
+      setSuccess(t.mcpMessages.commandCopied)
       setTimeout(() => setSuccess(null), 3000)
     }
   }
@@ -142,7 +145,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     setLoading(true)
     try {
       await invoke(TauriCommands.RemoveMcpForProject, { projectPath, client: agent })
-      setSuccess('MCP configuration removed')
+      setSuccess(t.mcpMessages.configurationRemoved)
       await loadStatus()
     } catch (e) {
       logger.error(`Failed to remove MCP configuration for ${agent}`, e)
@@ -156,7 +159,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-slate-200">MCP Server Configuration</h3>
+          <h3 className="text-sm font-medium text-slate-200">{t.settings.mcp.title}</h3>
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -173,26 +176,26 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
               }}
             />
              <span className="text-xs text-slate-400">
-               {requiresGlobalConfig ? 'Enable MCP (global)' : 'Enable MCP'}
+               {requiresGlobalConfig ? t.settings.mcp.enableMcpGlobal : t.settings.mcp.enableMcp}
              </span>
           </label>
         </div>
          <p className="text-xs text-slate-400">
            {agent === 'claude'
-             ? `Allow ${agentLabel} to control Schaltwerk sessions in this project via MCP.`
+             ? t.settings.mcp.claudeDesc.replace('{agent}', agentLabel)
              : agent === 'codex'
-             ? `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.codex/config.toml. The server is project-aware and routes by your current repo.`
+             ? t.settings.mcp.codexDesc.replace('{agent}', agentLabel)
              : agent === 'opencode'
-             ? `Enable ${agentLabel} to control Schaltwerk sessions via MCP configuration. The server is project-aware and routes by your current repo.`
+             ? t.settings.mcp.opencodeDesc.replace('{agent}', agentLabel)
              : agent === 'amp'
-             ? `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.config/amp/settings.json. The server is project-aware and routes by your current repo.`
-             : `Enable ${agentLabel} to control Schaltwerk sessions via a global MCP entry in ~/.factory/mcp.json. The server is project-aware and routes by your current repo.`}
+             ? t.settings.mcp.ampDesc.replace('{agent}', agentLabel)
+             : t.settings.mcp.droidDesc.replace('{agent}', agentLabel)}
          </p>
       </div>
 
        {!mcpEnabled && (
          <div className="p-3 bg-slate-800/30 border border-slate-700 rounded text-slate-400 text-xs">
-           Enable MCP configuration to allow {agentLabel} to manage sessions in this project.
+           {t.settings.mcp.enableMcpHint.replace('{agent}', agentLabel)}
          </div>
        )}
 
@@ -200,7 +203,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
         <>
           {loading && (
             <div className="flex items-center justify-center py-4">
-              <AnimatedText text="configuring" size="sm" />
+              <AnimatedText text={t.mcpMessages.configuring} size="sm" />
             </div>
           )}
 
@@ -227,10 +230,10 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                  <div>
-                    <div className="font-medium mb-1">Next Steps:</div>
-                    <div>• Restart {agentLabel} to load the MCP server</div>
-                    <div>• Or click the reset button (shown above) in the orchestrator terminal</div>
-                    <div>• The MCP server will then be available for all {agentLabel} sessions in this project</div>
+                    <div className="font-medium mb-1">{t.settings.mcp.nextSteps}</div>
+                    <div>• {t.settings.mcp.nextStepsItems.restart.replace('{agent}', agentLabel)}</div>
+                    <div>• {t.settings.mcp.nextStepsItems.resetButton}</div>
+                    <div>• {t.settings.mcp.nextStepsItems.available.replace('{agent}', agentLabel)}</div>
                   </div>
                 </div>
               </div>
@@ -238,43 +241,43 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
           )}
 
           {status && !nodeAvailable && (
-            <NodeRequiredNotice agent={agent} />
+            <NodeRequiredNotice agent={agent} t={t} />
           )}
 
           {status && (
             <>
               <div className="space-y-2 p-3 bg-slate-800/50 rounded border border-slate-700">
                  <div className="flex items-center justify-between text-xs">
-                   <span className="text-slate-400">{agentLabel} CLI:</span>
+                   <span className="text-slate-400">{t.settings.mcp.cliLabel.replace('{agent}', agentLabel)}</span>
                    <span className={status.cli_available ? 'text-green-400' : 'text-amber-400'}>
-                     {status.cli_available ? '✅ Available' : '⚠️ Not found'}
+                     {status.cli_available ? t.settings.mcp.available : t.settings.mcp.notFound}
                    </span>
                  </div>
-            
+
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">MCP Server:</span>
+                  <span className="text-slate-400">{t.settings.mcp.serverLabel}</span>
                   <span className="text-slate-300">
-                    {status.is_embedded ? '📦 Embedded' : '🔧 Development'}
+                    {status.is_embedded ? t.settings.mcp.embedded : t.settings.mcp.development}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Node.js Runtime:</span>
+                  <span className="text-slate-400">{t.settings.mcp.nodeRuntime}</span>
                   <span className={nodeAvailable ? 'text-green-400' : 'text-amber-400'}>
-                    {nodeAvailable ? '✅ Available' : '⚠️ Not found'}
+                    {nodeAvailable ? t.settings.mcp.available : t.settings.mcp.notFound}
                   </span>
                 </div>
-            
+
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Configuration:</span>
+                  <span className="text-slate-400">{t.settings.mcp.configuration}</span>
                   <span className={status.is_configured ? 'text-green-400' : 'text-amber-400'}>
-                    {status.is_configured ? '✅ Configured' : '⚠️ Not configured'}
+                    {status.is_configured ? t.settings.mcp.configured : t.settings.mcp.notConfigured}
                   </span>
                 </div>
 
                 {status.is_configured && (
                   <div className="pt-2 border-t border-slate-700">
-                    <div className="text-xs text-slate-500 mb-1">Server Location:</div>
+                    <div className="text-xs text-slate-500 mb-1">{t.settings.mcp.serverLocation}</div>
                     <div className="text-xs text-slate-300 font-mono break-all">
                       {status.mcp_server_path}
                     </div>
@@ -290,7 +293,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                        className="px-3 py-1 bg-green-800 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed border border-green-700 rounded text-sm transition-colors text-green-200"
                      >
-                       {requiresGlobalConfig ? 'Reconfigure MCP (global)' : 'Reconfigure MCP'}
+                       {requiresGlobalConfig ? t.settings.mcp.reconfigureMcpGlobal : t.settings.mcp.reconfigureMcp}
                      </button>
                   ) : (
                     <button
@@ -309,7 +312,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            e.currentTarget.style.backgroundColor = 'var(--color-cyan-800)';
                          }}
                      >
-                       {agent === 'codex' || agent === 'amp' || agent === 'droid' ? 'Enable MCP (global)' : 'Configure MCP for This Project'}
+                       {agent === 'codex' || agent === 'amp' || agent === 'droid' ? t.settings.mcp.enableMcpGlobalBtn : t.settings.mcp.configureMcpProject}
                      </button>
                   )
                 ) : (
@@ -332,11 +335,11 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                              (e.target as HTMLElement).style.backgroundColor = 'var(--color-cyan-800)';
                            }}
                         >
-                         Install Claude Code First
+                         {t.settings.mcp.installClaudeFirst}
                        </a>
                      ) : agent === 'codex' ? (
                        <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
-                         Install Codex CLI first
+                         {t.settings.mcp.installCodexFirst}
                        </div>
                      ) : agent === 'opencode' ? (
                         <a
@@ -345,15 +348,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                           rel="noopener noreferrer"
                           className="px-3 py-1 bg-cyan-800 hover:bg-cyan-700 border border-cyan-700 rounded text-sm transition-colors text-cyan-200 inline-block"
                        >
-                         Install OpenCode First
+                         {t.settings.mcp.installOpencodeFirst}
                        </a>
                      ) : agent === 'amp' ? (
                        <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
-                         Install Amp CLI first
+                         {t.settings.mcp.installAmpFirst}
                        </div>
                      ) : (
                        <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
-                         Install Droid CLI first
+                         {t.settings.mcp.installDroidFirst}
                        </div>
                      )}
                   </>
@@ -365,7 +368,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     disabled={loading}
                     className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-sm transition-colors text-slate-400"
                   >
-                    Remove
+                    {t.settings.common.remove}
                   </button>
                 )}
                 
@@ -373,14 +376,14 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   onClick={() => setShowManualSetup(!showManualSetup)}
                   className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-sm transition-colors text-slate-400"
                 >
-                  {showManualSetup ? 'Hide' : 'Manual Setup'}
+                  {showManualSetup ? t.settings.mcp.hide : t.settings.mcp.manualSetup}
                 </button>
               </div>
 
               {showManualSetup && (
                 <div className="p-3 bg-slate-900 border border-slate-700 rounded">
                    <p className="text-xs text-slate-400 mb-2">
-                     {agent === 'codex' ? 'Add to ~/.codex/config.toml:' : agent === 'opencode' ? 'Add to opencode.json:' : agent === 'amp' ? 'Add to ~/.config/amp/settings.json:' : agent === 'droid' ? 'Add to ~/.factory/mcp.json:' : 'Run from project directory:'}
+                     {agent === 'codex' ? 'Add to ~/.codex/config.toml:' : agent === 'opencode' ? 'Add to opencode.json:' : agent === 'amp' ? 'Add to ~/.config/amp/settings.json:' : agent === 'droid' ? 'Add to ~/.factory/mcp.json:' : t.settings.mcp.manualSetupPrefix}
                    </p>
                   
                   <div className="flex gap-2">
@@ -415,22 +418,22 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <button
                       onClick={() => { void copyCommand() }}
                       className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition-colors text-slate-400 flex-shrink-0 self-start"
-                      title="Copy command"
+                      title={t.mcpMessages.copyCommand}
                     >
-                      Copy
+                      {t.settings.common.copy}
                     </button>
                   </div>
                   
                    <p className="text-xs text-slate-500 mt-2 italic">
                      {agent === 'codex'
-                       ? 'This config is global. Codex will load it on next start.'
+                       ? t.settings.mcp.codexConfigNote
                        : agent === 'opencode'
-                       ? 'This config can be project-specific (opencode.json) or global (~/.opencode/config.json).'
+                       ? t.settings.mcp.opencodeConfigNote
                        : agent === 'amp'
-                       ? 'This config is global in ~/.config/amp/settings.json (Windows: %APPDATA%\\amp\\settings.json). Amp will load it on next start.'
+                       ? t.settings.mcp.ampConfigNote
                        : agent === 'droid'
-                       ? 'This config is global in ~/.factory/mcp.json (Windows: %USERPROFILE%\\.factory\\mcp.json). Droid will load it on next start.'
-                       : 'Tip: Scroll horizontally to see the full command'}
+                       ? t.settings.mcp.droidConfigNote
+                       : t.settings.mcp.claudeConfigNote}
                    </p>
                 </div>
               )}

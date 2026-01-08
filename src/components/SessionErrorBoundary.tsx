@@ -2,16 +2,18 @@ import React, { ReactNode } from 'react'
 import ErrorBoundary from './ErrorBoundary'
 import { theme } from '../common/theme'
 import { VscRefresh, VscFolderOpened } from 'react-icons/vsc'
+import { useTranslation } from '../common/i18n'
 
 interface SessionErrorBoundaryProps {
   children: ReactNode
   sessionName?: string
 }
 
-const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({ 
-  children, 
+const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
+  children,
   sessionName
 }) => {
+  const { t } = useTranslation()
   const handleSessionError = (error: Error, resetError: () => void): ReactNode => {
     return (
       <div 
@@ -34,47 +36,47 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
           style={{ marginBottom: '1rem' }}
         />
         
-        <h3 style={{ 
+        <h3 style={{
           fontSize: theme.fontSize.heading,
           color: 'var(--color-text-primary)',
           marginBottom: '0.5rem',
           textAlign: 'center'
         }}>
-          Session Error
+          {t.sessionErrorBoundary.title}
         </h3>
-        
+
         {sessionName && (
-          <p style={{ 
+          <p style={{
             fontSize: theme.fontSize.caption,
             color: 'var(--color-text-tertiary)',
             marginBottom: '1rem',
             textAlign: 'center'
           }}>
-            Session: {sessionName}
+            {t.sessionErrorBoundary.session.replace('{sessionName}', sessionName)}
           </p>
         )}
-        
-        <p style={{ 
+
+        <p style={{
           fontSize: theme.fontSize.body,
           color: 'var(--color-text-secondary)',
           marginBottom: '1.5rem',
           textAlign: 'center',
           maxWidth: '400px'
         }}>
-          Failed to load session data. This might be due to a corrupted session state or network issue.
+          {t.sessionErrorBoundary.description}
         </p>
 
-        <details style={{ 
+        <details style={{
           marginBottom: '1.5rem',
           maxWidth: '400px',
           width: '100%'
         }}>
-          <summary style={{ 
+          <summary style={{
             cursor: 'pointer',
             fontSize: theme.fontSize.caption,
             color: 'var(--color-text-muted)'
           }}>
-            Error details
+            {t.sessionErrorBoundary.errorDetails}
           </summary>
           <pre style={{ 
             fontSize: theme.fontSize.caption,
@@ -115,9 +117,9 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
             }}
           >
             <VscRefresh size={16} />
-            Retry
+            {t.sessionErrorBoundary.retry}
           </button>
-          
+
           <button
             onClick={() => window.location.reload()}
             style={{
@@ -137,7 +139,7 @@ const SessionErrorBoundary: React.FC<SessionErrorBoundaryProps> = ({
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >
-            Refresh App
+            {t.sessionErrorBoundary.refreshApp}
           </button>
         </div>
       </div>

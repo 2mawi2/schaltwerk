@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { ConfirmModal } from './ConfirmModal'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 interface CancelConfirmationProps {
   open: boolean
@@ -11,31 +12,36 @@ interface CancelConfirmationProps {
   loading?: boolean
 }
 
-export function CancelConfirmation({ 
-  open, 
+export function CancelConfirmation({
+  open,
   displayName,
   branch,
-  hasUncommittedChanges, 
-  onConfirm, 
+  hasUncommittedChanges,
+  onConfirm,
   onCancel,
   loading = false,
 }: CancelConfirmationProps) {
+  const { t } = useTranslation()
   const handleConfirm = useCallback(() => {
     onConfirm(hasUncommittedChanges)
   }, [onConfirm, hasUncommittedChanges])
 
   if (!open) return null
 
+  const title = t.dialogs.cancelSession.title
+    .replace('{name}', displayName)
+    .replace('{branch}', branch)
+
   const body = (
     <p className="text-zinc-300">
-      This will move the session to the archive.
+      {t.dialogs.cancelSession.body}
       {hasUncommittedChanges ? (
         <span className="block mt-2 text-amber-500 font-medium">
-          ⚠️ Warning: This session has uncommitted changes that will be lost!
+          ⚠️ {t.dialogs.cancelSession.warningUncommitted}
         </span>
       ) : (
         <span className="block mt-2 text-zinc-400">
-          All changes in this session have been committed.
+          {t.dialogs.cancelSession.allCommitted}
         </span>
       )}
     </p>
@@ -44,12 +50,10 @@ export function CancelConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title={<span>Cancel Session: {displayName} ({branch})?</span>}
+      title={<span>{title}</span>}
       body={body}
-      confirmText={hasUncommittedChanges ? 'Force Cancel' : 'Cancel Session'}
-      confirmTitle="Cancel session (Enter)"
-      cancelText="Keep Session"
-      cancelTitle="Keep session (Esc)"
+      confirmText={hasUncommittedChanges ? t.dialogs.cancelSession.forceCancel : t.dialogs.cancelSession.cancelSession}
+      cancelText={t.dialogs.cancelSession.keepSession}
       onConfirm={handleConfirm}
       onCancel={onCancel}
       loading={loading}

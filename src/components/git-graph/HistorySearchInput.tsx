@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState, forwardRef, useImperativeHandle } from 'react'
 import type { KeyboardEvent, ChangeEvent } from 'react'
 import { theme } from '../../common/theme'
+import { useTranslation } from '../../common/i18n'
 
 interface HistorySearchInputProps {
   value: string
@@ -18,6 +19,7 @@ const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation()
 
 export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySearchInputProps>(
   function HistorySearchInput({ value, onChange, matchCount, totalCount, onClose }, ref) {
+    const { t } = useTranslation()
     const inputRef = useRef<HTMLInputElement>(null)
     const [localValue, setLocalValue] = useState(value)
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -96,7 +98,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
           value={localValue}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Search commits..."
+          placeholder={t.historySearch.placeholder}
           className="bg-transparent outline-none placeholder:opacity-50 ml-2 flex-1 min-w-0"
           style={{
             color: 'var(--color-text-primary)',
@@ -119,7 +121,7 @@ export const HistorySearchInput = forwardRef<HistorySearchInputHandle, HistorySe
             onClick={handleClear}
             className="ml-1 hover:opacity-80 flex-shrink-0"
             style={{ color: 'var(--color-text-tertiary)' }}
-            title="Clear search (Escape)"
+            title={t.historySearch.clearSearch}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

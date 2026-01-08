@@ -1,5 +1,6 @@
 import { VscChevronRight } from 'react-icons/vsc'
 import { DiffFilterResult, formatDiffSize } from '../../domains/diff/diffFilters'
+import { useTranslation } from '../../common/i18n'
 
 interface CollapsedDiffBadgeProps {
   filterResult: DiffFilterResult
@@ -7,17 +8,22 @@ interface CollapsedDiffBadgeProps {
 }
 
 export function CollapsedDiffBadge({ filterResult, onClick }: CollapsedDiffBadgeProps) {
+  const { t } = useTranslation()
   const { reason, lineCount, sizeBytes } = filterResult
 
   let badgeText = ''
   if (reason === 'generated') {
-    badgeText = 'Generated file'
+    badgeText = t.collapsedDiffBadge.generatedFile
   } else if (reason === 'large' && lineCount && sizeBytes) {
-    badgeText = `Large diff (${lineCount.toLocaleString()} lines, ${formatDiffSize(sizeBytes)})`
+    badgeText = t.collapsedDiffBadge.largeDiff
+      .replace('{lines}', lineCount.toLocaleString())
+      .replace('{size}', formatDiffSize(sizeBytes))
   } else if (reason === 'both' && lineCount && sizeBytes) {
-    badgeText = `Generated file • Large diff (${lineCount.toLocaleString()} lines, ${formatDiffSize(sizeBytes)})`
+    badgeText = t.collapsedDiffBadge.generatedLargeDiff
+      .replace('{lines}', lineCount.toLocaleString())
+      .replace('{size}', formatDiffSize(sizeBytes))
   } else if (reason === 'deleted') {
-    badgeText = 'Deleted file'
+    badgeText = t.collapsedDiffBadge.deletedFile
   }
 
   return (
@@ -45,7 +51,7 @@ export function CollapsedDiffBadge({ filterResult, onClick }: CollapsedDiffBadge
             {badgeText}
           </div>
           <div className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-            Click to expand
+            {t.collapsedDiffBadge.clickToExpand}
           </div>
         </div>
       </button>

@@ -5,6 +5,7 @@ import { Dropdown, type DropdownItem } from '../inputs/Dropdown'
 import { EPIC_COLOR_KEYS, type EpicColorKey, getEpicAccentScheme, labelForEpicColor } from '../../utils/epicColors'
 import { getErrorMessage } from '../../types/errors'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface EpicModalProps {
     open: boolean
@@ -21,6 +22,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [colorMenuOpen, setColorMenuOpen] = useState(false)
+    const { t } = useTranslation()
 
     useEffect(() => {
         if (!open) {
@@ -33,21 +35,21 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
         setColorMenuOpen(false)
     }, [open, initialName, initialColor])
 
-    const title = mode === 'create' ? 'Create Epic' : 'Edit Epic'
-    const submitLabel = mode === 'create' ? 'Create' : 'Save'
+    const title = mode === 'create' ? t.epicModal.createTitle : t.epicModal.editTitle
+    const submitLabel = mode === 'create' ? t.epicModal.create : t.epicModal.save
 
     const selectedScheme = getEpicAccentScheme(color)
     const colorLabel = useMemo(() => {
         if (!color) {
-            return 'None'
+            return t.epicModal.colorNone
         }
         const isKey = EPIC_COLOR_KEYS.includes(color as EpicColorKey)
         return isKey ? labelForEpicColor(color as EpicColorKey) : color
-    }, [color])
+    }, [color, t.epicModal.colorNone])
 
     const colorItems = useMemo<DropdownItem[]>(() => {
         const items: DropdownItem[] = [
-            { key: 'none', label: 'None' },
+            { key: 'none', label: t.epicModal.colorNone },
             { key: 'separator', label: <div style={{ height: 1, backgroundColor: 'var(--color-border-subtle)' }} />, disabled: true },
             ...EPIC_COLOR_KEYS.map((key) => {
                 const scheme = getEpicAccentScheme(key)
@@ -66,7 +68,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
             }),
         ]
         return items
-    }, [])
+    }, [t.epicModal.colorNone])
 
     const handleColorSelect = useCallback((key: string) => {
         if (key === 'none') {
@@ -85,7 +87,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
         }
         const trimmed = name.trim()
         if (!trimmed) {
-            setError('Name is required')
+            setError(t.epicModal.nameRequired)
             return
         }
 
@@ -100,7 +102,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
         } finally {
             setSaving(false)
         }
-    }, [saving, name, onSubmit, color, onClose])
+    }, [saving, name, onSubmit, color, onClose, t.epicModal.nameRequired])
 
     const footer = (
         <>
@@ -114,7 +116,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                     borderColor: 'var(--color-border-subtle)',
                 }}
             >
-                Cancel
+                {t.epicModal.cancel}
             </button>
             <button
                 type="button"
@@ -150,7 +152,7 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                 }}
             >
                 <div className="flex flex-col gap-1">
-                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>Name</label>
+                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>{t.epicModal.name}</label>
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -160,12 +162,12 @@ export function EpicModal({ open, mode, initialName = '', initialColor = null, o
                             color: 'var(--color-text-primary)',
                             borderColor: error ? 'var(--color-accent-red-border)' : 'var(--color-border-subtle)',
                         }}
-                        placeholder="billing-v2"
+                        placeholder={t.epicModal.namePlaceholder}
                     />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>Color (optional)</label>
+                    <label style={{ color: 'var(--color-text-secondary)', fontSize: theme.fontSize.caption }}>{t.epicModal.colorOptional}</label>
                     <Dropdown
                         open={colorMenuOpen}
                         onOpenChange={setColorMenuOpen}

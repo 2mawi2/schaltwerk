@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { VscFolderOpened, VscTrash, VscClose } from 'react-icons/vsc'
 import { formatDateTime } from '../../utils/dateTime'
 import { useRecentProjects } from '../../hooks/useRecentProjects'
+import { useTranslation } from '../../common/i18n'
 
 const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   dateStyle: 'medium'
@@ -15,6 +16,7 @@ interface ProjectSelectorModalProps {
 }
 
 export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, openProjectPaths = [] }: ProjectSelectorModalProps) {
+  const { t } = useTranslation()
   const {
     recentProjects,
     error,
@@ -105,13 +107,13 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
       >
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderBottomColor: 'var(--color-border-default)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-            Open Project
+            {t.projectSelector.title}
           </h2>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-bg-elevated transition-colors"
             style={{ color: 'var(--color-text-tertiary)' }}
-            aria-label="Close"
+            aria-label={t.ariaLabels.close}
           >
             <VscClose className="text-xl" />
           </button>
@@ -149,14 +151,14 @@ export function ProjectSelectorModal({ open: isOpen, onClose, onOpenProject, ope
               }}
             >
               <VscFolderOpened className="text-xl" />
-              <span className="font-medium">Open Repository</span>
+              <span className="font-medium">{t.projectSelector.openRepository}</span>
             </button>
           </div>
 
           {availableProjects.length > 0 && (
             <div>
               <h3 className="text-sm font-medium uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                Recent Projects
+                {t.projectSelector.recentProjects}
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

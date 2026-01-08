@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
+import { useTranslation } from '../../common/i18n'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { promptToSessionName } from '../../utils/promptToSessionName'
@@ -87,6 +88,7 @@ interface Props {
 type CreateSessionPayload = Parameters<Props['onCreate']>[0]
 
 export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '', onPromptChange, onClose, onCreate }: Props) {
+    const { t } = useTranslation()
     const { registerModal, unregisterModal } = useModal()
     const { isAvailable } = useAgentAvailability({ autoLoad: open })
     const { epics, ensureLoaded: ensureEpicsLoaded } = useEpics()
@@ -158,7 +160,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 parts.push(`${count}x ${displayNameForAgent(agent)}`)
             }
         })
-        return parts.length > 0 ? parts.join(', ') : 'Multiple agents'
+        return parts.length > 0 ? parts.join(', ') : t.newSessionModal.multipleAgents
     }, [multiAgentAllocations])
     const resetMultiAgentSelections = useCallback(() => {
         setMultiAgentMode(false)
@@ -472,16 +474,16 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
     const validateSessionName = useCallback((sessionName: string): string | null => {
         if (!sessionName.trim()) {
-            return 'Agent name is required'
+            return t.newSessionModal.validation.nameRequired
         }
         if (sessionName.length > 100) {
-            return 'Agent name must be 100 characters or less'
+            return t.newSessionModal.validation.nameTooLong
         }
         if (!SESSION_NAME_ALLOWED_PATTERN.test(sessionName)) {
-            return 'Agent name can only contain letters, numbers, hyphens, underscores, and spaces'
+            return t.newSessionModal.validation.nameInvalidChars
         }
         return null
-    }, [])
+    }, [t])
 
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newName = e.target.value
@@ -518,28 +520,28 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     : taskContent
 
         if (promptSource === 'github_issue' && !githubIssueSelection) {
-            setValidationError('Select a GitHub issue to continue')
+            setValidationError(t.newSessionModal.validation.selectIssue)
             return
         }
 
         if (promptSource === 'github_pull_request' && !githubPrSelection) {
-            setValidationError('Select a GitHub pull request to continue')
+            setValidationError(t.newSessionModal.validation.selectPr)
             return
         }
 
         // Validate that base branch is selected
         if (!createAsDraft && !baseBranch) {
-            setValidationError('Please select a base branch')
+            setValidationError(t.newSessionModal.validation.selectBranch)
             return
         }
-        
+
         // Validate spec content if creating as spec
          if (createAsDraft && !currentPrompt.trim()) {
-             setValidationError('Please enter spec content')
+             setValidationError(t.newSessionModal.validation.enterSpecContent)
              return
          }
         if (!createAsDraft && multiAgentMode && normalizedAgentTypes.length === 0) {
-            setValidationError('Select at least one agent to continue')
+            setValidationError(t.newSessionModal.validation.selectAgent)
             return
         }
 
@@ -1180,29 +1182,29 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
     const getStartButtonTitle = () => {
         if (createAsDraft) {
-            return "Create spec (Cmd+Enter)"
+            return t.newSessionModal.tooltips.createSpec
         }
         if (githubIssueLoading) {
-            return 'Fetching issue details...'
+            return t.newSessionModal.tooltips.fetchingIssue
         }
         if (githubPrLoading) {
-            return 'Fetching pull request details...'
+            return t.newSessionModal.tooltips.fetchingPr
         }
         if (requiresIssueSelection) {
-            return 'Select a GitHub issue to generate a prompt'
+            return t.newSessionModal.tooltips.selectIssuePrompt
         }
         if (requiresPrSelection) {
-            return 'Select a GitHub pull request to generate a prompt'
+            return t.newSessionModal.tooltips.selectPrPrompt
         }
         if (multiAgentMode && normalizedAgentTypes.length === 0) {
-            return 'Select at least one agent to continue'
+            return t.newSessionModal.tooltips.selectAgentPrompt
         }
         if (!canStartAgent) {
             return multiAgentMode
-                ? 'One or more selected agents are not installed. Please install them to continue.'
-                : `${agentType} is not installed. Please install it to use this agent.`
+                ? t.newSessionModal.tooltips.agentsNotInstalled
+                : t.newSessionModal.tooltips.agentNotInstalled.replace('{agent}', agentType)
         }
-        return "Start agent (Cmd+Enter)"
+        return t.newSessionModal.tooltips.startAgent
     }
 
     const footer = (
@@ -1240,7 +1242,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         color: 'var(--color-text-primary)',
                         border: `1px solid ${open ? 'var(--color-border-default)' : 'var(--color-border-subtle)'}`,
                       }}
-                      title={multiAgentMode ? 'Configure multiple agents' : 'Number of parallel versions'}
+                      title={multiAgentMode ? t.newSessionModal.configureAgents : t.newSessionModal.parallelVersions}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
                         <path d="M12 2L3 6l9 4 9-4-9-4z" fill="var(--color-text-primary)" fillOpacity={0.9}/>
@@ -1261,10 +1263,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 onClick={onClose}
                 className="px-3 h-9 rounded group relative hover:opacity-90 inline-flex items-center"
                 style={{ backgroundColor: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-subtle)' }}
-                title="Cancel (Esc)"
+                title={t.newSessionModal.cancelEsc}
             >
-                Cancel
-                <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
+                {t.newSessionModal.cancel}
+                <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">{t.newSessionModal.esc}</span>
             </button>
             <button
                 onClick={() => { void handleCreate() }}
@@ -1283,8 +1285,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         aria-hidden="true"
                     />
                 )}
-                <span>{createAsDraft ? "Create Spec" : "Start Agent"}</span>
-                {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⌘↵</span>}
+                <span>{createAsDraft ? t.newSessionModal.createSpec : t.newSessionModal.startAgent}</span>
+                {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">{t.newSessionModal.cmdEnter}</span>}
             </button>
         </>
     )
@@ -1293,7 +1295,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         <ResizableModal
             isOpen={open}
             onClose={onClose}
-            title={createAsDraft ? "Create new spec" : "Start new agent"}
+            title={createAsDraft ? t.newSessionModal.createNewSpec : t.newSessionModal.startNewAgent}
             storageKey="new-session"
             defaultWidth={720}
             defaultHeight={700}
@@ -1304,7 +1306,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	            <div className="flex flex-col h-full p-4 gap-4">
 	                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 	                    <div>
-	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Agent name</label>
+	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>{t.newSessionModal.agentName}</label>
 	                        <input
 	                            ref={nameInputRef}
 	                            value={name}
@@ -1337,10 +1339,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     <svg className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--color-accent-blue)' }} fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v1.5h16V5a2 2 0 00-2-2H4zm14 6H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM2 7h16v1H2V7z" clipRule="evenodd" />
                                     </svg>
-                                    <span style={{ color: 'var(--color-text-secondary)' }}>From spec: <span style={{ color: 'var(--color-text-primary)' }}>{originalSpecName}</span></span>
+                                    <span style={{ color: 'var(--color-text-secondary)' }}>{t.newSessionModal.fromSpec}: <span style={{ color: 'var(--color-text-primary)' }}>{originalSpecName}</span></span>
                                 </div>
                                 {name !== originalSpecName && (
-                                    <button 
+                                    <button
                                         type="button"
                                         onClick={() => {
                                             setName(originalSpecName)
@@ -1349,9 +1351,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         }}
                                         className="ml-2 px-2 py-0.5 rounded text-xs hover:opacity-80"
                                         style={{ backgroundColor: 'var(--color-accent-blue-bg)', color: 'var(--color-accent-blue)' }}
-                                        title="Reset to original spec name"
+                                        title={t.newSessionModal.resetToOriginal}
                                     >
-                                        Reset
+                                        {t.newSessionModal.reset}
                                     </button>
                                 )}
                             </div>
@@ -1359,7 +1361,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 	                    </div>
 	
 	                    <div>
-	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Epic</label>
+	                        <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>{t.newSessionModal.epic}</label>
 	                        <EpicSelect
 	                            value={selectedEpic}
 	                            onChange={setEpicId}
@@ -1382,13 +1384,13 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             }}
                             style={{ color: 'var(--color-accent-cyan)' }}
                         />
-                        <label htmlFor="createAsDraft" className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Create as spec (no agent will start)</label>
+                        <label htmlFor="createAsDraft" className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{t.newSessionModal.createAsSpec}</label>
                     </div>
 
                     <div className="flex flex-col flex-1 min-h-0">
                         <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                                {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
+                                {createAsDraft ? t.newSessionModal.specContent : t.newSessionModal.initialPrompt}
                             </label>
                             <div className="flex items-center gap-2">
                                 <button
@@ -1409,7 +1411,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         }`,
                                     }}
                                 >
-                                    Custom prompt
+                                    {t.newSessionModal.customPrompt}
                                 </button>
                                 <button
                                     type="button"
@@ -1420,8 +1422,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     }}
                                     title={
                                         githubPromptReady
-                                            ? 'Use a GitHub issue as the agent prompt'
-                                            : 'Connect GitHub to enable GitHub issue prompts'
+                                            ? t.newSessionModal.tooltips.useIssuePrompt
+                                            : t.newSessionModal.tooltips.connectGithubIssue
                                     }
                                     aria-pressed={promptSource === 'github_issue'}
                                     disabled={!githubPromptReady}
@@ -1443,7 +1445,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         cursor: githubPromptReady ? 'pointer' : 'not-allowed',
                                     }}
                                 >
-                                    GitHub issue
+                                    {t.newSessionModal.githubIssue}
                                 </button>
                                 <button
                                     type="button"
@@ -1454,8 +1456,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     }}
                                     title={
                                         githubPromptReady
-                                            ? 'Use a GitHub pull request as the agent prompt'
-                                            : 'Connect GitHub to enable GitHub PR prompts'
+                                            ? t.newSessionModal.tooltips.usePrPrompt
+                                            : t.newSessionModal.tooltips.connectGithubPr
                                     }
                                     aria-pressed={promptSource === 'github_pull_request'}
                                     disabled={!githubPromptReady}
@@ -1477,7 +1479,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         cursor: githubPromptReady ? 'pointer' : 'not-allowed',
                                     }}
                                 >
-                                    GitHub PR
+                                    {t.newSessionModal.githubPr}
                                 </button>
                             </div>
                         </div>
@@ -1495,8 +1497,8 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         }}
                                         placeholder={
                                             createAsDraft
-                                                ? 'Enter spec content in markdown...'
-                                                : 'Describe the agent for the Claude session'
+                                                ? t.newSessionModal.enterSpecContent
+                                                : t.newSessionModal.describeAgent
                                         }
                                         className="h-full"
                                         fileReferenceProvider={projectFileIndex}
@@ -1560,9 +1562,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                         </div>
                         <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {promptSource === 'github_issue'
-                                ? 'Select an issue to pull its description and comments into the agent prompt.'
+                                ? t.newSessionModal.issueSelectHint
                                 : promptSource === 'github_pull_request'
-                                    ? 'Select a pull request to pull its description and comments into the agent prompt. The session will start on the PR branch.'
+                                    ? t.newSessionModal.prSelectHint
                                     : createAsDraft
                                     ? (
                                         <>
@@ -1573,10 +1575,10 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                                     clipRule="evenodd"
                                                 />
                                             </svg>
-                                            Specs are saved for later. You can start them when ready. Type @ to reference project files.
+                                            {t.newSessionModal.specSaveHint}
                                         </>
                                     )
-                                    : 'Type @ to reference project files.'}
+                                    : t.newSessionModal.referenceFiles}
                         </p>
                     </div>
 
@@ -1586,9 +1588,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             <div className="text-sm text-amber-200">
-                                <p className="font-medium mb-1">New repository detected</p>
+                                <p className="font-medium mb-1">{t.newSessionModal.newRepositoryDetected}</p>
                                 <p className="text-xs text-amber-300">
-                                    This repository has no commits yet. An initial commit will be created automatically when you start the agent.
+                                    {t.newSessionModal.newRepositoryHint}
                                 </p>
                             </div>
                         </div>
@@ -1645,9 +1647,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     <div className="text-sm text-blue-200">
-                                        <p className="font-medium mb-1">Terminal-only mode</p>
+                                        <p className="font-medium mb-1">{t.newSessionModal.terminalOnlyMode}</p>
                                         <p className="text-xs text-blue-300">
-                                            No AI agent will be started. A terminal will open with your default shell for custom development or running custom agents manually. The initial prompt above will not be pasted.
+                                            {t.newSessionModal.terminalOnlyHint}
                                         </p>
                                     </div>
                                 </div>

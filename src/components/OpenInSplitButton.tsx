@@ -3,6 +3,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscFolder, VscChevronDown, VscCheck, VscChevronRight, VscCode, VscTerminal } from 'react-icons/vsc'
 import { logger } from '../utils/logger'
+import { useTranslation } from '../common/i18n'
 
 export type OpenApp = {
   id: 'finder' | 'cursor' | 'vscode' | 'code' | 'ghostty' | 'warp' | 'terminal' | 'intellij' | 'zed'
@@ -24,6 +25,7 @@ interface OpenInSplitButtonProps {
 }
 
 export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSplitButtonProps) {
+  const { t } = useTranslation()
   const [apps, setApps] = useState<OpenApp[]>([])
   const [defaultApp, setDefaultApp] = useState<OpenApp['id']>('finder')
   const [open, setOpen] = useState(false)
@@ -174,10 +176,10 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
           onClick={() => { void handleMainClick() }}
           disabled={isOpening}
           className="flex items-center gap-1.5 px-2 text-xs text-slate-200 hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
-          title={`Open in ${defaultAppLabel}`}
+          title={t.openInSplit.openIn.replace('{app}', defaultAppLabel)}
         >
           <VscFolder className="text-[12px] opacity-90" />
-          <span>{isOpening ? 'Opening...' : 'Open'}</span>
+          <span>{isOpening ? t.openInSplit.opening : t.openInSplit.open}</span>
         </button>
         <div className="w-px bg-slate-700/60" />
         <button
@@ -202,7 +204,7 @@ export function OpenInSplitButton({ resolvePath, onOpenReady, filter }: OpenInSp
               onClick={() => void handleSelectApp(app)}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-slate-200 hover:bg-slate-700/40"
               role="menuitem"
-              title={`Open in ${app.name}`}
+              title={t.openInSplit.openIn.replace('{app}', app.name)}
             >
               <span className="w-4 inline-flex items-center justify-center">{iconFor(app.id)}</span>
               <span className="flex-1">{app.name}</span>

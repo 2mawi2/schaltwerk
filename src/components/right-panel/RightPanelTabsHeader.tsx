@@ -2,6 +2,7 @@ import React from 'react'
 import clsx from 'clsx'
 import { VscDiff, VscGitCommit, VscInfo, VscNotebook, VscPreview } from 'react-icons/vsc'
 import type { TabKey } from './RightPanelTabs.types'
+import { useTranslation } from '../../common/i18n'
 import './RightPanelTabsHeader.css'
 
 interface RightPanelTabsHeaderProps {
@@ -35,75 +36,6 @@ interface TabDescriptor {
   dataAttrs?: Record<string, string>
 }
 
-const buildDescriptors = ({
-  showChangesTab,
-  showHistoryTab,
-  showInfoTab,
-  showSpecTab,
-  showSpecsTab,
-  showPreviewTab
-}: Pick<RightPanelTabsHeaderProps, 'showChangesTab' | 'showHistoryTab' | 'showInfoTab' | 'showSpecTab' | 'showSpecsTab' | 'showPreviewTab'>): TabDescriptor[] => {
-  const descriptors: TabDescriptor[] = []
-
-  if (showChangesTab) {
-    descriptors.push({
-      key: 'changes',
-      label: 'Changes',
-      title: 'Changes',
-      icon: <VscDiff className={baseTabIconClass} />
-    })
-  }
-
-  if (showInfoTab) {
-    descriptors.push({
-      key: 'info',
-      label: 'Info',
-      title: 'Spec Info',
-      icon: <VscInfo className={baseTabIconClass} />
-    })
-  }
-
-  if (showHistoryTab) {
-    descriptors.push({
-      key: 'history',
-      label: 'History',
-      title: 'Git History',
-      icon: <VscGitCommit className={baseTabIconClass} />
-    })
-  }
-
-  if (showSpecTab) {
-    descriptors.push({
-      key: 'agent',
-      label: 'Spec',
-      title: 'Spec',
-      icon: <VscNotebook className={specTabIconClass} />,
-      dataAttrs: { 'data-onboarding': 'specs-workspace-tab' }
-    })
-  }
-
-  if (showSpecsTab) {
-    descriptors.push({
-      key: 'specs',
-      label: 'Specs',
-      title: 'Specs Workspace',
-      icon: <VscNotebook className={specTabIconClass} />,
-      dataAttrs: { 'data-onboarding': 'specs-workspace-tab' }
-    })
-  }
-
-  if (showPreviewTab) {
-    descriptors.push({
-      key: 'preview',
-      label: 'Preview',
-      title: 'Web Preview',
-      icon: <VscPreview className={baseTabIconClass} />
-    })
-  }
-
-  return descriptors
-}
-
 export const RightPanelTabsHeader = ({
   activeTab,
   localFocus,
@@ -115,7 +47,65 @@ export const RightPanelTabsHeader = ({
   showPreviewTab,
   onSelectTab
 }: RightPanelTabsHeaderProps) => {
-  const descriptors = buildDescriptors({ showChangesTab, showHistoryTab, showInfoTab, showSpecTab, showSpecsTab, showPreviewTab })
+  const { t } = useTranslation()
+
+  const descriptors: TabDescriptor[] = []
+
+  if (showChangesTab) {
+    descriptors.push({
+      key: 'changes',
+      label: t.rightPanelTabs.changes,
+      title: t.rightPanelTabs.changesTitle,
+      icon: <VscDiff className={baseTabIconClass} />
+    })
+  }
+
+  if (showInfoTab) {
+    descriptors.push({
+      key: 'info',
+      label: t.rightPanelTabs.info,
+      title: t.rightPanelTabs.infoTitle,
+      icon: <VscInfo className={baseTabIconClass} />
+    })
+  }
+
+  if (showHistoryTab) {
+    descriptors.push({
+      key: 'history',
+      label: t.rightPanelTabs.history,
+      title: t.rightPanelTabs.historyTitle,
+      icon: <VscGitCommit className={baseTabIconClass} />
+    })
+  }
+
+  if (showSpecTab) {
+    descriptors.push({
+      key: 'agent',
+      label: t.rightPanelTabs.spec,
+      title: t.rightPanelTabs.specTitle,
+      icon: <VscNotebook className={specTabIconClass} />,
+      dataAttrs: { 'data-onboarding': 'specs-workspace-tab' }
+    })
+  }
+
+  if (showSpecsTab) {
+    descriptors.push({
+      key: 'specs',
+      label: t.rightPanelTabs.specs,
+      title: t.rightPanelTabs.specsTitle,
+      icon: <VscNotebook className={specTabIconClass} />,
+      dataAttrs: { 'data-onboarding': 'specs-workspace-tab' }
+    })
+  }
+
+  if (showPreviewTab) {
+    descriptors.push({
+      key: 'preview',
+      label: t.rightPanelTabs.preview,
+      title: t.rightPanelTabs.previewTitle,
+      icon: <VscPreview className={baseTabIconClass} />
+    })
+  }
 
   if (descriptors.length === 0) return null
 

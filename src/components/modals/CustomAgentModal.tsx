@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ModelSelector } from '../inputs/ModelSelector'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
     open: boolean
@@ -22,6 +23,7 @@ export function CustomAgentModal({
     initialAgentType,
     initialSkipPermissions,
 }: Props) {
+    const { t } = useTranslation()
     const [agentType, setAgentType] = useState<AgentType>(DEFAULT_AGENT)
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [isSelecting, setIsSelecting] = useState(false)
@@ -89,12 +91,12 @@ export function CustomAgentModal({
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div className="w-[480px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
                 <h2 className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">
-                    Add Custom Agent Tab
+                    {t.customAgentModal.title}
                 </h2>
 
                 <div className="p-4 space-y-4">
                     <div>
-                        <label className="block text-sm text-slate-300 mb-2">Select Agent</label>
+                        <label className="block text-sm text-slate-300 mb-2">{t.customAgentModal.selectAgent}</label>
                         <ModelSelector
                             value={agentType}
                             onChange={setAgentType}
@@ -105,7 +107,7 @@ export function CustomAgentModal({
                             allowedAgents={ALLOWED_AGENTS}
                         />
                         <p className="text-xs text-slate-400 mt-2">
-                            Choose an AI agent to open in a new tab
+                            {t.customAgentModal.helperText}
                         </p>
                     </div>
                 </div>
@@ -115,9 +117,9 @@ export function CustomAgentModal({
                         onClick={onClose}
                         disabled={isSelecting}
                         className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-800 disabled:opacity-50 rounded group relative"
-                        title="Cancel (Esc)"
+                        title={t.customAgentModal.cancelEsc}
                     >
-                        Cancel
+                        {t.customAgentModal.cancel}
                         <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">Esc</span>
                     </button>
                     <button
@@ -133,7 +135,7 @@ export function CustomAgentModal({
                         onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
                         }}
-                        title="Add Tab (Enter)"
+                        title={t.customAgentModal.addTabEnter}
                     >
                         {isSelecting && (
                             <span
@@ -141,7 +143,7 @@ export function CustomAgentModal({
                                 aria-hidden="true"
                             />
                         )}
-                        <span>Add Tab</span>
+                        <span>{t.customAgentModal.addTab}</span>
                         {!isSelecting && (
                             <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>
                         )}

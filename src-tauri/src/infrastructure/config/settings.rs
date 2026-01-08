@@ -151,6 +151,14 @@ impl SettingsManager {
         self.service.set_theme(theme).map_err(|e| e.to_string())
     }
 
+    pub fn get_language(&self) -> String {
+        self.service.get_language()
+    }
+
+    pub fn set_language(&mut self, language: &str) -> Result<(), String> {
+        self.service.set_language(language).map_err(|e| e.to_string())
+    }
+
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         self.service.get_agent_cli_args(agent_type)
     }

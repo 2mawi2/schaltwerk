@@ -6,6 +6,7 @@ import { theme } from '../../common/theme'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 import { useOptionalToast } from '../../common/toast/ToastProvider'
+import { useTranslation } from '../../common/i18n'
 
 interface MarkdownRendererProps {
   content: string
@@ -13,6 +14,7 @@ interface MarkdownRendererProps {
 }
 
 const LinkComponent = memo(function LinkComponent({ href, children }: { href?: string; children: React.ReactNode }) {
+  const { t } = useTranslation()
   const toast = useOptionalToast()
 
   const handleLinkClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -23,11 +25,11 @@ const LinkComponent = memo(function LinkComponent({ href, children }: { href?: s
       logger.warn('[MarkdownRenderer] Failed to open external link', { url: href, error })
       toast?.pushToast({
         tone: 'error',
-        title: 'Failed to open link',
-        description: typeof error === 'string' ? error : 'Could not open the link',
+        title: t.toasts.failedToOpenLink,
+        description: typeof error === 'string' ? error : t.toasts.failedToOpenLinkDesc,
       })
     })
-  }, [href, toast])
+  }, [href, toast, t])
 
   return (
     <a

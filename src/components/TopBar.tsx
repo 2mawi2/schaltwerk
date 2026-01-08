@@ -16,6 +16,7 @@ import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
 import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
 import { GlobalKeepAwakeButton } from './GlobalKeepAwakeButton'
+import { useTranslation } from '../common/i18n'
 
 type UiPlatform = 'mac' | 'linux' | 'windows'
 
@@ -57,6 +58,7 @@ export function TopBar({
   resolveOpenPath,
   triggerOpenCounter
 }: TopBarProps) {
+  const { t } = useTranslation()
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
   const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
@@ -141,8 +143,8 @@ export function TopBar({
         <button
           onClick={onGoHome}
           className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors ml-2 cursor-pointer relative z-10"
-          title="Home"
-          aria-label="Home"
+          title={t.topBar.home}
+          aria-label={t.topBar.homeLabel}
           data-no-drag
           style={{ pointerEvents: 'auto' } as React.CSSProperties}
         >
@@ -204,8 +206,8 @@ export function TopBar({
           <button
             onClick={onToggleRightPanel}
             className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors mr-2"
-            title={isRightPanelCollapsed ? 'Show right panel' : 'Hide right panel'}
-            aria-label={isRightPanelCollapsed ? 'Show right panel' : 'Hide right panel'}
+            title={isRightPanelCollapsed ? t.topBar.showRightPanel : t.topBar.hideRightPanel}
+            aria-label={isRightPanelCollapsed ? t.topBar.showRightPanel : t.topBar.hideRightPanel}
           >
             {isRightPanelCollapsed ? (
               <VscLayoutSidebarRightOff className="text-[14px]" />
@@ -219,8 +221,8 @@ export function TopBar({
         <button
           onClick={onOpenSettings}
           className="h-6 w-6 inline-flex items-center justify-center rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-elevated/50 transition-colors mr-2"
-          title="Settings"
-          aria-label="Settings"
+          title={t.topBar.settings}
+          aria-label={t.topBar.settingsLabel}
         >
           <VscSettingsGear className="text-[14px]" />
         </button>

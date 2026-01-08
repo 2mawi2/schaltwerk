@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { ConfirmModal } from './ConfirmModal'
+import { useTranslation } from '../../common/i18n/useTranslation'
 
 interface DeleteDraftConfirmationProps {
   open: boolean
@@ -9,24 +10,27 @@ interface DeleteDraftConfirmationProps {
   loading?: boolean
 }
 
-export function DeleteSpecConfirmation({ 
-  open, 
+export function DeleteSpecConfirmation({
+  open,
   displayName,
-  onConfirm, 
+  onConfirm,
   onCancel,
   loading = false,
 }: DeleteDraftConfirmationProps) {
+  const { t } = useTranslation()
   const handleConfirm = useCallback(() => {
     onConfirm()
   }, [onConfirm])
 
   if (!open) return null
 
+  const title = t.dialogs.deleteSpec.title.replace('{name}', displayName)
+
   const body = (
     <p className="text-zinc-300">
-      This will archive the spec prompt so you can recover it later from Settings → Archives.
+      {t.dialogs.deleteSpec.body}
       <span className="block mt-2 text-zinc-400">
-        You can permanently delete it from the archive if desired.
+        {t.dialogs.deleteSpec.bodyNote}
       </span>
     </p>
   )
@@ -34,12 +38,12 @@ export function DeleteSpecConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title={<span>Delete Spec: {displayName}?</span>}
+      title={<span>{title}</span>}
       body={body}
-      confirmText="Archive Spec"
-      confirmTitle="Archive spec (Enter)"
-      cancelText="Keep Spec"
-      cancelTitle="Keep spec (Esc)"
+      confirmText={t.dialogs.deleteSpec.confirm}
+      confirmTitle={t.dialogs.deleteSpec.confirmTitle}
+      cancelText={t.dialogs.deleteSpec.cancel}
+      cancelTitle={t.dialogs.deleteSpec.cancelTitle}
       onConfirm={handleConfirm}
       onCancel={onCancel}
       loading={loading}

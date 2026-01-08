@@ -7,6 +7,7 @@ import { AddTabButton } from '../AddTabButton'
 import { HeaderActionConfig } from '../../types/actionButton'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { getAgentColorKey } from '../../utils/agentColors'
+import { useTranslation } from '../../common/i18n'
 
 interface AgentTabBarProps {
     tabs: AgentTab[]
@@ -33,6 +34,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
     onAction,
     shortcutLabel,
 }) => {
+    const { t } = useTranslation()
     const canAddTab = onTabAdd && tabs.length < MAX_AGENT_TABS
 
     const renderAgentLabel = (tab: AgentTab) => {
@@ -113,7 +115,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                 e.stopPropagation()
                                 onTabAdd?.()
                             }}
-                            title="Add Agent Tab (⌘⇧A)"
+                            title={t.terminalComponents.addAgentTab}
                             className="ml-1 flex-shrink-0"
                         />
                     )}
@@ -148,7 +150,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                             onReset()
                         }}
                         className="p-1 rounded hover:bg-hover mr-1"
-                        title="Reset session"
+                        title={t.terminalComponents.resetSession}
                     >
                         <VscDiscard className="text-base" />
                     </button>
@@ -166,7 +168,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                 : 'var(--color-text-tertiary)',
                         }}
                         className="text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap"
-                        title={`Focus Claude (${shortcutLabel})`}
+                        title={t.terminalComponents.focusClaude.replace('{shortcut}', shortcutLabel)}
                     >
                         {shortcutLabel}
                     </span>

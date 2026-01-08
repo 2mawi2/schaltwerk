@@ -7,6 +7,7 @@ import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { usePrComments } from '../../hooks/usePrComments'
+import { useTranslation } from '../../common/i18n'
 
 type DiffSessionActionsRenderProps = {
   headerActions: ReactNode
@@ -34,6 +35,7 @@ export function DiffSessionActions({
   onLoadChangedFiles,
   children
 }: DiffSessionActionsProps) {
+  const { t } = useTranslation()
   const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -91,17 +93,17 @@ export function DiffSessionActions({
             <button
               onClick={() => { void handleFetchAndPasteComments() }}
               className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              title={`Send PR #${prNumber} review comments to terminal`}
+              title={t.diffSessionActions.sendPrComments.replace('{number}', String(prNumber))}
               disabled={fetchingComments}
             >
               <VscComment className="text-lg" />
-              {fetchingComments ? 'Fetching...' : `PR #${prNumber} Comments`}
+              {fetchingComments ? t.diffSessionActions.fetching : t.diffSessionActions.prComments.replace('{number}', String(prNumber))}
             </button>
             {prUrl && (
               <button
                 onClick={() => { void invoke(TauriCommands.OpenExternalUrl, { url: prUrl }) }}
                 className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2"
-                title={`Open PR #${prNumber} in browser`}
+                title={t.diffSessionActions.openPrInBrowser.replace('{number}', String(prNumber))}
               >
                 <VscLinkExternal className="text-lg" />
               </button>
@@ -111,26 +113,26 @@ export function DiffSessionActions({
         <button
           onClick={() => setConfirmResetOpen(true)}
           className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
-          title="Discard all changes and reset this session"
+          title={t.diffSessionActions.discardAllChanges}
           disabled={isResetting}
         >
           <VscDiscard className="text-lg" />
-          Reset Session
+          {t.diffSessionActions.resetSession}
         </button>
         {canMarkReviewed && (
           <button
             onClick={() => { void handleMarkReviewedClick() }}
             className="px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Mark this session as reviewed"
+            title={t.diffSessionActions.markAsReviewedTitle}
             disabled={isMarkingReviewed}
           >
             <VscCheck className="text-lg" />
-            Mark as Reviewed
+            {t.diffSessionActions.markAsReviewed}
           </button>
         )}
       </>
     )
-  }, [isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed, prNumber, prUrl, fetchingComments, handleFetchAndPasteComments])
+  }, [t, isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed, prNumber, prUrl, fetchingComments, handleFetchAndPasteComments])
 
   const dialogs = useMemo(() => (
     <ConfirmResetDialog

@@ -6,6 +6,7 @@ import { VscFolderOpened, VscClose, VscNewFolder } from 'react-icons/vsc'
 import { homeDir } from '@tauri-apps/api/path'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
+import { useTranslation } from '../../common/i18n'
 
 interface NewProjectDialogProps {
   isOpen: boolean
@@ -14,6 +15,7 @@ interface NewProjectDialogProps {
 }
 
 export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProjectDialogProps) {
+  const { t } = useTranslation()
   const [projectName, setProjectName] = useState('')
   const [parentPath, setParentPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -61,7 +63,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
       const selected = await open({
         directory: true,
         multiple: false,
-        title: 'Select Parent Directory'
+        title: t.newProject.selectParentDir
       })
 
       if (selected) {
@@ -140,7 +142,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <VscNewFolder className="text-cyan-400 text-2xl" />
-            <h2 className="text-xl font-semibold text-slate-200">New Project</h2>
+            <h2 className="text-xl font-semibold text-slate-200">{t.newProject.title}</h2>
           </div>
           <button
             onClick={onClose}
@@ -160,13 +162,13 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-2">
-              Project Name
+              {t.newProject.projectName}
             </label>
             <input
               type="text"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              placeholder="my-awesome-project"
+              placeholder={t.newProject.projectNamePlaceholder}
               className="w-full px-3 py-2 bg-slate-950/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
               autoFocus
               autoCapitalize="off"
@@ -178,14 +180,14 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
 
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-2">
-              Parent Directory
+              {t.newProject.parentDirectory}
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={parentPath}
                 readOnly
-                placeholder="Select parent directory..."
+                placeholder={t.newProject.parentDirPlaceholder}
                 className="flex-1 px-3 py-2 bg-slate-950/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500"
                 disabled={isCreating}
               />
@@ -195,13 +197,13 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
                 disabled={isCreating}
               >
                 <VscFolderOpened className="text-lg" />
-                Browse
+                {t.newProject.browse}
               </button>
             </div>
           </div>
 
           <div className="bg-slate-950/30 border border-slate-800 rounded-lg p-3 text-sm text-slate-400">
-            <p>This will create a new folder and initialize a Git repository.</p>
+            <p>{t.newProject.createInfo}</p>
             {projectName && parentPath && (
               <p className="mt-2 text-cyan-300 font-mono text-xs">
                 {parentPath}/{projectName}
@@ -216,17 +218,17 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
             className="flex-1 py-2 px-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-colors"
             disabled={isCreating}
           >
-            Cancel
+            {t.newProject.cancel}
           </button>
           <button
             onClick={() => { void handleCreate() }}
             disabled={isCreating || !projectName.trim() || !parentPath}
             className="flex-1 py-2 px-4 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 text-cyan-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-{isCreating ? (
+            {isCreating ? (
               <AnimatedText text="loading" size="xs" />
             ) : (
-              'Create Project'
+              t.newProject.createProject
             )}
           </button>
         </div>

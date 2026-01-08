@@ -6,12 +6,14 @@ import { useSessions } from '../../hooks/useSessions'
 import { theme } from '../../common/theme'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { getSessionDisplayName } from '../../utils/sessionDisplayName'
+import { useTranslation } from '../../common/i18n'
 
 interface Props {
   sessionName: string
 }
 
 export function SpecInfoPanel({ sessionName }: Props) {
+  const { t } = useTranslation()
   const [starting, setStarting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,25 +64,25 @@ export function SpecInfoPanel({ sessionName }: Props) {
         <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center">
           <VscRocket style={{ fontSize: theme.fontSize.heading, color: 'var(--color-text-secondary)' }} />
         </div>
-        <h3 style={{ fontSize: theme.fontSize.body, fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>Spec Agent</h3>
+        <h3 style={{ fontSize: theme.fontSize.body, fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-primary)' }}>{t.specInfoPanel.title}</h3>
         <p style={{ fontSize: theme.fontSize.caption, marginBottom: '1rem', color: 'var(--color-text-muted)' }}>
-          Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
+          {t.specInfoPanel.description}
         </p>
 
         <div className="flex items-center justify-center gap-2">
           <IconButton
             icon={<VscPlay />}
             onClick={() => { void handleRun() }}
-            ariaLabel="Run spec"
-            tooltip="Run spec"
+            ariaLabel={t.specInfoPanel.runSpec}
+            tooltip={t.specInfoPanel.runSpec}
             variant="success"
             disabled={starting || deleting}
           />
           <IconButton
             icon={<VscTrash />}
             onClick={() => { void handleDelete() }}
-            ariaLabel="Delete spec"
-            tooltip="Delete spec"
+            ariaLabel={t.specInfoPanel.deleteSpec}
+            tooltip={t.specInfoPanel.deleteSpec}
             variant="danger"
             disabled={starting || deleting}
           />
