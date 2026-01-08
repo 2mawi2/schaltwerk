@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FaGithub } from 'react-icons/fa'
 import { VscRefresh, VscWarning, VscCheck, VscInfo } from 'react-icons/vsc'
 import { useTranslation } from '../../common/i18n/useTranslation'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { logger } from '../../utils/logger'
-import { getPlatform } from '../../utils/platform'
 
 interface GithubProjectIntegrationCardProps {
   projectPath: string
@@ -25,13 +24,6 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
   const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const [feedback, setFeedback] = useState<{ tone: 'info' | 'success' | 'error'; title: string; description?: string } | null>(null)
-  const [platform, setPlatform] = useState<'macos' | 'linux' | 'windows' | null>(null)
-
-  useEffect(() => {
-    void getPlatform().then(setPlatform).catch((err) => {
-      logger.error('Failed to detect platform', err)
-    })
-  }, [])
 
   const formatFeedbackLines = useMemo(() => {
     return (description?: string): string[] => {
@@ -53,19 +45,6 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
   const canConnectProject = installed && authenticated && !repository && Boolean(projectPath)
 
   type StatusTone = 'info' | 'warning' | 'danger' | 'success'
-
-  const ghInstallCommand = useMemo(() => {
-    switch (platform) {
-      case 'windows':
-        return 'winget install GitHub.cli'
-      case 'linux':
-        return 'see https://github.com/cli/cli/blob/trunk/docs/install_linux.md'
-      case 'macos':
-        return 'brew install gh'
-      default:
-        return 'see https://cli.github.com'
-    }
-  }, [platform])
 
   const statusDetails = useMemo((): { tone: StatusTone; title: string; description: string } => {
     if (!installed) {
