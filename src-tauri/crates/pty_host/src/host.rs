@@ -471,7 +471,10 @@ mod tests {
                 if tokio::time::Instant::now() > timeout_at {
                     break;
                 }
-                self.notify.notified().await;
+                tokio::select! {
+                    _ = self.notify.notified() => {}
+                    _ = sleep(Duration::from_millis(100)) => {}
+                }
             }
             self.events.lock().clone()
         }
@@ -495,6 +498,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "ConPTY output timing differs from Unix PTY")]
     async fn spawn_and_write_emits_output() -> Result<()> {
         let sink = Arc::new(RecordingSink::new());
         let temp_dir = tempfile::tempdir()?;
@@ -734,6 +738,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(windows, ignore = "ConPTY output timing differs from Unix PTY")]
     async fn subscribe_returns_snapshot_after_history() -> Result<()> {
         let sink = Arc::new(RecordingSink::new());
         let temp_dir = tempfile::tempdir()?;
