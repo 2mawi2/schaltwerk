@@ -65,6 +65,9 @@ pub async fn launch_in_terminal(
     let launch_future = async {
         let command_line = launch_spec.format_for_shell();
         let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
+        log::info!(
+            "[AGENT_LAUNCH_TRACE] Parsed cwd='{cwd}' agent='{agent_name}' args={agent_args:?}"
+        );
         terminals::ensure_cwd_access(&cwd)?;
 
         let agent_kind = agent_ctx::infer_agent_kind(&agent_name);

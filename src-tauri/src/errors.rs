@@ -59,6 +59,10 @@ pub enum SchaltError {
         key: String,
         message: String,
     },
+    NotSupported {
+        feature: String,
+        platform: String,
+    },
 }
 
 impl SchaltError {
@@ -165,6 +169,9 @@ impl fmt::Display for SchaltError {
             }
             Self::ConfigError { key, message } => {
                 write!(f, "Configuration error for key '{key}': {message}")
+            }
+            Self::NotSupported { feature, platform } => {
+                write!(f, "Feature '{feature}' is not supported on {platform}")
             }
         }
     }

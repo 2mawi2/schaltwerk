@@ -150,7 +150,7 @@ mod client {
         resolve_cli_path_from_sources(client, config).await
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     mod tests {
         use super::*;
         use schaltwerk::services::AgentBinaryConfig;

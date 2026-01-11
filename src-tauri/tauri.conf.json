@@ -44,7 +44,9 @@
       "dmg",
       "deb",
       "rpm",
-      "appimage"
+      "appimage",
+      "msi",
+      "nsis"
     ],
     "publisher": "Marius Wichtner",
     "copyright": "© 2024 Marius Wichtner",
@@ -65,6 +67,14 @@
       },
       "appimage": {
         "bundleMediaFramework": false
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "perMachine"
       }
     },
     "icon": [

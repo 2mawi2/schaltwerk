@@ -19,7 +19,7 @@ const primaryArgs = dashIndex === -1 ? args : args.slice(0, dashIndex)
 const passthroughArgs = dashIndex === -1 ? [] : args.slice(dashIndex + 1)
 
 function commandExists(command) {
-  const result = spawnSync(command, ['--version'], { stdio: 'ignore' })
+  const result = spawnSync(command, ['--version'], { stdio: 'ignore', shell: true })
   return result.status === 0
 }
 
@@ -124,7 +124,7 @@ switch (action) {
 }
 
 const { command, commandArgs } = resolved
-const result = spawnSync(command, commandArgs, { stdio: 'inherit', env })
+const result = spawnSync(command, commandArgs, { stdio: 'inherit', env, shell: true })
 
 if (result.error) {
   console.error(result.error.message)

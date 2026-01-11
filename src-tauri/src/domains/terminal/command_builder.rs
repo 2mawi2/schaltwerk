@@ -88,7 +88,7 @@ pub async fn build_command_spec(
     })
 }
 
-fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
+fn build_environment(cols: u16, rows: u16, #[cfg_attr(windows, allow(unused))] cwd: &str) -> Vec<(String, String)> {
     let login_env = super::login_shell_env::get_login_shell_env();
 
     let mut envs = vec![
@@ -97,7 +97,44 @@ fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
         ("COLUMNS".to_string(), cols.to_string()),
     ];
 
-    let path_value = if let Ok(home) = std::env::var("HOME") {
+    #[cfg(unix)]
+    let path_value = build_unix_path(login_env, &mut envs, cwd);
+
+    #[cfg(windows)]
+    let path_value = build_windows_path(login_env, &mut envs);
+
+    envs.push(("PATH".to_string(), path_value));
+
+    let lang_value = login_env
+        .get("LANG")
+        .cloned()
+        .or_else(|| std::env::var("LANG").ok())
+        .unwrap_or_else(|| "en_US.UTF-8".to_string());
+    envs.push(("LANG".to_string(), lang_value));
+
+    if let Some(lc_all) = login_env
+        .get("LC_ALL")
+        .cloned()
+        .or_else(|| std::env::var("LC_ALL").ok())
+    {
+        envs.push(("LC_ALL".to_string(), lc_all));
+    }
+
+    envs.push(("CLICOLOR".to_string(), "1".to_string()));
+    envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
+    envs.push(("COLORTERM".to_string(), COLORTERM_VALUE.to_string()));
+    envs.push(("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string()));
+
+    envs
+}
+
+#[cfg(unix)]
+fn build_unix_path(
+    login_env: &std::collections::HashMap<String, String>,
+    envs: &mut Vec<(String, String)>,
+    cwd: &str,
+) -> String {
+    if let Ok(home) = std::env::var("HOME") {
         envs.push(("HOME".to_string(), home.clone()));
 
         use std::collections::HashSet;
@@ -168,31 +205,110 @@ fn build_environment(cols: u16, rows: u16, cwd: &str) -> Vec<(String, String)> {
                 "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
             })
         })
-    };
+    }
+}
 
-    envs.push(("PATH".to_string(), path_value));
+#[cfg(windows)]
+fn build_windows_path(
+    login_env: &std::collections::HashMap<String, String>,
+    envs: &mut Vec<(String, String)>,
+) -> String {
+    use std::collections::HashSet;
 
-    let lang_value = login_env
-        .get("LANG")
-        .cloned()
-        .or_else(|| std::env::var("LANG").ok())
-        .unwrap_or_else(|| "en_US.UTF-8".to_string());
-    envs.push(("LANG".to_string(), lang_value));
+    let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+    let appdata = std::env::var("APPDATA").unwrap_or_default();
+    let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
+    let programfiles_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_default();
 
-    if let Some(lc_all) = login_env
-        .get("LC_ALL")
-        .cloned()
-        .or_else(|| std::env::var("LC_ALL").ok())
-    {
-        envs.push(("LC_ALL".to_string(), lc_all));
+    if !userprofile.is_empty() {
+        envs.push(("USERPROFILE".to_string(), userprofile.clone()));
     }
 
-    envs.push(("CLICOLOR".to_string(), "1".to_string()));
-    envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
-    envs.push(("COLORTERM".to_string(), COLORTERM_VALUE.to_string()));
-    envs.push(("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string()));
+    let mut seen = HashSet::new();
+    let mut path_components = Vec::new();
 
-    envs
+    // Build priority paths including common package managers and Node.js installations
+    let mut priority_paths: Vec<String> = Vec::new();
+
+    // Scoop package manager (very common on Windows for dev tools)
+    priority_paths.push(format!("{userprofile}\\scoop\\shims"));
+    priority_paths.push(format!("{userprofile}\\scoop\\apps\\nodejs-lts\\current"));
+    priority_paths.push(format!("{userprofile}\\scoop\\apps\\nodejs\\current"));
+
+    // Cargo/Rust
+    priority_paths.push(format!("{userprofile}\\.cargo\\bin"));
+
+    // npm global packages
+    priority_paths.push(format!("{appdata}\\npm"));
+
+    // nvm-windows (common Node.js version manager)
+    priority_paths.push(format!("{appdata}\\nvm"));
+    if let Ok(nvm_home) = std::env::var("NVM_HOME") {
+        priority_paths.push(nvm_home);
+    }
+    if let Ok(nvm_symlink) = std::env::var("NVM_SYMLINK") {
+        priority_paths.push(nvm_symlink);
+    }
+
+    // Volta (another Node.js version manager)
+    priority_paths.push(format!("{localappdata}\\Volta\\bin"));
+
+    // fnm (Fast Node Manager)
+    priority_paths.push(format!("{appdata}\\fnm"));
+
+    // Standard Node.js installation paths
+    priority_paths.push(format!("{programfiles}\\nodejs"));
+    if !programfiles_x86.is_empty() {
+        priority_paths.push(format!("{programfiles_x86}\\nodejs"));
+    }
+
+    // Windows Apps and other standard paths
+    priority_paths.push(format!("{localappdata}\\Microsoft\\WindowsApps"));
+    priority_paths.push(format!("{programfiles}\\Git\\cmd"));
+
+    // Python paths
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"));
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"));
+    priority_paths.push(format!("{localappdata}\\Programs\\Python\\Python312\\Scripts"));
+
+    // Filter out invalid paths
+    let priority_paths: Vec<String> = priority_paths
+        .into_iter()
+        .filter(|p| !p.starts_with('\\') && !p.is_empty())
+        .collect();
+
+    for path in priority_paths {
+        if seen.insert(path.clone()) {
+            path_components.push(path);
+        }
+    }
+
+    let source_path = login_env
+        .get("PATH")
+        .cloned()
+        .or_else(|| std::env::var("PATH").ok())
+        .unwrap_or_default();
+
+    const MAX_PATH_LENGTH: usize = 8192;
+    let mut current_length: usize = path_components.iter().map(|s| s.len() + 1).sum();
+
+    for component in source_path.split(';') {
+        let trimmed = component.trim();
+        if !trimmed.is_empty() && seen.insert(trimmed.to_string()) {
+            let new_length = current_length + trimmed.len() + 1;
+            if new_length > MAX_PATH_LENGTH {
+                log::warn!(
+                    "PATH truncated at {current_length} bytes to prevent 'path too long' error"
+                );
+                break;
+            }
+            current_length = new_length;
+            path_components.push(trimmed.to_string());
+        }
+    }
+
+    path_components.join(";")
 }
 
 async fn get_shell_config() -> (String, Vec<String>) {
@@ -208,11 +324,30 @@ async fn get_shell_config() -> (String, Vec<String>) {
     (shell, args)
 }
 
-fn resolve_command(command: &str, cwd: &str) -> String {
+fn resolve_command(command: &str, #[cfg_attr(windows, allow(unused))] cwd: &str) -> String {
+    #[cfg(unix)]
     if command.contains('/') {
         return command.to_string();
     }
 
+    #[cfg(windows)]
+    if command.contains('\\') || command.contains('/') {
+        return command.to_string();
+    }
+
+    #[cfg(unix)]
+    {
+        resolve_command_unix(command, cwd)
+    }
+
+    #[cfg(windows)]
+    {
+        resolve_command_windows(command)
+    }
+}
+
+#[cfg(unix)]
+fn resolve_command_unix(command: &str, cwd: &str) -> String {
     let common_paths = vec!["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"];
 
     if let Ok(home) = std::env::var("HOME") {
@@ -251,15 +386,62 @@ fn resolve_command(command: &str, cwd: &str) -> String {
         }
     }
 
-    if let Ok(output) = std::process::Command::new("which").arg(command).output()
-        && output.status.success()
-        && let Ok(path) = String::from_utf8(output.stdout)
-    {
-        let path = path.trim();
-        if !path.is_empty() {
-            log::info!("Found {command} via which: {path}");
-            return path.to_string();
+    if let Ok(path) = which::which(command) {
+        let path_str = path.to_string_lossy().to_string();
+        log::info!("Found {command} via which crate: {path_str}");
+        return path_str;
+    }
+
+    log::warn!("Could not resolve path for '{command}', using as-is");
+    command.to_string()
+}
+
+#[cfg(windows)]
+fn resolve_command_windows(command: &str) -> String {
+    let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+    let appdata = std::env::var("APPDATA").unwrap_or_default();
+    let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
+
+    let common_paths: Vec<String> = [
+        format!("{userprofile}\\.cargo\\bin"),
+        format!("{appdata}\\npm"),
+        format!("{localappdata}\\Microsoft\\WindowsApps"),
+        format!("{programfiles}\\Git\\cmd"),
+        format!("{programfiles}\\nodejs"),
+    ]
+    .into_iter()
+    .filter(|p| !p.starts_with('\\') && !p.is_empty())
+    .collect();
+
+    let extensions = ["", ".exe", ".cmd", ".bat", ".com"];
+
+    for path in &common_paths {
+        for ext in &extensions {
+            let full_path = PathBuf::from(path).join(format!("{command}{ext}"));
+            if full_path.exists() {
+                log::info!("Found {command} at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
         }
+    }
+
+    if let Ok(path_env) = std::env::var("PATH") {
+        for component in path_env.split(';').map(str::trim).filter(|c| !c.is_empty()) {
+            for ext in &extensions {
+                let full_path = PathBuf::from(component).join(format!("{command}{ext}"));
+                if full_path.exists() {
+                    log::info!("Found {command} via PATH entry {}", full_path.display());
+                    return full_path.to_string_lossy().to_string();
+                }
+            }
+        }
+    }
+
+    if let Ok(path) = which::which(command) {
+        let path_str = path.to_string_lossy().to_string();
+        log::info!("Found {command} via which crate: {path_str}");
+        return path_str;
     }
 
     log::warn!("Could not resolve path for '{command}', using as-is");
@@ -271,7 +453,13 @@ fn resolve_app_program_and_args(
     cwd: &str,
 ) -> (String, Vec<String>, bool) {
     let resolved = resolve_command(&app.command, cwd);
-    if resolved != app.command || app.command.contains('/') {
+
+    #[cfg(unix)]
+    let has_path_separator = app.command.contains('/');
+    #[cfg(windows)]
+    let has_path_separator = app.command.contains('\\') || app.command.contains('/');
+
+    if resolved != app.command || has_path_separator {
         return (resolved, app.args.clone(), false);
     }
 
@@ -279,27 +467,71 @@ fn resolve_app_program_and_args(
     let mut shell_args = base_args;
     ensure_shell_interactive_flag(&shell, &mut shell_args);
 
-    let inner = build_exec_command_string(&app.command, &app.args);
+    let inner = build_shell_command_string(&shell, &app.command, &app.args);
     let invocation = build_login_shell_invocation_with_shell(&shell, &shell_args, &inner);
 
     (invocation.program, invocation.args, true)
 }
 
-fn build_exec_command_string(command: &str, args: &[String]) -> String {
-    let mut parts = Vec::with_capacity(args.len() + 2);
-    parts.push("exec".to_string());
-    parts.push(sh_quote_string(command));
-    for arg in args {
-        parts.push(sh_quote_string(arg));
+fn build_shell_command_string(shell: &str, command: &str, args: &[String]) -> String {
+    let shell_name = shell_file_name(shell).unwrap_or_default();
+
+    match shell_name.as_str() {
+        "cmd" | "cmd.exe" => {
+            let mut parts = Vec::with_capacity(args.len() + 1);
+            parts.push(cmd_quote_string(command));
+            for arg in args {
+                parts.push(cmd_quote_string(arg));
+            }
+            parts.join(" ")
+        }
+        "pwsh" | "powershell" | "pwsh.exe" | "powershell.exe" => {
+            let mut parts = Vec::with_capacity(args.len() + 2);
+            parts.push("&".to_string());
+            parts.push(ps_quote_string(command));
+            for arg in args {
+                parts.push(ps_quote_string(arg));
+            }
+            parts.join(" ")
+        }
+        _ => {
+            let mut parts = Vec::with_capacity(args.len() + 2);
+            parts.push("exec".to_string());
+            parts.push(sh_quote_string(command));
+            for arg in args {
+                parts.push(sh_quote_string(arg));
+            }
+            parts.join(" ")
+        }
     }
-    parts.join(" ")
+}
+
+fn cmd_quote_string(s: &str) -> String {
+    if s.contains(' ') || s.contains('"') || s.contains('&') || s.contains('^') {
+        let escaped = s.replace('"', "\"\"");
+        format!("\"{escaped}\"")
+    } else {
+        s.to_string()
+    }
+}
+
+fn ps_quote_string(s: &str) -> String {
+    if s.contains(' ') || s.contains('\'') || s.contains('"') {
+        let escaped = s.replace('\'', "''");
+        format!("'{escaped}'")
+    } else {
+        s.to_string()
+    }
 }
 
 fn ensure_shell_interactive_flag(shell: &str, args: &mut Vec<String>) {
-    if shell_file_name(shell)
-        .is_some_and(|name| matches!(name.as_str(), "pwsh" | "powershell"))
-    {
-        return;
+    let shell_name = shell_file_name(shell).unwrap_or_default();
+
+    match shell_name.as_str() {
+        "pwsh" | "powershell" | "pwsh.exe" | "powershell.exe" | "cmd" | "cmd.exe" => {
+            return;
+        }
+        _ => {}
     }
 
     if args.iter().any(|arg| contains_short_flag(arg, 'i')) {
@@ -337,6 +569,7 @@ fn contains_short_flag(candidate: &str, flag: char) -> bool {
     false
 }
 
+#[cfg(unix)]
 fn normalize_path_component(raw: &str) -> Vec<String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -383,12 +616,15 @@ fn normalize_path_component(raw: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_environment, normalize_path_component};
+    use super::build_environment;
+    #[cfg(unix)]
+    use super::normalize_path_component;
     use crate::domains::terminal::{put_terminal_shell_override, testing};
     use crate::utils::env_adapter::EnvAdapter;
     use serial_test::serial;
     use std::fs;
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_splits_whitespace_delimited_segments() {
         let result = normalize_path_component("/foo/bin /bar/bin /baz/bin");
@@ -402,6 +638,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_preserves_regular_segments() {
         let result = normalize_path_component("/Applications/Ghostty.app/Contents/MacOS");
@@ -411,6 +648,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn normalize_path_component_strips_quotes() {
         let result = normalize_path_component(

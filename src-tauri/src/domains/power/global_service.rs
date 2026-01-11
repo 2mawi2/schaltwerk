@@ -31,9 +31,11 @@ pub fn get_global_keep_awake_service() -> Option<Arc<GlobalInhibitorService>> {
     GLOBAL_KEEP_AWAKE.get().cloned()
 }
 
+#[cfg(target_family = "unix")]
 #[derive(Clone)]
 struct SystemProcessInspector;
 
+#[cfg(target_family = "unix")]
 impl ProcessInspector for SystemProcessInspector {
     fn is_running(&self, pid: u32) -> Result<bool, SchaltError> {
         let res = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid as i32), None);
@@ -103,6 +105,29 @@ impl ProcessInspector for SystemProcessInspector {
             path: pid.to_string(),
             message: e.to_string(),
         })
+    }
+}
+
+#[cfg(target_family = "windows")]
+#[derive(Clone)]
+struct SystemProcessInspector;
+
+#[cfg(target_family = "windows")]
+impl ProcessInspector for SystemProcessInspector {
+    fn is_running(&self, _pid: u32) -> Result<bool, SchaltError> {
+        Ok(false)
+    }
+
+    fn cmdline(&self, _pid: u32) -> Result<String, SchaltError> {
+        Ok(String::new())
+    }
+
+    fn kill_term(&self, _pid: u32) -> Result<(), SchaltError> {
+        Ok(())
+    }
+
+    fn kill_kill(&self, _pid: u32) -> Result<(), SchaltError> {
+        Ok(())
     }
 }
 

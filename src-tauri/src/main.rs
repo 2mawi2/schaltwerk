@@ -170,7 +170,48 @@ fn extend_process_path() {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(target_os = "windows")]
+fn extend_process_path() {
+    use std::collections::HashSet;
+    use std::env;
+    use std::path::PathBuf;
+
+    let appdata = env::var("APPDATA").unwrap_or_default();
+    let localappdata = env::var("LOCALAPPDATA").unwrap_or_default();
+    let programfiles = env::var("ProgramFiles").unwrap_or_default();
+
+    let extra_paths: Vec<PathBuf> = [
+        format!("{appdata}\\npm"),
+        format!("{localappdata}\\Microsoft\\WindowsApps"),
+        format!("{programfiles}\\Git\\cmd"),
+        format!("{programfiles}\\nodejs"),
+    ]
+    .into_iter()
+    .filter(|p| !p.is_empty())
+    .map(PathBuf::from)
+    .collect();
+
+    let mut current_paths: Vec<PathBuf> = env::var_os("PATH")
+        .map(|value| env::split_paths(&value).collect())
+        .unwrap_or_default();
+
+    let mut seen: HashSet<PathBuf> = current_paths.iter().cloned().collect();
+
+    for path in extra_paths {
+        if seen.insert(path.clone()) {
+            current_paths.push(path);
+        }
+    }
+
+    if let Ok(joined) = env::join_paths(&current_paths) {
+        EnvAdapter::set_var("PATH", &joined.to_string_lossy());
+        if let Some(path_str) = joined.to_str() {
+            log::info!("[startup] PATH after extend_process_path: {path_str}");
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 fn extend_process_path() {}
 
 // Import all commands

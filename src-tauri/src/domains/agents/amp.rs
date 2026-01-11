@@ -10,9 +10,8 @@ pub struct AmpConfig {
     pub binary_path: Option<String>,
 }
 
-// Simple function to return binary name for external callers
 pub fn resolve_amp_binary() -> String {
-    "amp".to_string()
+    super::resolve_agent_binary("amp")
 }
 
 /// Discovers Amp threads by scanning ~/.local/share/amp/threads/ for T-*.json files

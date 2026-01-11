@@ -1,4 +1,5 @@
 use super::format_binary_invocation;
+use crate::shared::resolve_windows_executable;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
@@ -6,6 +7,32 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 const CLAUDE_SESSION_SCAN_LIMIT: usize = 64;
+
+fn get_home_dir() -> Option<String> {
+    super::get_home_dir()
+}
+
+pub fn resolve_claude_binary() -> String {
+    #[cfg(unix)]
+    let extra_paths = if let Some(home) = get_home_dir() {
+        vec![format!("{}/.claude/bin", home)]
+    } else {
+        vec![]
+    };
+
+    #[cfg(windows)]
+    let extra_paths = if let Some(home) = get_home_dir() {
+        vec![format!("{}\\AppData\\Local\\Claude\\bin", home)]
+    } else {
+        vec![]
+    };
+
+    #[cfg(not(any(unix, windows)))]
+    let extra_paths: Vec<String> = vec![];
+
+    super::resolve_agent_binary_with_extra_paths("claude", &extra_paths)
+}
+
 
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeConfig {
@@ -161,7 +188,7 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
 }
 
 fn sanitize_path_for_claude(path: &Path) -> String {
-    path.to_string_lossy().replace(['/', '.', '_'], "-")
+    path.to_string_lossy().replace(['/', '\\', '.', '_'], "-")
 }
 
 fn claude_home_directory() -> Option<PathBuf> {
@@ -172,10 +199,26 @@ fn claude_home_directory() -> Option<PathBuf> {
         }
     }
 
-    std::env::var("HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(dirs::home_dir)
+    #[cfg(unix)]
+    {
+        std::env::var("HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var("USERPROFILE")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(dirs::home_dir)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        dirs::home_dir()
+    }
 }
 
 fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str) -> bool {
@@ -234,22 +277,21 @@ pub fn build_claude_command_with_config(
     skip_permissions: bool,
     config: Option<&ClaudeConfig>,
 ) -> String {
-    // Use simple binary name and let system PATH handle resolution
     let binary_name = if let Some(cfg) = config {
         if let Some(ref path) = cfg.binary_path {
             let trimmed = path.trim();
             if !trimmed.is_empty() {
-                trimmed
+                resolve_windows_executable(trimmed)
             } else {
-                "claude"
+                "claude".to_string()
             }
         } else {
-            "claude"
+            "claude".to_string()
         }
     } else {
-        "claude"
+        "claude".to_string()
     };
-    let binary_invocation = format_binary_invocation(binary_name);
+    let binary_invocation = format_binary_invocation(&binary_name);
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 

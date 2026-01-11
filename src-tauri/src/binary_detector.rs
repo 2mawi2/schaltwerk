@@ -1,6 +1,8 @@
 use log::{debug, info};
+#[cfg(unix)]
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Command;
 
 pub use crate::utils::binary_utils::{DetectedBinary, InstallationMethod, check_binary};
@@ -25,15 +27,95 @@ impl BinaryDetector {
 
         debug!("Starting binary detection for agent: {agent_name}");
 
-        binaries.extend(Self::detect_homebrew_binaries(agent_name));
-        binaries.extend(Self::detect_npm_binaries(agent_name));
-        binaries.extend(Self::detect_pip_binaries(agent_name));
-        binaries.extend(Self::detect_manual_binaries(agent_name));
+        #[cfg(unix)]
+        {
+            binaries.extend(Self::detect_homebrew_binaries(agent_name));
+            binaries.extend(Self::detect_npm_binaries(agent_name));
+            binaries.extend(Self::detect_pip_binaries(agent_name));
+            binaries.extend(Self::detect_manual_binaries(agent_name));
+        }
+
+        #[cfg(windows)]
+        {
+            binaries.extend(Self::detect_windows_binaries(agent_name));
+        }
+
         binaries.extend(Self::detect_path_binaries(agent_name));
 
         Self::deduplicate_and_rank(binaries)
     }
 
+    #[cfg(windows)]
+    fn detect_windows_binaries(agent_name: &str) -> Vec<DetectedBinary> {
+        let mut binaries = Vec::new();
+
+        let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+        let appdata = std::env::var("APPDATA").unwrap_or_default();
+        let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+        let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
+        let programfiles_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_default();
+
+        let mut windows_paths = Vec::new();
+
+        // Scoop package manager (very common on Windows)
+        windows_paths.push(format!("{userprofile}\\scoop\\shims"));
+        windows_paths.push(format!("{userprofile}\\scoop\\apps\\{agent_name}\\current"));
+
+        // npm global packages
+        windows_paths.push(format!("{appdata}\\npm"));
+
+        // nvm-windows
+        if let Ok(nvm_symlink) = std::env::var("NVM_SYMLINK") {
+            windows_paths.push(nvm_symlink);
+        }
+        if let Ok(nvm_home) = std::env::var("NVM_HOME") {
+            windows_paths.push(nvm_home);
+        }
+
+        // Volta
+        windows_paths.push(format!("{localappdata}\\Volta\\bin"));
+
+        // Standard Node.js installation paths
+        windows_paths.push(format!("{programfiles}\\nodejs"));
+        windows_paths.push(format!("{programfiles_x86}\\nodejs"));
+
+        // Python paths
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python311\\Scripts"));
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python310\\Scripts"));
+        windows_paths.push(format!("{localappdata}\\Programs\\Python\\Python312\\Scripts"));
+
+        // Windows Apps
+        windows_paths.push(format!("{localappdata}\\Microsoft\\WindowsApps"));
+
+        for base_path in windows_paths {
+            if base_path.is_empty() {
+                continue;
+            }
+            let path = Path::new(&base_path);
+            if !path.exists() {
+                continue;
+            }
+
+            for ext in &["", ".exe", ".cmd", ".bat"] {
+                let binary_name = format!("{agent_name}{ext}");
+                let binary_path = path.join(&binary_name);
+                debug!("Checking for {agent_name} at {}", binary_path.display());
+                if let Some(detected) = check_binary(&binary_path, InstallationMethod::System) {
+                    info!("Found Windows binary: {} at {}", agent_name, detected.path);
+                    binaries.push(detected);
+                    break;
+                }
+            }
+        }
+
+        debug!(
+            "Found {} Windows binaries for {agent_name}",
+            binaries.len()
+        );
+        binaries
+    }
+
+    #[cfg(unix)]
     fn detect_homebrew_binaries(agent_name: &str) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
@@ -70,6 +152,7 @@ impl BinaryDetector {
         binaries
     }
 
+    #[cfg(unix)]
     fn scan_homebrew_cellar(agent_name: &str, cellar_path: &Path) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
@@ -123,6 +206,7 @@ impl BinaryDetector {
         binaries
     }
 
+    #[cfg(unix)]
     fn detect_npm_binaries(agent_name: &str) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
@@ -143,6 +227,7 @@ impl BinaryDetector {
         binaries
     }
 
+    #[cfg(unix)]
     fn get_npm_global_path() -> Option<PathBuf> {
         let output = Command::new("npm").args(["root", "-g"]).output().ok()?;
 
@@ -154,6 +239,7 @@ impl BinaryDetector {
         }
     }
 
+    #[cfg(unix)]
     fn detect_pip_binaries(agent_name: &str) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
@@ -179,6 +265,7 @@ impl BinaryDetector {
         binaries
     }
 
+    #[cfg(unix)]
     fn detect_manual_binaries(agent_name: &str) -> Vec<DetectedBinary> {
         let mut binaries = Vec::new();
 
@@ -200,7 +287,13 @@ impl BinaryDetector {
 
         if let Ok(path_var) = std::env::var("PATH") {
             debug!("Searching PATH for {agent_name}: {path_var}");
-            for path_dir in path_var.split(':') {
+
+            #[cfg(unix)]
+            let path_separator = ':';
+            #[cfg(windows)]
+            let path_separator = ';';
+
+            for path_dir in path_var.split(path_separator) {
                 let binary_path = PathBuf::from(path_dir).join(agent_name);
                 if let Some(detected) = check_binary(&binary_path, InstallationMethod::System) {
                     info!(
@@ -208,6 +301,22 @@ impl BinaryDetector {
                         agent_name, detected.path
                     );
                     binaries.push(detected);
+                }
+
+                #[cfg(windows)]
+                {
+                    for ext in &[".exe", ".cmd", ".bat", ".com"] {
+                        let with_ext = PathBuf::from(path_dir).join(format!("{agent_name}{ext}"));
+                        if let Some(detected) = check_binary(&with_ext, InstallationMethod::System)
+                        {
+                            info!(
+                                "Found System PATH binary: {} at {}",
+                                agent_name, detected.path
+                            );
+                            binaries.push(detected);
+                            break;
+                        }
+                    }
                 }
             }
         } else {
@@ -218,8 +327,31 @@ impl BinaryDetector {
         binaries
     }
 
+    /// Check if a path has a Windows-native executable extension (.exe, .cmd, .bat, .com)
+    #[cfg(windows)]
+    fn is_windows_executable(path: &str) -> bool {
+        let lower = path.to_lowercase();
+        lower.ends_with(".exe")
+            || lower.ends_with(".cmd")
+            || lower.ends_with(".bat")
+            || lower.ends_with(".com")
+    }
+
     fn deduplicate_and_rank(mut binaries: Vec<DetectedBinary>) -> Vec<DetectedBinary> {
         binaries.sort_by(|a, b| {
+            // On Windows, prefer .cmd and .exe over bare binaries (which are often shell scripts)
+            #[cfg(windows)]
+            {
+                let a_executable = Self::is_windows_executable(&a.path);
+                let b_executable = Self::is_windows_executable(&b.path);
+                if a_executable != b_executable {
+                    return if b_executable {
+                        std::cmp::Ordering::Greater
+                    } else {
+                        std::cmp::Ordering::Less
+                    };
+                }
+            }
             a.installation_method
                 .priority()
                 .cmp(&b.installation_method.priority())
@@ -248,10 +380,15 @@ impl BinaryDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
     use std::fs;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
     use tempfile::TempDir;
 
+    #[cfg(unix)]
     fn create_test_binary(dir: &Path, name: &str, executable: bool) -> PathBuf {
         let binary_path = dir.join(name);
         fs::write(&binary_path, "#!/bin/bash\necho 'test version 1.0.0'\n").unwrap();
@@ -266,6 +403,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_binary_detection_executable() {
         let temp_dir = TempDir::new().unwrap();
         let binary_path = create_test_binary(temp_dir.path(), "test-agent", true);
@@ -280,6 +418,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_binary_detection_non_executable() {
         let temp_dir = TempDir::new().unwrap();
         let binary_path = create_test_binary(temp_dir.path(), "test-agent", false);
@@ -289,6 +428,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_binary_detection_symlink() {
         let temp_dir = TempDir::new().unwrap();
         let target_path = create_test_binary(temp_dir.path(), "target-binary", true);

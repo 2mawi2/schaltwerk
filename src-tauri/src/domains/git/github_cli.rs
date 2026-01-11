@@ -9,6 +9,9 @@ use git2::Repository;
 use log::{debug, info, warn};
 use serde::Deserialize;
 
+#[cfg(windows)]
+use crate::shared::resolve_windows_executable;
+
 use super::branches::branch_exists;
 use super::operations::{commit_all_changes, has_uncommitted_changes};
 use super::repository::get_current_branch;
@@ -1552,46 +1555,97 @@ fn resolve_github_cli_program_uncached() -> String {
 
     let command = "gh";
 
-    if let Ok(home) = env::var("HOME") {
-        let user_paths = [
-            format!("{home}/.local/bin"),
-            format!("{home}/.cargo/bin"),
-            format!("{home}/bin"),
-        ];
+    #[cfg(unix)]
+    {
+        if let Ok(home) = env::var("HOME") {
+            let user_paths = [
+                format!("{home}/.local/bin"),
+                format!("{home}/.cargo/bin"),
+                format!("{home}/bin"),
+            ];
 
-        for path in &user_paths {
+            for path in &user_paths {
+                let full_path = PathBuf::from(path).join(command);
+                if full_path.exists() {
+                    let resolved = full_path.to_string_lossy().to_string();
+                    log::info!("[GitHubCli] Found gh in user path: {resolved}");
+                    return resolved;
+                }
+            }
+        }
+
+        let common_paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+
+        for path in &common_paths {
             let full_path = PathBuf::from(path).join(command);
             if full_path.exists() {
                 let resolved = full_path.to_string_lossy().to_string();
-                log::info!("[GitHubCli] Found gh in user path: {resolved}");
+                log::info!("[GitHubCli] Found gh in common path: {resolved}");
                 return resolved;
             }
         }
     }
 
-    let common_paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+    #[cfg(windows)]
+    {
+        if let Ok(program_files) = env::var("ProgramFiles") {
+            let gh_path = PathBuf::from(&program_files).join("GitHub CLI").join("gh.exe");
+            if gh_path.exists() {
+                let resolved = gh_path.to_string_lossy().to_string();
+                log::info!("[GitHubCli] Found gh in Program Files: {resolved}");
+                return resolved;
+            }
+        }
 
-    for path in &common_paths {
-        let full_path = PathBuf::from(path).join(command);
-        if full_path.exists() {
-            let resolved = full_path.to_string_lossy().to_string();
-            log::info!("[GitHubCli] Found gh in common path: {resolved}");
-            return resolved;
+        if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+            let scoop_path = PathBuf::from(&local_app_data)
+                .join("Microsoft")
+                .join("WinGet")
+                .join("Links")
+                .join("gh.exe");
+            if scoop_path.exists() {
+                let resolved = scoop_path.to_string_lossy().to_string();
+                log::info!("[GitHubCli] Found gh in WinGet Links: {resolved}");
+                return resolved;
+            }
+
+            let scoop_shims = PathBuf::from(&local_app_data)
+                .join("scoop")
+                .join("shims")
+                .join("gh.exe");
+            if scoop_shims.exists() {
+                let resolved = scoop_shims.to_string_lossy().to_string();
+                log::info!("[GitHubCli] Found gh in Scoop shims: {resolved}");
+                return resolved;
+            }
+        }
+
+        if let Ok(userprofile) = env::var("USERPROFILE") {
+            let scoop_path = PathBuf::from(&userprofile)
+                .join("scoop")
+                .join("shims")
+                .join("gh.exe");
+            if scoop_path.exists() {
+                let resolved = scoop_path.to_string_lossy().to_string();
+                log::info!("[GitHubCli] Found gh in user Scoop shims: {resolved}");
+                return resolved;
+            }
         }
     }
 
-    if let Ok(output) = StdCommand::new("which").arg(command).output() {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let trimmed = path.trim();
-                if !trimmed.is_empty() {
-                    log::info!("[GitHubCli] Found gh via which: {trimmed}");
-                    return trimmed.to_string();
-                }
-            }
-        } else if let Ok(err) = String::from_utf8(output.stderr) {
-            warn!("[GitHubCli] 'which gh' failed: {err}");
+    if let Ok(path) = which::which(command) {
+        let path_str = path.to_string_lossy().to_string();
+        log::info!("[GitHubCli] Found gh via which crate: {path_str}");
+
+        #[cfg(windows)]
+        {
+            let resolved = resolve_windows_executable(&path_str);
+            log::info!("[GitHubCli] Windows executable resolution: {path_str} -> {resolved}");
+            return resolved;
         }
+
+        #[cfg(not(windows))]
+        return path_str;
     }
 
     warn!("[GitHubCli] Falling back to plain 'gh' - binary may not be found");

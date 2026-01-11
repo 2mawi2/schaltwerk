@@ -35,11 +35,15 @@ struct StoredSessionRecord {
     time: StoredSessionTime,
 }
 
+fn get_home_dir() -> Option<String> {
+    super::get_home_dir()
+}
+
 pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     // Find OpenCode session by looking in the OpenCode data directory
     // OpenCode stores sessions in ~/.local/share/opencode/project/{sanitized_path}/storage/session/info/
 
-    let home = std::env::var("HOME").ok()?;
+    let home = get_home_dir()?;
     let opencode_dir = PathBuf::from(&home)
         .join(".local")
         .join("share")
@@ -511,49 +515,25 @@ pub fn resolve_opencode_binary() -> String {
     resolve_opencode_binary_with_config(None)
 }
 
-fn resolve_opencode_binary_impl(command: &str) -> String {
-    if let Ok(home) = std::env::var("HOME") {
-        let user_paths = vec![
-            format!("{}/.local/bin", home),
-            format!("{}/.cargo/bin", home),
-            format!("{}/bin", home),
-            format!("{}/.opencode/bin", home),
-        ];
+fn resolve_opencode_binary_impl(_command: &str) -> String {
+    #[cfg(unix)]
+    let extra_paths = if let Some(home) = get_home_dir() {
+        vec![format!("{}/.opencode/bin", home)]
+    } else {
+        vec![]
+    };
 
-        for path in user_paths {
-            let full_path = PathBuf::from(&path).join(command);
-            if full_path.exists() {
-                log::info!("Found opencode at {}", full_path.display());
-                return full_path.to_string_lossy().to_string();
-            }
-        }
-    }
+    #[cfg(windows)]
+    let extra_paths = if let Some(home) = get_home_dir() {
+        vec![format!("{}\\AppData\\Local\\opencode\\bin", home)]
+    } else {
+        vec![]
+    };
 
-    let common_paths = vec!["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"];
+    #[cfg(not(any(unix, windows)))]
+    let extra_paths: Vec<String> = vec![];
 
-    for path in common_paths {
-        let full_path = PathBuf::from(path).join(command);
-        if full_path.exists() {
-            log::info!("Found opencode at {}", full_path.display());
-            return full_path.to_string_lossy().to_string();
-        }
-    }
-
-    if let Ok(output) = std::process::Command::new("which").arg(command).output()
-        && output.status.success()
-        && let Ok(path) = String::from_utf8(output.stdout)
-    {
-        let path = path.trim();
-        if !path.is_empty() {
-            log::info!("Found opencode via which: {path}");
-            return path.to_string();
-        }
-    }
-
-    log::warn!(
-        "Could not resolve path for 'opencode', using as-is. This may fail in installed apps."
-    );
-    command.to_string()
+    super::resolve_agent_binary_with_extra_paths("opencode", &extra_paths)
 }
 
 #[cfg(test)]

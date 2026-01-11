@@ -12,6 +12,7 @@ pub fn clean_invalid_binary_paths(settings: &mut Settings) {
                 path
             );
 
+            #[cfg(unix)]
             let possible_locations = vec![
                 format!("/opt/homebrew/bin/{}", cfg.agent_name),
                 format!("/usr/local/bin/{}", cfg.agent_name),
@@ -22,6 +23,16 @@ pub fn clean_invalid_binary_paths(settings: &mut Settings) {
                     cfg.agent_name
                 ),
             ];
+
+            #[cfg(windows)]
+            let possible_locations = {
+                let appdata = std::env::var("APPDATA").unwrap_or_default();
+                let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+                vec![
+                    format!("{appdata}\\npm\\{}.cmd", cfg.agent_name),
+                    format!("{localappdata}\\Microsoft\\WindowsApps\\{}.exe", cfg.agent_name),
+                ]
+            };
 
             let mut found_wrapper = None;
             for location in &possible_locations {

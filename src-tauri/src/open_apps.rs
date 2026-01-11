@@ -27,6 +27,9 @@ mod tests {
 
         #[cfg(target_os = "linux")]
         assert_eq!(default, "nautilus");
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(default, "explorer");
     }
 
     #[test]
@@ -41,6 +44,9 @@ mod tests {
 
         #[cfg(target_os = "linux")]
         assert_eq!(default, "nautilus");
+
+        #[cfg(target_os = "windows")]
+        assert_eq!(default, "explorer");
 
         set_default_open_app_in_db(&db, "vscode").expect("failed to persist default open app");
 
@@ -161,6 +167,16 @@ fn detect_available_apps() -> Vec<OpenApp> {
         apps.extend(detect_linux_terminals());
     }
 
+    #[cfg(target_os = "windows")]
+    {
+        apps.push(OpenApp {
+            id: "explorer".into(),
+            name: "Explorer".into(),
+            kind: "system".into(),
+        });
+        apps.extend(detect_windows_terminals());
+    }
+
     // Cross-platform editors
     apps.extend(detect_editors());
 
@@ -238,6 +254,41 @@ fn detect_macos_terminals() -> Vec<OpenApp> {
     ]
 }
 
+#[cfg(target_os = "windows")]
+fn detect_windows_terminals() -> Vec<OpenApp> {
+    let mut terminals = Vec::new();
+
+    if which::which("wt").is_ok() {
+        terminals.push(OpenApp {
+            id: "wt".into(),
+            name: "Windows Terminal".into(),
+            kind: "terminal".into(),
+        });
+    }
+
+    if which::which("pwsh").is_ok() {
+        terminals.push(OpenApp {
+            id: "pwsh".into(),
+            name: "PowerShell".into(),
+            kind: "terminal".into(),
+        });
+    } else if which::which("powershell").is_ok() {
+        terminals.push(OpenApp {
+            id: "powershell".into(),
+            name: "Windows PowerShell".into(),
+            kind: "terminal".into(),
+        });
+    }
+
+    terminals.push(OpenApp {
+        id: "cmd".into(),
+        name: "Command Prompt".into(),
+        kind: "terminal".into(),
+    });
+
+    terminals
+}
+
 fn detect_editors() -> Vec<OpenApp> {
     let candidates = [
         ("cursor", "Cursor"),
@@ -252,7 +303,6 @@ fn detect_editors() -> Vec<OpenApp> {
             which::which(id).is_ok() || {
                 #[cfg(target_os = "macos")]
                 {
-                    // Check for .app bundles on macOS
                     match *id {
                         "cursor" => std::path::Path::new("/Applications/Cursor.app").exists(),
                         "code" => {
@@ -263,7 +313,11 @@ fn detect_editors() -> Vec<OpenApp> {
                         _ => false,
                     }
                 }
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(target_os = "windows")]
+                {
+                    check_windows_editor_installed(id)
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 false
             }
         })
@@ -273,6 +327,45 @@ fn detect_editors() -> Vec<OpenApp> {
             kind: "editor".to_string(),
         })
         .collect()
+}
+
+#[cfg(target_os = "windows")]
+fn check_windows_editor_installed(id: &str) -> bool {
+    let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let programfiles = std::env::var("ProgramFiles").unwrap_or_default();
+
+    match id {
+        "cursor" => {
+            std::path::Path::new(&format!("{localappdata}\\Programs\\Cursor\\Cursor.exe")).exists()
+        }
+        "code" => {
+            std::path::Path::new(&format!(
+                "{localappdata}\\Programs\\Microsoft VS Code\\Code.exe"
+            ))
+            .exists()
+                || std::path::Path::new(&format!("{programfiles}\\Microsoft VS Code\\Code.exe"))
+                    .exists()
+        }
+        "idea" => {
+            let toolbox = std::env::var("LOCALAPPDATA")
+                .map(|la| {
+                    std::path::Path::new(&format!(
+                        "{la}\\JetBrains\\Toolbox\\apps\\IDEA-U\\ch-0"
+                    ))
+                    .exists()
+                })
+                .unwrap_or(false);
+            toolbox
+                || std::path::Path::new(&format!(
+                    "{programfiles}\\JetBrains\\IntelliJ IDEA\\bin\\idea64.exe"
+                ))
+                .exists()
+        }
+        "zed" => {
+            std::path::Path::new(&format!("{localappdata}\\Programs\\Zed\\zed.exe")).exists()
+        }
+        _ => false,
+    }
 }
 
 fn guess_is_file(path: &Path) -> bool {
@@ -572,6 +665,96 @@ fn build_command_linux(app_id: &str, req: &ResolvedRequest) -> Result<CommandSpe
     }
 }
 
+#[cfg(target_os = "windows")]
+fn build_command_windows(app_id: &str, req: &ResolvedRequest) -> Result<CommandSpec, String> {
+    let root = req.worktree_root.to_string_lossy().to_string();
+    let goto = req
+        .target
+        .as_ref()
+        .map(|t| format_path_with_position(&t.absolute_path, t.line, t.column));
+    let terminal_dir = req.terminal_workdir.to_string_lossy().to_string();
+    let target_or_root = req
+        .target
+        .as_ref()
+        .map(|t| t.absolute_path.to_string_lossy().to_string())
+        .unwrap_or_else(|| root.clone());
+
+    match app_id {
+        "explorer" => Ok(CommandSpec {
+            program: "explorer.exe".into(),
+            args: vec![target_or_root],
+            working_dir: None,
+        }),
+
+        "wt" => Ok(CommandSpec {
+            program: "wt".into(),
+            args: vec!["-d".into(), terminal_dir],
+            working_dir: None,
+        }),
+
+        "pwsh" | "powershell" => Ok(CommandSpec {
+            program: app_id.into(),
+            args: vec!["-NoExit".into(), "-Command".into(), format!("Set-Location '{terminal_dir}'")],
+            working_dir: None,
+        }),
+
+        "cmd" => Ok(CommandSpec {
+            program: "cmd".into(),
+            args: vec!["/K".into(), format!("cd /d \"{terminal_dir}\"")],
+            working_dir: None,
+        }),
+
+        "cursor" | "code" | "vscode" => {
+            let mut args = vec!["--reuse-window".into(), root.clone()];
+            if let Some(g) = goto {
+                args.push("--goto".into());
+                args.push(g);
+            }
+            Ok(CommandSpec {
+                program: if app_id == "cursor" { "cursor" } else { "code" }.into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+
+        "idea" => {
+            let mut args: Vec<String> = Vec::new();
+            if let Some(target) = req.target.as_ref() {
+                if let Some(line) = target.line {
+                    args.push("--line".into());
+                    args.push(line.to_string());
+                }
+                args.push(target.absolute_path.to_string_lossy().to_string());
+            } else {
+                args.push(root);
+            }
+            Ok(CommandSpec {
+                program: "idea64".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+
+        "zed" => {
+            let mut args = vec![root];
+            if let Some(target) = req.target.as_ref() {
+                args.push(format_path_with_position(
+                    &target.absolute_path,
+                    target.line,
+                    target.column,
+                ));
+            }
+            Ok(CommandSpec {
+                program: "zed".into(),
+                args,
+                working_dir: Some(req.worktree_root.clone()),
+            })
+        }
+
+        other => Err(format!("Unsupported app id: {other}")),
+    }
+}
+
 fn open_path_in(
     app_id: &str,
     worktree_root: &str,
@@ -593,7 +776,13 @@ fn open_path_in(
         run_command_spec(spec)
     }
 
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "windows")]
+    {
+        let spec = build_command_windows(app_id, &resolved)?;
+        run_command_spec(spec)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         Err("Unsupported platform".to_string())
     }
@@ -607,7 +796,14 @@ fn run_command_spec(spec: CommandSpec) -> Result<(), String> {
     cmd.args(&spec.args);
     match cmd.status() {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(format!("{} exited with status: {status}", spec.program)),
+        Ok(status) => {
+            // Windows Explorer returns exit code 1 even on success - this is a known quirk
+            #[cfg(target_os = "windows")]
+            if spec.program.to_lowercase().contains("explorer") {
+                return Ok(());
+            }
+            Err(format!("{} exited with status: {status}", spec.program))
+        }
         Err(e) => Err(format!("Failed to open in {}: {e}", spec.program)),
     }
 }

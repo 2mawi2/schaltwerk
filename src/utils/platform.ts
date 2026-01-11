@@ -4,11 +4,24 @@ type SupportedPlatform = 'macos' | 'linux' | 'windows'
 
 let cachedPlatform: SupportedPlatform | null = null
 
+function mapPlatform(rawPlatform: string): SupportedPlatform {
+  switch (rawPlatform) {
+    case 'darwin':
+    case 'macos':
+      return 'macos'
+    case 'windows':
+      return 'windows'
+    case 'linux':
+      return 'linux'
+    default:
+      return 'linux'
+  }
+}
+
 export async function getPlatform(): Promise<SupportedPlatform> {
   if (cachedPlatform === null) {
     const result = await platform()
-    cachedPlatform = result
-    return result
+    cachedPlatform = mapPlatform(result)
   }
   return cachedPlatform
 }

@@ -12,13 +12,31 @@ use crate::schaltwerk_core::SchaltwerkCore;
 
 fn canonicalize_project_path(path: &Path) -> Result<PathBuf> {
     match std::fs::canonicalize(path) {
-        Ok(canonical) => Ok(canonical),
+        Ok(canonical) => Ok(strip_extended_path_prefix(canonical)),
         Err(e) if e.kind() == ErrorKind::PermissionDenied => Err(anyhow!(
             "Permission required for folder: {}. Please grant access when prompted and retry opening the project.",
             path.display()
         )),
         Err(e) => Err(e.into()),
     }
+}
+
+/// Strip the Windows extended path prefix (\\?\) from canonicalized paths.
+/// This prefix is added by std::fs::canonicalize on Windows and can cause
+/// issues with some APIs (like portable-pty's CreateProcessW).
+#[cfg(windows)]
+fn strip_extended_path_prefix(path: PathBuf) -> PathBuf {
+    let path_str = path.to_string_lossy();
+    if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        path
+    }
+}
+
+#[cfg(not(windows))]
+fn strip_extended_path_prefix(path: PathBuf) -> PathBuf {
+    path
 }
 
 /// Represents a single project with its own terminals and sessions

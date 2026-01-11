@@ -313,11 +313,11 @@ fn process_alive(pid: libc::pid_t) -> bool {
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
 
     #[tokio::test]
-    #[cfg(target_family = "unix")]
     async fn terminate_processes_with_cwd_kills_process() {
         let temp_dir = tempfile::tempdir().unwrap();
 

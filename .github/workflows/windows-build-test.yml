@@ -1,0 +1,196 @@
+name: Windows Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typescript:
+    name: TypeScript Lint (Windows)
+    runs-on: windows-latest
+    env:
+      SCHALTWERK_PM: bun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            mcp-server/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          bun install --frozen-lockfile
+          if [ -d "mcp-server" ]; then
+            cd mcp-server && bun install --frozen-lockfile && cd ..
+          fi
+
+      - name: Run TypeScript lints
+        shell: bash
+        run: |
+          bun run lint
+          bun run lint:ts
+          bun run lint:mcp
+          bun run deps:check
+
+  test-frontend:
+    name: Frontend Tests (Windows)
+    runs-on: windows-latest
+    env:
+      SCHALTWERK_PM: bun
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            mcp-server/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          bun install --frozen-lockfile
+          if [ -d "mcp-server" ]; then
+            cd mcp-server && bun install --frozen-lockfile && cd ..
+          fi
+
+      - name: Run frontend tests
+        shell: bash
+        timeout-minutes: 10
+        run: |
+          bun run test:frontend
+          bun run test:mcp
+
+  rust-checks:
+    name: Rust Checks (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install WebView2 Runtime
+        shell: pwsh
+        run: choco install webview2-runtime -y
+
+      - name: Setup sccache
+        uses: Mozilla-Actions/sccache-action@v0.0.9
+
+      - name: Enable sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Restore cargo cache
+        uses: actions/cache/restore@v4
+        id: cache_cargo_restore
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-windows-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-shear@1.5.2
+
+      - name: Run Rust checks
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          cargo clippy --all-features -- -D warnings
+          cargo shear
+
+      - name: Compile Rust tests (no-run)
+        shell: bash
+        working-directory: src-tauri
+        run: cargo test --no-run --lib --bins
+
+      - name: Run Rust tests (pty_host)
+        shell: bash
+        working-directory: src-tauri/crates/pty_host
+        run: cargo test
+
+      - name: Save cargo cache
+        if: always() && !cancelled() && steps.cache_cargo_restore.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-windows-${{ hashFiles('**/Cargo.lock') }}
+
+  results:
+    name: Windows CI Results
+    needs: [lint-typescript, test-frontend, rust-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        shell: bash
+        run: |
+          echo "lint-typescript: ${{ needs.lint-typescript.result }}"
+          echo "test-frontend  : ${{ needs.test-frontend.result }}"
+          echo "rust-checks    : ${{ needs.rust-checks.result }}"
+
+          [[ '${{ needs.lint-typescript.result }}' == 'success' ]] || { echo 'lint-typescript failed'; exit 1; }
+          [[ '${{ needs.test-frontend.result }}' == 'success' ]] || { echo 'test-frontend failed'; exit 1; }
+          [[ '${{ needs.rust-checks.result }}' == 'success' ]] || { echo 'rust-checks failed'; exit 1; }
+
+          echo 'All Windows checks passed!'

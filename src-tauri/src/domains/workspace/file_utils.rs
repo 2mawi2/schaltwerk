@@ -757,9 +757,11 @@ mod tests {
         let target_file = temp_dir.path().join("target.txt");
         fs::write(&target_file, "Hello, symlink target!").unwrap();
 
-        let symlink_path = temp_dir.path().join("link.txt");
+        // symlink_path is only used on Unix where symlinks can be created without admin privileges
+        let _symlink_path = temp_dir.path().join("link.txt");
         #[cfg(unix)]
         {
+            let symlink_path = &_symlink_path;
             std::os::unix::fs::symlink(&target_file, &symlink_path).unwrap();
 
             // Test that symlink is treated as diffable (follows target)
@@ -787,11 +789,13 @@ mod tests {
     #[test]
     fn test_broken_symlink() {
         let temp_dir = TempDir::new().unwrap();
-        let broken_link = temp_dir.path().join("broken_link.txt");
+        // broken_link is only used on Unix where symlinks can be created without admin privileges
+        let _broken_link = temp_dir.path().join("broken_link.txt");
 
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink("nonexistent_target.txt", &broken_link).unwrap();
+            let broken_link = &_broken_link;
+            std::os::unix::fs::symlink("nonexistent_target.txt", broken_link).unwrap();
 
             // Broken symlinks behavior varies by system - they might return info about the link itself
             // rather than an error. Let's just verify the function doesn't panic.

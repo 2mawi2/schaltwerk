@@ -92,11 +92,12 @@ pub async fn capture_login_shell_env() -> Result<HashMap<String, String>, String
 }
 
 fn get_shell_name(shell_path: &str) -> String {
-    Path::new(shell_path)
+    let name = Path::new(shell_path)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("sh")
-        .to_ascii_lowercase()
+        .to_ascii_lowercase();
+    name.strip_suffix(".exe").unwrap_or(&name).to_string()
 }
 
 fn generate_marker() -> String {
@@ -146,6 +147,26 @@ fn build_shell_command(shell_name: &str, mark: &str) -> (Vec<String>, String) {
         "tcsh" | "csh" => {
             let command = format!("echo -n '{mark}'; env; echo -n '{mark}'");
             (vec!["-c".to_string()], command)
+        }
+        "pwsh" | "powershell" => {
+            let command = format!(
+                "Write-Host -NoNewline '{mark}'; \
+                 Get-ChildItem Env: | ForEach-Object {{ \"$($_.Name)=$($_.Value)\" }}; \
+                 Write-Host -NoNewline '{mark}'"
+            );
+            (
+                vec!["-Command".to_string()],
+                command,
+            )
+        }
+        "cmd" => {
+            let command = format!(
+                "@echo off & echo|set /p=\"{mark}\" & set & echo|set /p=\"{mark}\""
+            );
+            (
+                vec!["/C".to_string()],
+                command,
+            )
         }
         _ => {
             let command = format!("echo -n '{mark}'; env; echo -n '{mark}'");
@@ -406,6 +427,13 @@ mod tests {
         assert_eq!(get_shell_name("zsh"), "zsh");
     }
 
+    #[test]
+    fn get_shell_name_strips_exe_suffix() {
+        assert_eq!(get_shell_name("cmd.exe"), "cmd");
+        assert_eq!(get_shell_name("pwsh.exe"), "pwsh");
+        assert_eq!(get_shell_name("powershell.exe"), "powershell");
+    }
+
     #[tokio::test]
     async fn capture_login_shell_env_returns_path() {
         let env = capture_login_shell_env().await;
@@ -413,6 +441,14 @@ mod tests {
         assert!(env.is_ok(), "Should capture environment: {:?}", env);
         let env = env.unwrap();
         assert!(env.contains_key("PATH"), "Should have PATH");
+
+        // Windows uses USERPROFILE instead of HOME
+        #[cfg(unix)]
         assert!(env.contains_key("HOME"), "Should have HOME");
+        #[cfg(windows)]
+        assert!(
+            env.contains_key("USERPROFILE") || env.contains_key("HOME"),
+            "Should have USERPROFILE or HOME"
+        );
     }
 }

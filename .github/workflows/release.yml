@@ -114,7 +114,6 @@ jobs:
         with:
           tool: nextest
           version: 0.9.108
-
       - name: Install dependencies
         run: node scripts/package-manager.mjs install --frozen-lockfile
 
@@ -126,6 +125,133 @@ jobs:
 
       - name: Run full test suite
         run: node scripts/package-manager.mjs run test
+
+  test-windows:
+    name: Run Windows Test Suite
+    needs: tag-check
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      SCHALTWERK_PM: bun
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
+      - name: Setup sccache
+        uses: Mozilla-Actions/sccache-action@v0.0.9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            mcp-server/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Restore cargo home cache
+        id: cache_cargo_home_restore
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Restore cargo target cache
+        id: cache_target_restore
+        uses: actions/cache/restore@v5
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+
+      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
+        with:
+          tool: cargo-shear
+          version: 1.5.2
+
+      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
+        with:
+          tool: nextest
+          version: 0.9.108
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          node scripts/package-manager.mjs install --frozen-lockfile
+          if [ -d "mcp-server" ]; then
+            cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
+          fi
+
+      - name: Run TypeScript lints
+        shell: bash
+        run: |
+          node scripts/package-manager.mjs run lint
+          node scripts/package-manager.mjs run lint:ts
+          node scripts/package-manager.mjs run lint:mcp
+          node scripts/package-manager.mjs run deps:check
+
+      - name: Run frontend tests
+        shell: bash
+        run: |
+          node scripts/package-manager.mjs run test:frontend
+          node scripts/package-manager.mjs run test:mcp
+
+      - name: Run Rust checks
+        shell: bash
+        working-directory: src-tauri
+        run: |
+          cargo clippy --all-features -- -D warnings
+          cargo shear
+          cargo test --no-run --lib --bins
+          cargo build
+
+      - name: Run Rust tests (pty_host)
+        shell: bash
+        working-directory: src-tauri/crates/pty_host
+        run: cargo test
+
+      - name: Save cargo home cache
+        if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-home-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Save cargo target cache
+        if: always() && !cancelled() && steps.cache_target_restore.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: src-tauri/target/
+          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
   build-macos:
     name: Build macOS Universal Binary
@@ -391,27 +517,217 @@ jobs:
             checksums.txt
             latest.json
 
-  create-release:
-    name: Create GitHub Release
-    needs: [test, build-macos]
-    runs-on: ubuntu-latest
-    # Only create release if both test and build succeeded (or were skipped for manual dispatch)
-    if: |
-      always() &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
-      (needs.build-macos.result == 'success')
-    permissions:
-      contents: write
-    
+  build-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    needs: [tag-check]
+    if: always() && (needs.tag-check.result == 'success' || needs.tag-check.result == 'skipped')
+    env:
+      SCHALTWERK_PM: bun
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Download artifacts
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.16'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: Mozilla-Actions/sccache-action@v0.0.9
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ci-
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Build MCP Server
+        shell: bash
+        run: |
+          cd mcp-server
+          bun install --frozen-lockfile
+          bun run build
+          bun install --production --frozen-lockfile
+
+      - name: Build Windows NSIS installer
+        env:
+          CARGO_PROFILE_RELEASE_LTO: 'false'
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
+        run: bun run tauri build --bundles nsis
+
+      - name: Prepare artifacts and sign for updater
+        shell: pwsh
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.SCHALTWERK_UPDATER_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.SCHALTWERK_UPDATER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $VERSION = $env:VERSION -replace '^v',''
+          $NSIS_DIR = "src-tauri/target/release/bundle/nsis"
+
+          $INSTALLER = Get-ChildItem "$NSIS_DIR/*.exe" | Select-Object -First 1
+          if (-not $INSTALLER) {
+            Write-Error "No NSIS installer found in $NSIS_DIR"
+            exit 1
+          }
+
+          $EXE_NAME = "Schaltwerk-$VERSION-windows-x64.exe"
+          Copy-Item $INSTALLER.FullName -Destination $EXE_NAME
+          Write-Host "Created $EXE_NAME"
+
+          $ZIP_NAME = "Schaltwerk-$VERSION-windows-x64.nsis.zip"
+          Compress-Archive -Path $EXE_NAME -DestinationPath $ZIP_NAME
+          Write-Host "Created $ZIP_NAME"
+
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Error "Updater signing key is not configured"
+            exit 1
+          }
+
+          $env:TAURI_SIGNING_PRIVATE_KEY | Out-File -FilePath "updater-private.key" -Encoding utf8 -NoNewline
+
+          $signArgs = @("signer", "sign", $ZIP_NAME, "--private-key-path", "updater-private.key")
+          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            $signArgs += @("--password", $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+          }
+
+          $signOutput = & bun run tauri @signArgs 2>&1
+          Write-Host $signOutput
+
+          $SIGNATURE = ($signOutput | Select-String -Pattern "Public signature:" -Context 0,1).Context.PostContext[0].Trim()
+          if (-not $SIGNATURE) {
+            Write-Error "Failed to extract updater signature"
+            exit 1
+          }
+
+          Remove-Item "updater-private.key" -ErrorAction SilentlyContinue
+          Remove-Item "$ZIP_NAME.sig" -ErrorAction SilentlyContinue
+
+          $SIGNATURE | Out-File -FilePath "windows-signature.txt" -Encoding utf8 -NoNewline
+          Write-Host "Signature saved to windows-signature.txt"
+
+          $HASH = (Get-FileHash $EXE_NAME -Algorithm SHA256).Hash.ToLower()
+          "$HASH  $EXE_NAME" | Out-File -FilePath "windows-checksums.txt" -Encoding utf8
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-installer
+          path: |
+            Schaltwerk-*-windows-x64.exe
+            Schaltwerk-*-windows-x64.nsis.zip
+            windows-signature.txt
+            windows-checksums.txt
+
+  create-release:
+    name: Create GitHub Release
+    needs: [test, test-windows, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: |
+      always() &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped') &&
+      (needs.build-macos.result == 'success') &&
+      (needs.build-windows.result == 'success')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download macOS artifacts
         uses: actions/download-artifact@v7
         with:
           name: macos-universal
-          path: artifacts
+          path: artifacts/macos
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: windows-installer
+          path: artifacts/windows
+
+      - name: Create combined latest.json
+        env:
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${VERSION#v}"
+
+          MACOS_SIG=$(jq -r '.platforms["darwin-aarch64"].signature' artifacts/macos/latest.json)
+          WINDOWS_SIG=$(cat artifacts/windows/windows-signature.txt)
+
+          MACOS_URL="https://github.com/2mawi2/schaltwerk/releases/download/v${VERSION}/Schaltwerk-${VERSION}-macos-universal.app.tar.gz"
+          WINDOWS_URL="https://github.com/2mawi2/schaltwerk/releases/download/v${VERSION}/Schaltwerk-${VERSION}-windows-x64.nsis.zip"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          cat > artifacts/latest.json <<EOF
+          {
+            "version": "${VERSION}",
+            "pub_date": "${PUB_DATE}",
+            "notes": "",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${MACOS_SIG}",
+                "url": "${MACOS_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MACOS_SIG}",
+                "url": "${MACOS_URL}"
+              },
+              "darwin-aarch64-app": {
+                "signature": "${MACOS_SIG}",
+                "url": "${MACOS_URL}"
+              },
+              "darwin-x86_64-app": {
+                "signature": "${MACOS_SIG}",
+                "url": "${MACOS_URL}"
+              },
+              "windows-x86_64": {
+                "signature": "${WINDOWS_SIG}",
+                "url": "${WINDOWS_URL}"
+              }
+            }
+          }
+          EOF
+
+          echo "Combined latest.json:"
+          cat artifacts/latest.json
+
+      - name: Merge checksums
+        run: |
+          cat artifacts/macos/checksums.txt > artifacts/checksums.txt
+          cat artifacts/windows/windows-checksums.txt >> artifacts/checksums.txt
+          echo "Combined checksums:"
+          cat artifacts/checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -421,7 +737,9 @@ jobs:
           draft: true
           prerelease: false
           files: |
-            artifacts/*.dmg
-            artifacts/*.app.tar.gz
+            artifacts/macos/*.dmg
+            artifacts/macos/*.app.tar.gz
+            artifacts/windows/*.exe
+            artifacts/windows/*.nsis.zip
             artifacts/checksums.txt
             artifacts/latest.json

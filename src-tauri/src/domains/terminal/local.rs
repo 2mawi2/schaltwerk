@@ -1174,6 +1174,30 @@ mod tests {
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
+    fn test_temp_dir() -> String {
+        std::env::temp_dir().to_string_lossy().to_string()
+    }
+
+    #[cfg(unix)]
+    fn test_shell() -> String {
+        "sh".to_string()
+    }
+
+    #[cfg(windows)]
+    fn test_shell() -> String {
+        "cmd".to_string()
+    }
+
+    #[cfg(unix)]
+    fn test_shell_args() -> Vec<String> {
+        vec!["-c".to_string(), "echo test && sleep 1".to_string()]
+    }
+
+    #[cfg(windows)]
+    fn test_shell_args() -> Vec<String> {
+        vec!["/C".to_string(), "echo test && timeout /t 1".to_string()]
+    }
+
     #[test]
     fn test_session_id_extraction() {
         assert_eq!(
@@ -1223,7 +1247,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
         adapter.create(params).await.unwrap();
@@ -1241,7 +1265,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1259,7 +1283,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1284,14 +1308,11 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: Some(ApplicationSpec {
-                command: "sh".to_string(),
-                args: vec!["-c".to_string(), "echo test && sleep 1".to_string()],
-                env: vec![
-                    ("CUSTOM_VAR".to_string(), "custom_value".to_string()),
-                    ("PATH".to_string(), "/custom/path:/usr/bin".to_string()),
-                ],
+                command: test_shell(),
+                args: test_shell_args(),
+                env: vec![("CUSTOM_VAR".to_string(), "custom_value".to_string())],
                 ready_timeout_ms: 1000,
             }),
         };
@@ -1309,7 +1330,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1329,10 +1350,12 @@ mod tests {
 
         let adapter_clone1 = Arc::clone(&adapter);
         let id_clone1 = id.clone();
+        let cwd = test_temp_dir();
+        let cwd_clone1 = cwd.clone();
         let create_handle1 = tokio::spawn(async move {
             let params = CreateParams {
                 id: id_clone1.clone(),
-                cwd: "/tmp".to_string(),
+                cwd: cwd_clone1,
                 app: None,
             };
             adapter_clone1.create(params).await.unwrap();
@@ -1340,10 +1363,11 @@ mod tests {
 
         let adapter_clone2 = Arc::clone(&adapter);
         let id_clone2 = id.clone();
+        let cwd_clone2 = cwd.clone();
         let create_handle2 = tokio::spawn(async move {
             let params = CreateParams {
                 id: id_clone2.clone(),
-                cwd: "/tmp".to_string(),
+                cwd: cwd_clone2,
                 app: None,
             };
             adapter_clone2.create(params).await.unwrap();
@@ -1360,11 +1384,16 @@ mod tests {
         let adapter = LocalPtyAdapter::new();
         let id = unique_id("bad-command");
 
+        #[cfg(unix)]
+        let bad_command = "/nonexistent/command/that/does/not/exist".to_string();
+        #[cfg(windows)]
+        let bad_command = "C:\\nonexistent\\command\\that\\does\\not\\exist.exe".to_string();
+
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: Some(ApplicationSpec {
-                command: "/nonexistent/command/that/does/not/exist".to_string(),
+                command: bad_command,
                 args: vec![],
                 env: vec![],
                 ready_timeout_ms: 1000,
@@ -1383,7 +1412,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1410,7 +1439,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1419,9 +1448,18 @@ mod tests {
 
         sleep(Duration::from_millis(200)).await;
 
-        adapter.write(&id, b"pwd\n").await.unwrap();
-        sleep(Duration::from_millis(100)).await;
-        adapter.write(&id, b"ls -la\n").await.unwrap();
+        #[cfg(unix)]
+        {
+            adapter.write(&id, b"pwd\n").await.unwrap();
+            sleep(Duration::from_millis(100)).await;
+            adapter.write(&id, b"ls -la\n").await.unwrap();
+        }
+        #[cfg(windows)]
+        {
+            adapter.write(&id, b"cd\n").await.unwrap();
+            sleep(Duration::from_millis(100)).await;
+            adapter.write(&id, b"dir\n").await.unwrap();
+        }
         sleep(Duration::from_millis(200)).await;
 
         let snapshot = adapter.snapshot(&id, None).await.unwrap();
@@ -1449,7 +1487,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1479,7 +1517,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 
@@ -1533,7 +1571,7 @@ mod tests {
 
         let params = CreateParams {
             id: id.clone(),
-            cwd: "/tmp".to_string(),
+            cwd: test_temp_dir(),
             app: None,
         };
 

@@ -1,84 +1,159 @@
 ---
 title: Installation
-description: 'Get Schaltwerk running on your Mac'
+description: 'Get Schaltwerk running on your system'
 ---
 
 <Info>
-  **Requirements:** macOS (Apple Silicon or Intel) with Git installed
+  **Requirements:** macOS (Apple Silicon or Intel), Windows 10/11, or Linux with Git installed
 </Info>
 
-## Quick Install (Homebrew)
+## Installation
 
-<Steps>
-  <Step title="Install Schaltwerk">
-    ```bash
-    brew install --cask 2mawi2/tap/schaltwerk
-    ```
-  </Step>
+<Tabs>
+  <Tab title="macOS">
+    ### Quick Install (Homebrew)
 
-  <Step title="Launch the app">
-    ```bash
-    open -a Schaltwerk
-    ```
-  </Step>
-</Steps>
+    <Steps>
+      <Step title="Install Schaltwerk">
+        ```bash
+        brew install --cask 2mawi2/tap/schaltwerk
+        ```
+      </Step>
 
-## Manual Installation
+      <Step title="Launch the app">
+        ```bash
+        open -a Schaltwerk
+        ```
+      </Step>
+    </Steps>
 
-Prefer manual installation? Download the latest release and install manually.
+    ### Manual Installation
 
-<Steps>
-  <Step title="Download the application">
-    Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download `Schaltwerk-<version>-macos-universal.app.tar.gz`
-  </Step>
+    <Steps>
+      <Step title="Download the application">
+        Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download `Schaltwerk-<version>-macos-universal.app.tar.gz`
+      </Step>
 
-  <Step title="Extract and install">
-    ```bash
-    # Extract the archive
-    tar -xzf Schaltwerk-*-macos-universal.app.tar.gz
+      <Step title="Extract and install">
+        ```bash
+        # Extract the archive
+        tar -xzf Schaltwerk-*-macos-universal.app.tar.gz
 
-    # Move to Applications folder
-    mv Schaltwerk.app /Applications/
+        # Move to Applications folder
+        mv Schaltwerk.app /Applications/
 
-    # Remove quarantine attribute
-    xattr -cr /Applications/Schaltwerk.app
-    ```
-  </Step>
+        # Remove quarantine attribute
+        xattr -cr /Applications/Schaltwerk.app
+        ```
+      </Step>
 
-  <Step title="Launch from Applications">
-    Open Finder, navigate to Applications, and double-click Schaltwerk
-  </Step>
-</Steps>
+      <Step title="Launch from Applications">
+        Open Finder, navigate to Applications, and double-click Schaltwerk
+      </Step>
+    </Steps>
 
-## First Launch Setup
+    ### First Launch Setup
 
-<Warning>
-  Since Schaltwerk is distributed without an Apple Developer certificate, macOS Gatekeeper will block the initial run.
-</Warning>
+    <Warning>
+      Since Schaltwerk is distributed without an Apple Developer certificate, macOS Gatekeeper will block the initial run.
+    </Warning>
 
-<Steps>
-  <Step title="Attempt first launch">
-    Try launching Schaltwerk from your terminal or by double-clicking the app. You'll see a security warning.
-  </Step>
+    <Steps>
+      <Step title="Attempt first launch">
+        Try launching Schaltwerk from your terminal or by double-clicking the app. You'll see a security warning.
+      </Step>
 
-  <Step title="Open System Settings">
-    Navigate to **System Settings → Privacy & Security**
-  </Step>
+      <Step title="Open System Settings">
+        Navigate to **System Settings → Privacy & Security**
+      </Step>
 
-  <Step title="Approve the application">
-    1. Scroll down to find: "Schaltwerk was blocked from use because it is not from an identified developer"
-    2. Click **Open Anyway** beside the warning
-    3. Enter your password if prompted
-  </Step>
+      <Step title="Approve the application">
+        1. Scroll down to find: "Schaltwerk was blocked from use because it is not from an identified developer"
+        2. Click **Open Anyway** beside the warning
+        3. Enter your password if prompted
+      </Step>
 
-  <Step title="Confirm launch">
-    Launch Schaltwerk again and click **Open** when the confirmation dialog appears
-  </Step>
-</Steps>
+      <Step title="Confirm launch">
+        Launch Schaltwerk again and click **Open** when the confirmation dialog appears
+      </Step>
+    </Steps>
 
-<Check>
-  After approving once, Schaltwerk will launch normally on future runs.
-</Check>
+    <Check>
+      After approving once, Schaltwerk will launch normally on future runs.
+    </Check>
+  </Tab>
+
+  <Tab title="Windows">
+    <Warning>
+      **WSL not yet supported** - Schaltwerk runs natively on Windows. WSL (Windows Subsystem for Linux) support is planned for a future release.
+    </Warning>
+
+    <Steps>
+      <Step title="Download the installer">
+        Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download `Schaltwerk-<version>-windows-x64.msi` or `Schaltwerk-<version>-windows-x64.exe`
+      </Step>
+
+      <Step title="Run the installer">
+        Double-click the downloaded file and follow the installation wizard
+      </Step>
+
+      <Step title="Launch Schaltwerk">
+        Find Schaltwerk in the Start menu or on your desktop and launch it
+      </Step>
+    </Steps>
+
+    ### First Launch Setup
+
+    <Info>
+      Windows may show a SmartScreen warning since Schaltwerk is not signed with an EV certificate.
+    </Info>
+
+    <Steps>
+      <Step title="If SmartScreen appears">
+        Click **More info** then **Run anyway** to proceed
+      </Step>
+
+      <Step title="Allow firewall access">
+        If prompted, allow Schaltwerk network access for the local API server (port 8547)
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Linux">
+    <Info>
+      Linux builds are currently in beta. Download from the releases page.
+    </Info>
+
+    <Steps>
+      <Step title="Download the package">
+        Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download the appropriate package for your distribution:
+        - `.deb` for Debian/Ubuntu
+        - `.rpm` for Fedora/RHEL
+        - `.AppImage` for universal compatibility
+      </Step>
+
+      <Step title="Install the package">
+        ```bash
+        # Debian/Ubuntu
+        sudo dpkg -i Schaltwerk-*.deb
+
+        # Fedora/RHEL
+        sudo rpm -i Schaltwerk-*.rpm
+
+        # AppImage (make executable)
+        chmod +x Schaltwerk-*.AppImage
+        ```
+      </Step>
+
+      <Step title="Launch Schaltwerk">
+        Run from your application menu or terminal:
+        ```bash
+        schaltwerk
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
 
 <Tip>
   **Next step:** [Your First Session](/first-session) to create and run an agent
@@ -91,19 +166,33 @@ Schaltwerk checks for updates on startup and applies them automatically by defau
 - Toggle automatic installs in **Settings → Version**
 - Trigger a manual check at any time with the "Check for updates" button
 
-If an update fails because macOS cannot replace the existing bundle, reopen Schaltwerk directly from `/Applications` or reinstall from the latest tarball. A toast notification appears once an update has been installed—restart Schaltwerk to launch the new build.
+A toast notification appears once an update has been installed—restart Schaltwerk to launch the new build.
+
+<Accordion title="Troubleshooting update failures">
+  **macOS:** If an update fails because the system cannot replace the existing bundle, reopen Schaltwerk directly from `/Applications` or reinstall from the latest tarball.
+
+  **Windows:** If an update fails, try running the installer again as Administrator, or download the latest installer from the releases page.
+</Accordion>
 
 ## Where Schaltwerk Stores Data
 
 <AccordionGroup>
   <Accordion title="App Settings">
-    **Location:** `~/Library/Application Support/schaltwerk/settings.json`
+    **macOS:** `~/Library/Application Support/schaltwerk/settings.json`
+
+    **Windows:** `%APPDATA%\schaltwerk\settings.json`
+
+    **Linux:** `~/.config/schaltwerk/settings.json`
 
     Stores agent binaries, CLI args, and personal defaults
   </Accordion>
 
   <Accordion title="Project State">
-    **Location:** `~/Library/Application Support/schaltwerk/<project-name>/database.db`
+    **macOS:** `~/Library/Application Support/schaltwerk/<project-name>/database.db`
+
+    **Windows:** `%APPDATA%\schaltwerk\<project-name>\database.db`
+
+    **Linux:** `~/.local/share/schaltwerk/<project-name>/database.db`
 
     Stores sessions, specs, and project-level environment variables
   </Accordion>
@@ -111,23 +200,31 @@ If an update fails because macOS cannot replace the existing bundle, reopen Scha
   <Accordion title="Git Worktrees">
     **Location:** `<repo>/.schaltwerk/worktrees/<session-name>/`
 
-    Created for each running session and removed when you cancel
+    Created for each running session and removed when you cancel (same on all platforms)
   </Accordion>
 
   <Accordion title="Logs">
-    **Location:** `~/Library/Application Support/schaltwerk/logs/`
+    **macOS:** `~/Library/Application Support/schaltwerk/logs/`
+
+    **Windows:** `%APPDATA%\schaltwerk\logs\`
+
+    **Linux:** `~/.local/share/schaltwerk/logs/`
 
     **Development builds:** Keep 3 days of logs (cleaned on startup)
 
     **Production builds:** File logging disabled by default. Enable with:
     ```bash
+    # macOS
     SCHALTWERK_ENABLE_LOGS=1 open /Applications/Schaltwerk.app
+
+    # Windows (PowerShell)
+    $env:SCHALTWERK_ENABLE_LOGS=1; & "C:\Program Files\Schaltwerk\Schaltwerk.exe"
+
+    # Linux
+    SCHALTWERK_ENABLE_LOGS=1 schaltwerk
     ```
 
-    **Retention:** Adjust retention window (default 72 hours):
-    ```bash
-    SCHALTWERK_LOG_RETENTION_HOURS=168 open /Applications/Schaltwerk.app
-    ```
+    **Retention:** Adjust retention window (default 72 hours) using the `SCHALTWERK_LOG_RETENTION_HOURS` environment variable.
   </Accordion>
 </AccordionGroup>
 
@@ -148,55 +245,117 @@ Use `bun run test` (or `npm run test`) to run the full validation suite (TypeScr
 
 ## Troubleshooting
 
-<AccordionGroup>
-  <Accordion title="Schaltwerk is damaged and can't be opened">
-    Remove the quarantine attribute:
-    ```bash
-    xattr -cr /Applications/Schaltwerk.app
-    ```
-  </Accordion>
+<Tabs>
+  <Tab title="macOS">
+    <AccordionGroup>
+      <Accordion title="Schaltwerk is damaged and can't be opened">
+        Remove the quarantine attribute:
+        ```bash
+        xattr -cr /Applications/Schaltwerk.app
+        ```
+      </Accordion>
 
-  <Accordion title="The application Schaltwerk can't be opened">
-    Re-sign the application:
-    ```bash
-    codesign --force --deep -s - /Applications/Schaltwerk.app
-    ```
-  </Accordion>
+      <Accordion title="The application Schaltwerk can't be opened">
+        Re-sign the application:
+        ```bash
+        codesign --force --deep -s - /Applications/Schaltwerk.app
+        ```
+      </Accordion>
 
-  <Accordion title="App doesn't appear in Applications after Homebrew install">
-    Check if it was installed to the Homebrew prefix:
-    ```bash
-    ls -la $(brew --prefix)/bin/schaltwerk
-    ```
-  </Accordion>
+      <Accordion title="App doesn't appear in Applications after Homebrew install">
+        Check if it was installed to the Homebrew prefix:
+        ```bash
+        ls -la $(brew --prefix)/bin/schaltwerk
+        ```
+      </Accordion>
 
-  <Accordion title="Terminal permissions issues">
-    1. Go to **System Settings → Privacy & Security → Developer Tools**
-    2. Add Terminal.app or your preferred terminal
-    3. Restart Schaltwerk
-  </Accordion>
+      <Accordion title="Terminal permissions issues">
+        1. Go to **System Settings → Privacy & Security → Developer Tools**
+        2. Add Terminal.app or your preferred terminal
+        3. Restart Schaltwerk
+      </Accordion>
 
-  <Accordion title="Port 8547 already in use">
-    Schaltwerk runs an API server on port 8547. Find and kill the conflicting process:
-    ```bash
-    # Find what's using the port
-    lsof -i :8547
+      <Accordion title="Port 8547 already in use">
+        Schaltwerk runs an API server on port 8547. Find and kill the conflicting process:
+        ```bash
+        # Find what's using the port
+        lsof -i :8547
 
-    # Kill the process if needed
-    kill -9 <PID>
-    ```
-  </Accordion>
-</AccordionGroup>
+        # Kill the process if needed
+        kill -9 <PID>
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+
+  <Tab title="Windows">
+    <AccordionGroup>
+      <Accordion title="SmartScreen blocks the application">
+        Windows SmartScreen may block unsigned applications. Click **More info** then **Run anyway** to proceed.
+      </Accordion>
+
+      <Accordion title="Port 8547 already in use">
+        Schaltwerk runs an API server on port 8547. Find and kill the conflicting process:
+        ```powershell
+        # Find what's using the port
+        netstat -ano | findstr :8547
+
+        # Kill the process (replace PID with the actual process ID)
+        taskkill /PID <PID> /F
+        ```
+      </Accordion>
+
+      <Accordion title="Firewall blocks Schaltwerk">
+        If Windows Firewall blocks Schaltwerk:
+        1. Open **Windows Security → Firewall & network protection**
+        2. Click **Allow an app through firewall**
+        3. Find Schaltwerk and enable both Private and Public networks
+      </Accordion>
+
+      <Accordion title="WSL repositories not working">
+        WSL support is not yet available. Schaltwerk currently only works with native Windows Git repositories. Use repositories cloned directly in Windows (not within WSL).
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+
+  <Tab title="Linux">
+    <AccordionGroup>
+      <Accordion title="AppImage won't run">
+        Make sure the AppImage is executable:
+        ```bash
+        chmod +x Schaltwerk-*.AppImage
+        ```
+
+        If you get a FUSE error, install FUSE or extract the AppImage:
+        ```bash
+        ./Schaltwerk-*.AppImage --appimage-extract
+        ./squashfs-root/AppRun
+        ```
+      </Accordion>
+
+      <Accordion title="Port 8547 already in use">
+        Schaltwerk runs an API server on port 8547. Find and kill the conflicting process:
+        ```bash
+        # Find what's using the port
+        ss -tlnp | grep :8547
+
+        # Kill the process if needed
+        kill -9 <PID>
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+</Tabs>
 
 ## Uninstallation
 
 <Tabs>
-  <Tab title="Homebrew">
+  <Tab title="macOS (Homebrew)">
     ```bash
     brew uninstall schaltwerk
     ```
   </Tab>
-  <Tab title="Manual">
+  <Tab title="macOS (Manual)">
     ```bash
     # Remove the application
     rm -rf /Applications/Schaltwerk.app
@@ -208,12 +367,34 @@ Use `bun run test` (or `npm run test`) to run the full validation suite (TypeScr
     rm -rf ~/Library/Logs/schaltwerk
     ```
   </Tab>
+  <Tab title="Windows">
+    1. Open **Settings → Apps → Installed apps**
+    2. Find Schaltwerk and click **Uninstall**
+    3. Optionally remove data:
+    ```powershell
+    # Remove application data
+    Remove-Item -Recurse -Force "$env:APPDATA\schaltwerk"
+    ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    # Debian/Ubuntu
+    sudo apt remove schaltwerk
+
+    # Fedora/RHEL
+    sudo dnf remove schaltwerk
+
+    # Remove data
+    rm -rf ~/.config/schaltwerk
+    rm -rf ~/.local/share/schaltwerk
+    ```
+  </Tab>
 </Tabs>
 
 ## Security Considerations
 
 <Info>
-  Schaltwerk is distributed without an Apple Developer certificate to keep it free and open. The ad-hoc signing provides basic code integrity verification and protection against tampering.
+  Schaltwerk is distributed without code signing certificates (Apple Developer on macOS, EV certificate on Windows) to keep it free and open. Ad-hoc signing provides basic code integrity verification.
 </Info>
 
 ### What Permissions Does Schaltwerk Need?

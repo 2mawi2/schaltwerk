@@ -52,6 +52,7 @@ enum ShellKind {
     Nu,
     Tcsh,
     PowerShell,
+    Cmd,
     Unknown,
 }
 
@@ -63,12 +64,15 @@ fn classify_shell(shell: &str) -> ShellKind {
         .unwrap_or(shell)
         .to_ascii_lowercase();
 
-    match name.as_str() {
+    let name_without_ext = name.strip_suffix(".exe").unwrap_or(&name);
+
+    match name_without_ext {
         "bash" | "zsh" | "ksh" | "sh" | "dash" | "ash" => BashLike,
         "fish" => Fish,
         "nu" | "nushell" => Nu,
         "tcsh" | "csh" => Tcsh,
         "pwsh" | "powershell" => PowerShell,
+        "cmd" => Cmd,
         _ => Unknown,
     }
 }
@@ -78,6 +82,7 @@ fn login_flags(kind: ShellKind) -> &'static [&'static str] {
     match kind {
         Nu => &["--login"],
         PowerShell => &["-Login"],
+        Cmd => &[],
         BashLike | Fish | Tcsh | Unknown => &["-l"],
     }
 }
@@ -86,6 +91,7 @@ fn command_flag(kind: ShellKind) -> Option<&'static str> {
     use ShellKind::*;
     match kind {
         PowerShell => Some("-Command"),
+        Cmd => Some("/C"),
         _ => Some("-c"),
     }
 }

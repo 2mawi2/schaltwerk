@@ -541,7 +541,9 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
 
     log::info!("Attempting to generate name with claude");
     let claude_args = build_claude_namegen_args(&prompt_plain, cli_args);
-    let binary = binary_path.unwrap_or("claude");
+    let binary = binary_path
+        .map(|s| s.to_string())
+        .unwrap_or_else(super::claude::resolve_claude_binary);
     log::debug!("Claude namegen using binary: {binary}");
     let mut command = Command::new(binary);
     command.args(&claude_args);
