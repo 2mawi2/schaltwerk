@@ -1021,10 +1021,26 @@ impl TerminalBackend for LocalPtyAdapter {
 
         // Try to terminate the child process and wait deterministically without polling
         if let Some(mut child) = self.pty_children.lock().await.remove(id) {
+            #[cfg(unix)]
+            let maybe_pid = child.process_id();
+
+            #[cfg(unix)]
+            if let Some(pid) = maybe_pid {
+                unsafe {
+                    libc::kill(-(pid as libc::pid_t), libc::SIGTERM);
+                }
+                debug!("Sent SIGTERM to process group {pid} for terminal {id}");
+            } else if let Err(e) = child.kill() {
+                warn!("Failed to kill terminal process {id}: {e}");
+            }
+
+            #[cfg(not(unix))]
             if let Err(e) = child.kill() {
                 warn!("Failed to kill terminal process {id}: {e}");
             }
+
             // Use blocking wait inside a timeout without inner sleeps
+            let id_clone = id.to_string();
             let wait_res = {
                 use tokio::time::{Duration, timeout};
                 timeout(
@@ -1035,18 +1051,25 @@ impl TerminalBackend for LocalPtyAdapter {
             };
             match wait_res {
                 Ok(Ok(Ok(_status))) => {
-                    debug!("Terminal {id} process exited within timeout");
+                    debug!("Terminal {id_clone} process exited within timeout");
                 }
                 Ok(Ok(Err(e))) => {
-                    debug!("Terminal {id} wait returned error: {e}");
+                    debug!("Terminal {id_clone} wait returned error: {e}");
                 }
                 Ok(Err(join_err)) => {
-                    debug!("Terminal {id} spawn_blocking join error: {join_err}");
+                    debug!("Terminal {id_clone} spawn_blocking join error: {join_err}");
                 }
                 Err(_) => {
                     debug!(
-                        "Terminal {id} process didn't exit within timeout; proceeding with cleanup"
+                        "Terminal {id_clone} process didn't exit within timeout; escalating to SIGKILL"
                     );
+                    #[cfg(unix)]
+                    if let Some(pid) = maybe_pid {
+                        unsafe {
+                            libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+                        }
+                        debug!("Sent SIGKILL to process group {pid} for terminal {id_clone}");
+                    }
                 }
             }
         }

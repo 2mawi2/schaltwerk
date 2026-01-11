@@ -240,7 +240,7 @@ async fn filter_known_processes(pids: &HashSet<i32>) -> HashSet<i32> {
 }
 
 #[cfg(target_family = "unix")]
-const KNOWN_CLEANUP_BINARIES: &[&str] = &["codex", "node", "python", "schaltwerk-mcp", "deno"];
+const KNOWN_CLEANUP_BINARIES: &[&str] = &["codex", "node", "python", "schaltwerk-mcp", "deno", "claude"];
 
 #[cfg(target_os = "linux")]
 async fn terminate_processes_with_cwd_linux_procfs(path: &Path) -> Result<Vec<i32>> {
