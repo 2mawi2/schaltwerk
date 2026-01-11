@@ -1552,8 +1552,8 @@ fn main() {
         })
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // Kill all terminal child processes
-                tauri::async_runtime::spawn(async {
+                // Kill all terminal child processes synchronously before exit
+                tauri::async_runtime::block_on(async {
                     let manager = get_project_manager().await;
                     manager.force_kill_all().await;
                 });
@@ -1565,7 +1565,6 @@ fn main() {
                             let _ = process.kill();
                         }
 
-                // Exit immediately - OS will clean up all remaining resources
                 std::process::exit(0);
             }
         })
