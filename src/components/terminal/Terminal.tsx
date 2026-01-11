@@ -1647,6 +1647,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
+            // Filter out xterm.js focus reporting sequences that get sent when focus changes.
+            // These are CSI I (focus in) and CSI O (focus out) - we don't want them sent to the PTY
+            // as they'll be displayed as raw ^[[I / ^[[O if the shell doesn't handle them.
+            if (data === '\x1b[I' || data === '\x1b[O') {
+                return;
+            }
+
             if (finalizeClaudeShiftEnterRef.current?.(data)) {
                 return;
             }
