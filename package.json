@@ -1,6 +1,6 @@
 {
   "name": "schaltwerk",
-  "version": "0.11.3",
+  "version": "0.11.5",
   "type": "module",
   "license": "MIT",
   "author": "Schaltwerk Contributors",
@@ -59,7 +59,7 @@
     "@codemirror/view": "^6.38.5",
     "@tailwindcss/postcss": "^4.1.14",
     "@tauri-apps/api": "^2.9.1",
-    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-dialog": "2.5.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-os": "^2.0.0",
     "@types/react": "^19.2.2",
