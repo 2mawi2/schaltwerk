@@ -136,8 +136,8 @@ export const HistoryItemRow = memo(({ viewModel, isSelected, onSelect, onContext
   const detailContainerRef = useRef<HTMLDivElement | null>(null)
   const [detailHeight, setDetailHeight] = useState(0)
 
-  const selectedRowBackground = 'rgba(var(--color-accent-blue-rgb), 0.25)'
-  const currentRowBackground = 'rgba(var(--color-blue-700-rgb), 0.4)'
+  const selectedRowBackground = 'var(--color-bg-selected)'
+  const currentRowBackground = 'var(--color-bg-selected)'
 
   const rowBgColor = isSelected
     ? selectedRowBackground
