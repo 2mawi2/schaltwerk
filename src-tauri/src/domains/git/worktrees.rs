@@ -227,12 +227,18 @@ pub fn create_worktree_from_base(
 
     let repo = Repository::open(repo_path)?;
 
+    // Check if branch already exists and delete it
+    if let Ok(mut branch) = repo.find_branch(branch_name, BranchType::Local) {
+        log::info!("Deleting existing branch: {branch_name}");
+        branch.delete()?;
+    }
+
     // Parse the base commit
     let base_oid = git2::Oid::from_str(&base_commit_hash)?;
     let base_commit = repo.find_commit(base_oid)?;
 
-    // Create the new branch pointing to the base commit (force=true to overwrite if exists)
-    let new_branch = repo.branch(branch_name, &base_commit, true)?;
+    // Create the new branch pointing to the base commit
+    let new_branch = repo.branch(branch_name, &base_commit, false)?;
     let branch_ref = new_branch.into_reference();
 
     // Create worktree options
@@ -288,13 +294,17 @@ pub fn create_worktree_from_pr(
 
     let repo = Repository::open(repo_path)?;
 
+    if let Ok(mut branch) = repo.find_branch(branch_name, BranchType::Local) {
+        log::info!("Deleting existing branch: {branch_name}");
+        branch.delete()?;
+    }
+
     let fetch_head = repo
         .find_reference("FETCH_HEAD")?
         .peel_to_commit()
         .map_err(|e| anyhow!("Failed to resolve FETCH_HEAD: {e}"))?;
 
-    // Create the branch from FETCH_HEAD (force=true to overwrite if exists)
-    repo.branch(branch_name, &fetch_head, true)
+    repo.branch(branch_name, &fetch_head, false)
         .map_err(|e| anyhow!("Failed to create branch '{branch_name}': {e}"))?;
 
     let branch = repo

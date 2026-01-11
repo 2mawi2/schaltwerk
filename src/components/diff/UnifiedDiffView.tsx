@@ -265,6 +265,7 @@ export function UnifiedDiffView({
   const lastViewportCenterRef = useRef<string | null>(null);
   const trimTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+  const loadingFilesRef = useRef<Set<string>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map());
   const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null);
@@ -1049,6 +1050,7 @@ export function UnifiedDiffView({
         }
 
         activeSet.add(nextPath);
+        loadingFilesRef.current.add(nextPath);
         setLoadingFiles((prev) => {
           const next = new Set(prev);
           next.add(nextPath);
@@ -1084,6 +1086,7 @@ export function UnifiedDiffView({
               return;
             }
             activeSet.delete(nextPath);
+            loadingFilesRef.current.delete(nextPath);
             setLoadingFiles((prev) => {
               const next = new Set(prev);
               next.delete(nextPath);
@@ -1644,6 +1647,7 @@ export function UnifiedDiffView({
     });
 
     const loadQueue = new Set<string>();
+    const currentlyLoading = loadingFilesRef.current;
 
     visibleFileSet.forEach((path) => {
       if (mode === "history") {
@@ -1654,7 +1658,7 @@ export function UnifiedDiffView({
           return;
         }
       }
-      if (!allFileDiffs.has(path) && !loadingFiles.has(path)) {
+      if (!allFileDiffs.has(path) && !currentlyLoading.has(path)) {
         loadQueue.add(path);
       }
     });
@@ -1673,11 +1677,11 @@ export function UnifiedDiffView({
             // skip
           } else if (
             !allFileDiffs.has(prevPath) &&
-            !loadingFiles.has(prevPath)
+            !currentlyLoading.has(prevPath)
           ) {
             loadQueue.add(prevPath);
           }
-        } else if (!allFileDiffs.has(prevPath) && !loadingFiles.has(prevPath)) {
+        } else if (!allFileDiffs.has(prevPath) && !currentlyLoading.has(prevPath)) {
           loadQueue.add(prevPath);
         }
       }
@@ -1691,11 +1695,11 @@ export function UnifiedDiffView({
             // skip
           } else if (
             !allFileDiffs.has(nextPath) &&
-            !loadingFiles.has(nextPath)
+            !currentlyLoading.has(nextPath)
           ) {
             loadQueue.add(nextPath);
           }
-        } else if (!allFileDiffs.has(nextPath) && !loadingFiles.has(nextPath)) {
+        } else if (!allFileDiffs.has(nextPath) && !currentlyLoading.has(nextPath)) {
           loadQueue.add(nextPath);
         }
       }
@@ -1705,6 +1709,14 @@ export function UnifiedDiffView({
 
     const loadNextBatch = async () => {
       const batch = Array.from(loadQueue).slice(0, 3);
+
+      batch.forEach((path) => loadingFilesRef.current.add(path));
+      setLoadingFiles((prev) => {
+        const next = new Set(prev);
+        batch.forEach((path) => next.add(path));
+        return next;
+      });
+
       const loadPromises = batch.map(async (path) => {
         const file = filesByPath.get(path);
         if (!file) return null;
@@ -1738,12 +1750,6 @@ export function UnifiedDiffView({
         }
       });
 
-      setLoadingFiles((prev) => {
-        const next = new Set(prev);
-        batch.forEach((path) => next.add(path));
-        return next;
-      });
-
       const results = await Promise.all(loadPromises);
 
       setAllFileDiffs((prev) => {
@@ -1756,6 +1762,7 @@ export function UnifiedDiffView({
         return next;
       });
 
+      batch.forEach((path) => loadingFilesRef.current.delete(path));
       setLoadingFiles((prev) => {
         const next = new Set(prev);
         batch.forEach((path) => next.delete(path));
@@ -1768,7 +1775,6 @@ export function UnifiedDiffView({
     visibleFileSet,
     files,
     allFileDiffs,
-    loadingFiles,
     isLargeDiffMode,
     isOpen,
     sessionName,
