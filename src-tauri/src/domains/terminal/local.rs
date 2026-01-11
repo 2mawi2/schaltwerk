@@ -1112,11 +1112,25 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn force_kill_all(&self) -> Result<(), String> {
         info!("Force killing all terminals for app exit");
 
-        let mut children = self.pty_children.lock().await;
-        for (_id, mut child) in children.drain() {
-            let _ = child.kill();
+        let children: Vec<_> = self.pty_children.lock().await.drain().collect();
+
+        for (id, mut child) in children {
+            #[cfg(unix)]
+            if let Some(pid) = child.process_id() {
+                unsafe {
+                    libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+                }
+                debug!("Sent SIGKILL to process group {pid} for terminal {id}");
+            } else {
+                let _ = child.kill();
+            }
+
+            #[cfg(not(unix))]
+            {
+                let _ = id;
+                let _ = child.kill();
+            }
         }
-        drop(children);
 
         self.pty_masters.lock().await.clear();
         self.pty_writers.lock().await.clear();
