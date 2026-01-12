@@ -35,7 +35,7 @@ jobs:
           bun-version: '1.2.16'
 
       - name: Cache bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -80,7 +80,7 @@ jobs:
           bun-version: '1.2.16'
 
       - name: Cache bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -130,7 +130,7 @@ jobs:
           components: clippy
 
       - name: Restore cargo cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: cache_cargo_restore
         with:
           path: |
@@ -166,7 +166,7 @@ jobs:
       - name: Save cargo cache
         if: always() && !cancelled() && steps.cache_cargo_restore.outputs.cache-hit != 'true'
         continue-on-error: true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             ~/.cargo/bin/
