@@ -9,7 +9,6 @@ binary_name = "claude"
 default_binary_path = "claude"
 auto_send_initial_command = true
 supports_resume = true
-ready_marker = ">"
 
 [agents.codex]
 id = "codex"

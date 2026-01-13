@@ -1617,7 +1617,10 @@ async fn schaltwerk_core_start_agent_in_terminal(
     if auto_send_initial_command
         && let Some(initial) = initial_command.clone().filter(|v| !v.trim().is_empty())
     {
-        let dispatch_delay = if agent_type == "copilot" || agent_type == "kilocode" {
+        let dispatch_delay = if agent_type == "copilot"
+            || agent_type == "kilocode"
+            || agent_type == "claude"
+        {
             Some(Duration::from_millis(1500))
         } else {
             None

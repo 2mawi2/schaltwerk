@@ -85,13 +85,12 @@ mod tests {
         assert_eq!(claude.default_binary_path, "claude");
         assert!(
             claude.auto_send_initial_command,
-            "Claude should use deferred prompt dispatch (issue #253)"
+            "Claude should use deferred prompt dispatch with time-based delay"
         );
         assert!(claude.supports_resume);
-        assert_eq!(
-            claude.ready_marker.as_deref(),
-            Some(">"),
-            "Claude's ready marker should be '>' for deferred prompt dispatch"
+        assert!(
+            claude.ready_marker.is_none(),
+            "Claude uses time-based delay instead of ready_marker"
         );
     }
 

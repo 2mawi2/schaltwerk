@@ -469,7 +469,7 @@ mod tests {
             assert_eq!(
                 spec.initial_command.as_deref(),
                 Some("/commit \"fix bug\""),
-                "Prompt should be queued via initial_command for deferred dispatch after ready_marker"
+                "Prompt should be queued via initial_command for deferred dispatch"
             );
         }
 
