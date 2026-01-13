@@ -8,6 +8,7 @@ use super::lifecycle::{self, LifecycleDeps};
 use super::submission::build_submission_payload;
 use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
+use crate::infrastructure::attention_bridge::update_session_attention_state;
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use crate::infrastructure::keep_awake_bridge::handle_terminal_attention;
 use crate::shared::terminal_id::is_session_top_terminal_id;
@@ -370,6 +371,7 @@ impl LocalPtyAdapter {
                         }
 
                         handle_terminal_attention(session_id.clone(), needs_attention);
+                        update_session_attention_state(session_id, needs_attention);
                     }
                 }
             }

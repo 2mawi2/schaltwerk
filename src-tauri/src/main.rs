@@ -1387,6 +1387,11 @@ fn main() {
                 let _ = ATTENTION_REGISTRY.set(registry);
             }
 
+            // Initialize session attention state global in library crate
+            schaltwerk::domains::attention::set_session_attention_state(
+                Arc::new(Mutex::new(schaltwerk::domains::attention::SessionAttentionState::default()))
+            );
+
             #[cfg(debug_assertions)]
             {
                 let backend_error_handle = app.handle().clone();

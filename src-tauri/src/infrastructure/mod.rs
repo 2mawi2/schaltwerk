@@ -1,3 +1,4 @@
+pub mod attention_bridge;
 pub mod config;
 pub mod database;
 pub mod events;

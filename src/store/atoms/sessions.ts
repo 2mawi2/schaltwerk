@@ -572,6 +572,32 @@ function attachMergeSnapshot(
     }
 }
 
+function attachRuntimeSnapshot(
+    session: EnrichedSession,
+    previousSessions: Map<string, EnrichedSession>,
+): EnrichedSession {
+    const previous = previousSessions.get(session.info.session_id)
+    if (!previous) {
+        return session
+    }
+
+    if (session.info.attention_required != null) {
+        return session
+    }
+
+    if (previous.info.attention_required == null) {
+        return session
+    }
+
+    return {
+        ...session,
+        info: {
+            ...session.info,
+            attention_required: previous.info.attention_required,
+        },
+    }
+}
+
 async function applySessionsSnapshot(
     get: Getter,
     set: Setter,
@@ -591,7 +617,9 @@ async function applySessionsSnapshot(
 
     const projectPath = snapshotProjectPath ?? activeProjectPath
     const previousMap = new Map(previousSessionsSnapshot.map(session => [session.info.session_id, session]))
-    const withSnapshots = sessions.map(session => attachMergeSnapshot(session, previousMap))
+    const withSnapshots = sessions.map(session =>
+        attachRuntimeSnapshot(attachMergeSnapshot(session, previousMap), previousMap),
+    )
     const deduped = dedupeSessions(withSnapshots)
 
     // Re-inject expected sessions that are temporarily missing (e.g. immediately after we create/promote one
@@ -684,7 +712,14 @@ function parseSessionsRefreshedPayload(payload: unknown): { projectPath: string 
 function syncSnapshotsFromAtom(get: Getter) {
     const current = get(allSessionsAtom)
     previousSessionsSnapshot = current
-    previousSessionStates = buildStateMap(current)
+    const stateMap = buildStateMap(current)
+    previousSessionStates = stateMap
+
+    const projectPath = get(projectPathAtom)
+    if (projectPath) {
+        projectSessionsSnapshotCache.set(projectPath, current)
+        projectSessionStatesCache.set(projectPath, new Map(stateMap))
+    }
 }
 
 async function loadSessionsSnapshot(projectPath: string | null): Promise<EnrichedSession[]> {

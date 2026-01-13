@@ -306,6 +306,49 @@ describe('sessions atoms', () => {
         expect(releaseSessionTerminals).toHaveBeenCalledWith('alpha-session')
     })
 
+    it('preserves attention state across project switches when backend snapshots omit it', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const activeProject = store.get(projectPathAtom)
+                if (activeProject === '/projects/alpha') {
+                    return [createSession({ session_id: 'alpha-session', worktree_path: '/tmp/alpha' })]
+                }
+                if (activeProject === '/projects/beta') {
+                    return [createSession({ session_id: 'beta-session', worktree_path: '/tmp/beta' })]
+                }
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        await store.set(initializeSessionsEventsActionAtom)
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+
+        listeners['schaltwerk:terminal-attention']?.({
+            session_id: 'alpha-session',
+            terminal_id: stableSessionTerminalId('alpha-session', 'top'),
+            needs_attention: true,
+        })
+
+        let alphaSession = store.get(allSessionsAtom).find(session => session.info.session_id === 'alpha-session')
+        expect(alphaSession?.info.attention_required).toBe(true)
+
+        store.set(projectPathAtom, '/projects/beta')
+        await store.set(refreshSessionsActionAtom)
+
+        store.set(projectPathAtom, '/projects/alpha')
+        await store.set(refreshSessionsActionAtom)
+
+        alphaSession = store.get(allSessionsAtom).find(session => session.info.session_id === 'alpha-session')
+        expect(alphaSession?.info.attention_required).toBe(true)
+    })
+
     it('cleans up cached sessions when closing a background project', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd) => {

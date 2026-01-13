@@ -3,6 +3,7 @@ use crate::{
     errors::SchaltError, get_core_read, get_core_write, get_file_watcher_manager,
     get_terminal_manager,
 };
+use schaltwerk::infrastructure::attention_bridge::clear_session_attention_state;
 use schaltwerk::infrastructure::events::{SchaltEvent, emit_event};
 use schaltwerk::schaltwerk_core::{AgentLaunchParams, SessionManager};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
@@ -1302,6 +1303,7 @@ pub async fn schaltwerk_core_cancel_session(
                     },
                 );
                 evict_session_cache_entry_for_repo(&repo_for_eviction, &name_for_bg).await;
+                clear_session_attention_state(name_for_bg.clone());
 
                 events::request_sessions_refreshed(
                     &app_for_refresh,

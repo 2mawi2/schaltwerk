@@ -1,4 +1,18 @@
+use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+// Global singleton for session attention state (idle vs active)
+static SESSION_ATTENTION_STATE: OnceCell<Arc<Mutex<SessionAttentionState>>> = OnceCell::new();
+
+pub fn set_session_attention_state(state: Arc<Mutex<SessionAttentionState>>) {
+    let _ = SESSION_ATTENTION_STATE.set(state);
+}
+
+pub fn get_session_attention_state() -> Option<Arc<Mutex<SessionAttentionState>>> {
+    SESSION_ATTENTION_STATE.get().cloned()
+}
 
 #[derive(Debug, Default)]
 pub struct AttentionStateRegistry {
@@ -42,6 +56,33 @@ impl AttentionStateRegistry {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct SessionAttentionState {
+    states: HashMap<String, bool>,
+}
+
+impl SessionAttentionState {
+    pub fn update(&mut self, session_id: &str, needs_attention: bool) {
+        if needs_attention {
+            self.states.insert(session_id.to_string(), true);
+        } else {
+            self.states.remove(session_id);
+        }
+    }
+
+    pub fn get(&self, session_id: &str) -> Option<bool> {
+        self.states.get(session_id).copied()
+    }
+
+    pub fn get_all(&self) -> &HashMap<String, bool> {
+        &self.states
+    }
+
+    pub fn clear_session(&mut self, session_id: &str) {
+        self.states.remove(session_id);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::AttentionStateRegistry;
@@ -73,5 +114,27 @@ mod tests {
         assert_eq!(AttentionStateRegistry::badge_count(9), Some(9));
         assert_eq!(AttentionStateRegistry::badge_count(10), Some(10));
         assert_eq!(AttentionStateRegistry::badge_count(150), Some(99));
+    }
+
+    #[test]
+    fn session_attention_state_tracks_idle_sessions() {
+        use super::SessionAttentionState;
+
+        let mut state = SessionAttentionState::default();
+
+        assert_eq!(state.get("session-1"), None);
+
+        state.update("session-1", true);
+        assert_eq!(state.get("session-1"), Some(true));
+
+        state.update("session-2", true);
+        assert_eq!(state.get_all().len(), 2);
+
+        state.update("session-1", false);
+        assert_eq!(state.get("session-1"), None);
+        assert_eq!(state.get_all().len(), 1);
+
+        state.clear_session("session-2");
+        assert_eq!(state.get_all().len(), 0);
     }
 }

@@ -2754,6 +2754,7 @@ impl SessionManager {
                 info,
                 status: None,
                 terminals: Vec::new(),
+                attention_required: None,
             });
         }
 
@@ -2818,6 +2819,7 @@ impl SessionManager {
                     info,
                     status: None,
                     terminals: Vec::new(),
+                    attention_required: None,
                 });
 
                 continue;
@@ -2982,6 +2984,7 @@ impl SessionManager {
                 info,
                 status: None,
                 terminals,
+                attention_required: None,
             });
 
             let session_elapsed = session_start.elapsed();
