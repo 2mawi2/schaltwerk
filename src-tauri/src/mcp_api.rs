@@ -4,7 +4,7 @@ use hyper::{
     body::Incoming,
     header::{CONTENT_TYPE, HeaderValue},
 };
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -18,6 +18,7 @@ use crate::commands::schaltwerk_core::{
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
 use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
+use schaltwerk::domains::attention::get_session_attention_state;
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
@@ -1167,6 +1168,20 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
                     }
                     SessionState::Spec => s.info.session_state == SessionState::Spec,
                 });
+            }
+
+            // Attach runtime attention state from the in-memory registry
+            if let Some(registry) = get_session_attention_state() {
+                match registry.try_lock() {
+                    Ok(guard) => {
+                        for session in &mut sessions {
+                            session.attention_required = guard.get(&session.info.session_id);
+                        }
+                    }
+                    Err(_) => {
+                        debug!("Attention registry lock contention, skipping attention state");
+                    }
+                }
             }
 
             let json = serde_json::to_string(&sessions).unwrap_or_else(|e| {

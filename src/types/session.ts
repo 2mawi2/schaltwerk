@@ -109,6 +109,7 @@ export interface EnrichedSession {
     info: SessionInfo
     status?: SessionMonitorStatus
     terminals: string[]
+    attention_required?: boolean
 }
 
 // Raw Session type returned from Tauri backend (from schaltwerk_core_get_session)

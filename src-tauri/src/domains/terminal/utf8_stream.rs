@@ -157,6 +157,7 @@ impl Utf8Stream {
 #[cfg(test)]
 mod tests {
     use super::{InvalidPolicy, Utf8Stream};
+    use std::time::{Duration, Instant};
 
     #[test]
     fn preserves_multichunk_utf8() {
@@ -192,5 +193,16 @@ mod tests {
         let (s, rep) = d.decode_chunk(&[0xF0, 0x80, 0x80, 0xFF]);
         assert!(rep);
         assert_eq!(s, "");
+    }
+
+    #[test]
+    fn resets_warn_count_on_time_threshold() {
+        let mut d = Utf8Stream::new();
+        d.warn_count = d.warn_step;
+        d.warn_last = Some(Instant::now() - d.warn_every - Duration::from_secs(1));
+
+        d.maybe_warn("term", true);
+
+        assert_eq!(d.warn_count, 0);
     }
 }

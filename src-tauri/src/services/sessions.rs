@@ -177,6 +177,7 @@ mod tests {
             },
             status: None,
             terminals: vec![],
+            attention_required: None,
         }
     }
 

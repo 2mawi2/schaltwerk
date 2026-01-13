@@ -95,20 +95,71 @@ fn detect_version(path: &Path) -> Option<String> {
     let version_flags = vec!["--version", "-v", "version"];
 
     for flag in version_flags {
-        if let Ok(output) = Command::new(path).arg(flag).output()
-            && output.status.success()
-        {
-            let version_output = String::from_utf8_lossy(&output.stdout);
-            if !version_output.trim().is_empty() {
-                let version = version_output.lines().next().unwrap_or("").trim();
-                if !version.is_empty() {
-                    debug!("Detected version for {}: {}", path.display(), version);
-                    return Some(version.to_string());
-                }
+        let output = match Command::new(path).arg(flag).output() {
+            Ok(output) => output,
+            Err(_) => continue,
+        };
+
+        if !output.status.success() {
+            continue;
+        }
+
+        let version_output = String::from_utf8_lossy(&output.stdout);
+        if !version_output.trim().is_empty() {
+            let version = version_output.lines().next().unwrap_or("").trim();
+            if !version.is_empty() {
+                debug!("Detected version for {}: {}", path.display(), version);
+                return Some(version.to_string());
             }
         }
     }
 
     debug!("Could not detect version for: {}", path.display());
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{check_binary, InstallationMethod};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn make_temp_script(contents: &str) -> PathBuf {
+        let id = std::process::id();
+        let counter = COUNTER.fetch_add(1, Ordering::SeqCst);
+        let filename = format!("schaltwerk-test-binary-{id}-{counter}");
+        let path = std::env::temp_dir().join(filename);
+        fs::write(&path, contents).expect("failed to write temp script");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&path)
+                .expect("failed to stat temp script")
+                .permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&path, perms).expect("failed to set permissions");
+        }
+
+        path
+    }
+
+    fn cleanup_temp(path: &Path) {
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn detects_version_from_executable() {
+        let script = "#!/bin/sh\necho \"mytool 1.2.3\"\n";
+        let path = make_temp_script(script);
+
+        let detected = check_binary(&path, InstallationMethod::Manual)
+            .expect("expected binary to be detected");
+        assert_eq!(detected.version, Some("mytool 1.2.3".to_string()));
+
+        cleanup_temp(&path);
+    }
 }

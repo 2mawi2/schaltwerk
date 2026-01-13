@@ -311,6 +311,8 @@ pub struct EnrichedSession {
     pub info: SessionInfo,
     pub status: Option<SessionMonitorStatus>,
     pub terminals: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attention_required: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
