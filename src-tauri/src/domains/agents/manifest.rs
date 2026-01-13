@@ -83,8 +83,16 @@ mod tests {
         assert_eq!(claude.display_name, "Claude");
         assert_eq!(claude.binary_name, "claude");
         assert_eq!(claude.default_binary_path, "claude");
-        assert!(!claude.auto_send_initial_command);
+        assert!(
+            claude.auto_send_initial_command,
+            "Claude should use deferred prompt dispatch (issue #253)"
+        );
         assert!(claude.supports_resume);
+        assert_eq!(
+            claude.ready_marker.as_deref(),
+            Some(">"),
+            "Claude's ready marker should be '>' for deferred prompt dispatch"
+        );
     }
 
     #[test]

@@ -18,6 +18,7 @@ impl AgentAdapter for ClaudeAdapter {
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let initial_command = ctx.initial_prompt.map(|p| p.to_string());
         let config = super::claude::ClaudeConfig {
             binary_path: Some(
                 ctx.binary_override
@@ -28,11 +29,12 @@ impl AgentAdapter for ClaudeAdapter {
         let command = super::claude::build_claude_command_with_config(
             ctx.worktree_path,
             ctx.session_id,
-            ctx.initial_prompt,
+            None,
             ctx.skip_permissions,
             Some(&config),
         );
         AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+            .with_initial_command(initial_command)
     }
 }
 
@@ -408,7 +410,15 @@ mod tests {
         assert!(spec.is_some());
         let spec = spec.unwrap();
         assert!(spec.shell_command.contains("claude"));
-        assert!(spec.shell_command.contains("test prompt"));
+        assert!(
+            !spec.shell_command.contains("test prompt"),
+            "Prompt should NOT be embedded in shell_command for deferred dispatch"
+        );
+        assert_eq!(
+            spec.initial_command.as_deref(),
+            Some("test prompt"),
+            "Prompt should be queued in initial_command for deferred dispatch"
+        );
     }
 
     mod claude_tests {
@@ -430,6 +440,83 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("claude"));
+        }
+
+        #[test]
+        fn test_claude_adapter_uses_deferred_prompt_dispatch() {
+            let adapter = ClaudeAdapter;
+            let manifest = AgentManifest::get("claude").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("/commit \"fix bug\""),
+                skip_permissions: true,
+                binary_override: Some("claude"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+
+            assert!(
+                !spec.shell_command.contains("/commit"),
+                "Prompt with skill command should NOT be embedded in shell_command (issue #253)"
+            );
+            assert!(
+                !spec.shell_command.contains("fix bug"),
+                "Prompt arguments should NOT be embedded in shell_command"
+            );
+            assert_eq!(
+                spec.initial_command.as_deref(),
+                Some("/commit \"fix bug\""),
+                "Prompt should be queued via initial_command for deferred dispatch after ready_marker"
+            );
+        }
+
+        #[test]
+        fn test_claude_adapter_no_prompt() {
+            let adapter = ClaudeAdapter;
+            let manifest = AgentManifest::get("claude").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("claude"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("claude"));
+            assert!(spec.initial_command.is_none());
+        }
+
+        #[test]
+        fn test_claude_adapter_resume_session_ignores_prompt() {
+            let adapter = ClaudeAdapter;
+            let manifest = AgentManifest::get("claude").unwrap();
+
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: Some("session-123"),
+                initial_prompt: Some("continue working"),
+                skip_permissions: false,
+                binary_override: Some("claude"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("-r session-123"));
+            assert!(
+                !spec.shell_command.contains("continue working"),
+                "Prompt should not be in shell_command during resume"
+            );
+            assert_eq!(
+                spec.initial_command.as_deref(),
+                Some("continue working"),
+                "Prompt should still be queued for deferred dispatch during resume"
+            );
         }
     }
 
