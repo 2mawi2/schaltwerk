@@ -94,8 +94,6 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       --diffs-bg-selection-number: color-mix(in lab, var(--diffs-bg) 60%, var(--diffs-selection-base));
 
       --diffs-font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace);
-      --diffs-font-size: var(--font-code, 12px);
-      --diffs-line-height: 20px;
       --diffs-tab-size: 4;
       --diffs-gap-block: 0;
       --diffs-min-number-column-width: 2ch;
@@ -153,7 +151,7 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: var(--diffs-font-size, 12px);
+      font-size: var(--diffs-font-size);
       font-weight: 700;
       color: var(--diffs-fg);
       opacity: 0;

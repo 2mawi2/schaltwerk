@@ -24,6 +24,7 @@ import {
 import { getPierreThemes, getPierreUnsafeCSS, getThemeType, type SchaltwerkThemeId } from '../../adapters/pierreThemeAdapter'
 import { usePierreKeyboardNav } from '../../hooks/usePierreKeyboardNav'
 import type { FileDiffData } from './loadDiffs'
+import { listenUiEvent, UiEvent, type FontSizeChangedDetail } from '../../common/uiEvents'
 
 export interface ChangedFile {
   path: string
@@ -118,6 +119,7 @@ interface MemoizedFileDiffProps {
   diffStyle: 'unified' | 'split'
   unsafeCSS: string
   filePath: string
+  fontSize: number
   lineSelection: LineSelection | null
   onLineSelect: (filePath: string, selection: { start: number; end: number; side: 'old' | 'new' } | null) => void
   onStartCommentFromContext?: (payload: { filePath: string; lineNumber: number; side: 'old' | 'new' }) => void
@@ -135,6 +137,7 @@ const MemoizedFileDiff = memo(function MemoizedFileDiff({
   diffStyle,
   unsafeCSS,
   filePath,
+  fontSize,
   onLineSelect,
   onStartCommentFromContext,
   onEditComment,
@@ -351,7 +354,7 @@ const MemoizedFileDiff = memo(function MemoizedFileDiff({
             align-items: center;
             gap: 6px;
             padding: 4px 12px;
-            font-size: var(--font-code);
+            font-size: ${fontSize}px;
             font-family: var(--font-family-mono);
             color: var(--color-text-secondary);
             background: var(--color-bg-elevated);
@@ -399,7 +402,7 @@ const MemoizedFileDiff = memo(function MemoizedFileDiff({
         })
       }
     })
-  }, [pierreDiff.hunks, diffStyle, hunkToSectionMap, onExpandSection, collapsedSections])
+  }, [pierreDiff.hunks, diffStyle, hunkToSectionMap, onExpandSection, collapsedSections, fontSize])
 
   useEffect(() => {
     const frameId = requestAnimationFrame(renderSeparatorsImperative)
@@ -410,11 +413,17 @@ const MemoizedFileDiff = memo(function MemoizedFileDiff({
     }
   }, [renderSeparatorsImperative])
 
+  const fontStyles = useMemo(() => ({
+    '--diffs-font-size': `${fontSize}px`,
+    '--diffs-line-height': `${Math.round(fontSize * 1.5)}px`,
+  } as React.CSSProperties), [fontSize])
+
   return (
     <div ref={containerRef}>
       <FileDiff<PierreAnnotationMetadata>
         fileDiff={pierreDiff}
         options={options}
+        style={fontStyles}
         lineAnnotations={annotations}
         renderAnnotation={renderAnnotation}
         renderHoverUtility={renderHoverUtility}
@@ -470,6 +479,18 @@ export function PierreDiffViewer({
     filePath: string
     content?: string
   } | null>(null)
+
+  const [terminalFontSize, setTerminalFontSize] = useState(() => {
+    const cssValue = getComputedStyle(document.documentElement).getPropertyValue('--terminal-font-size')
+    return parseInt(cssValue, 10) || 13
+  })
+
+  useEffect(() => {
+    const unlisten = listenUiEvent(UiEvent.FontSizeChanged, (detail: FontSizeChangedDetail) => {
+      setTerminalFontSize(detail.terminalFontSize)
+    })
+    return unlisten
+  }, [])
 
   const theme = useMemo(() => getPierreThemes(themeId), [themeId])
   const themeType = useMemo(() => getThemeType(themeId), [themeId])
@@ -776,6 +797,7 @@ export function PierreDiffViewer({
                     diffStyle={diffStyle}
                     unsafeCSS={unsafeCSS}
                     filePath={file.path}
+                    fontSize={terminalFontSize}
                     onLineSelect={handleLineSelect}
                     onStartCommentFromContext={onStartCommentFromContext}
                     onEditComment={onEditComment}
