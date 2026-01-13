@@ -51,6 +51,19 @@ export function useLineSelection() {
     setSelection(null)
     lastClickedLine.current = null
   }, [])
+
+  const setSelectionDirect = useCallback((newSelection: LineSelection | null) => {
+    setSelection(newSelection)
+    if (newSelection) {
+      lastClickedLine.current = {
+        line: newSelection.endLine,
+        side: newSelection.side,
+        filePath: newSelection.filePath,
+      }
+    } else {
+      lastClickedLine.current = null
+    }
+  }, [])
   
   const isLineSelected = useCallback((filePath: string, lineNum: number | undefined, side: 'old' | 'new') => {
     if (!selection || !lineNum || selection.side !== side || selection.filePath !== filePath) return false
@@ -67,6 +80,7 @@ export function useLineSelection() {
     handleLineClick,
     extendSelection,
     clearSelection,
+    setSelectionDirect,
     isLineSelected,
     isLineInRange
   }

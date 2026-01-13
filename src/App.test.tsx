@@ -65,9 +65,6 @@ vi.mock('./components/modals/SettingsModal', () => ({
 vi.mock('./components/modals/CancelConfirmation', () => ({
   CancelConfirmation: () => null,
 }))
-vi.mock('./components/diff/DiffViewerWithReview', () => ({
-  DiffViewerWithReview: () => null,
-}))
 vi.mock('./components/OpenInSplitButton', () => ({
   OpenInSplitButton: () => <button data-testid="open-in-split" />,
 }))

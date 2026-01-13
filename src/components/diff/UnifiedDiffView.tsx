@@ -12,10 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSelection } from "../../hooks/useSelection";
 import { useReview } from "../../contexts/ReviewContext";
 import { useFocus } from "../../contexts/FocusContext";
-import {
-  useLineSelection,
-  type LineSelection,
-} from "../../hooks/useLineSelection";
+import { useLineSelection } from "../../hooks/useLineSelection";
 import { useDiffHover } from "../../hooks/useDiffHover";
 import { useDiffKeyboardNavigation } from "../../hooks/useDiffKeyboardNavigation";
 import {
@@ -27,7 +24,9 @@ import {
 import { getFileLanguage } from "../../utils/diff";
 import { useReviewComments } from "../../hooks/useReviewComments";
 import { DiffFileExplorer, ChangedFile } from "./DiffFileExplorer";
-import { DiffViewer } from "./DiffViewer";
+import { PierreDiffViewer } from "./PierreDiffViewer";
+import { resolvedThemeAtom } from "../../store/atoms/theme";
+import type { SchaltwerkThemeId } from "../../adapters/pierreThemeAdapter";
 import {
   VscSend,
   VscListFlat,
@@ -106,11 +105,12 @@ export const shouldHandleFileChange = (
   return eventSession === targetSession;
 };
 
-const RECENTLY_RENDERED_LIMIT = 12;
+const RECENTLY_RENDERED_LIMIT = 50;
 const LOCKED_RENDER_LIMIT = RECENTLY_RENDERED_LIMIT * 2;
-const USER_SCROLL_RENDER_LIMIT = 20;
+const USER_SCROLL_RENDER_LIMIT = 100;
 // Upper bound on how many file diffs we keep fully rendered in the sidebar.
-const SIDEBAR_RENDER_CAP = 20;
+// Higher values reduce flickering but use more memory.
+const SIDEBAR_RENDER_CAP = 100;
 
 export function UnifiedDiffView({
   filePath,
@@ -133,17 +133,19 @@ export function UnifiedDiffView({
     getCommentsForFile,
     clearReview,
     removeComment,
+    updateComment,
   } = useReview();
   const { setFocusForSession, setCurrentFocus } = useFocus();
   const { sessions, reloadSessions } = useSessions();
   const { getOrchestratorAgentType } = useClaudeSession();
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig();
   const platform = useMemo(() => detectPlatformSafe(), []);
+  const themeId = useAtomValue(resolvedThemeAtom) as SchaltwerkThemeId;
   const lineSelection = useLineSelection();
   const lineSelectionRef = useRef(lineSelection);
   lineSelectionRef.current = lineSelection;
 
-  const { hoveredLine, setHoveredLineInfo, clearHoveredLine, useHoverKeyboardShortcuts } =
+  const { hoveredLine: _hoveredLine, setHoveredLineInfo, clearHoveredLine: _clearHoveredLine, useHoverKeyboardShortcuts } =
     useDiffHover();
 
   const [files, setFiles] = useState<ChangedFile[]>([]);
@@ -198,7 +200,8 @@ export function UnifiedDiffView({
 
   const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null);
   const [showCommentForm, setShowCommentForm] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [_expandedSections, setExpandedSections] = useState<
     Map<string, Set<number>>
   >(new Map());
   const [commentFormPosition, setCommentFormPosition] = useState<{
@@ -283,8 +286,8 @@ export function UnifiedDiffView({
 
   // Force continuous scroll in sidebar mode
   const isSidebarMode = viewMode === "sidebar";
-  const diffLayout: DiffLayoutMode =
-    mode === "history" || isSidebarMode ? "unified" : diffLayoutPreference;
+  // Always load unified diff data - Pierre handles split/unified rendering via diffStyle prop
+  const diffLayout: DiffLayoutMode = "unified";
   const effectiveContinuousScroll =
     mode === "history" || isSidebarMode ? true : continuousScroll;
   const isLargeDiffMode = useMemo(() => {
@@ -292,7 +295,7 @@ export function UnifiedDiffView({
   }, [effectiveContinuousScroll]);
 
   const {
-    keyboardFocus,
+    keyboardFocus: _keyboardFocus,
     keyboardFocusRef,
     setKeyboardFocus,
     moveKeyboardFocus,
@@ -308,6 +311,7 @@ export function UnifiedDiffView({
         setHoveredLineInfo(focus.lineNum, focus.side, focus.filePath);
         setShowCommentForm(false);
         setCommentFormPosition(null);
+        setEditingCommentId(null);
       },
       [setHoveredLineInfo]
     ),
@@ -380,13 +384,6 @@ export function UnifiedDiffView({
     [],
   );
   const emptyReviewCommentsForFile = useCallback((): ReviewComment[] => [], []);
-  const historyLineSelection = useMemo(
-    () => ({
-      isLineSelected: () => false,
-      selection: null as LineSelection | null,
-    }),
-    [],
-  );
 
   const commentThreadsByFile = useMemo(() => {
     const map = new Map<string, ReviewCommentThread[]>();
@@ -489,6 +486,7 @@ export function UnifiedDiffView({
     } else if (!lineSelection.selection) {
       setShowCommentForm(false);
       setCommentFormPosition(null);
+      setEditingCommentId(null);
       activeSelectionFileRef.current = null;
     }
   }, [mode, lineSelection.selection, isDraggingSelection]);
@@ -518,6 +516,16 @@ export function UnifiedDiffView({
     lastNotifiedFileRef.current = selectedFile;
     onSelectedFileChange(selectedFile);
   }, [onSelectedFileChange, selectedFile]);
+
+  useEffect(() => {
+    if (isLargeDiffMode || !selectedFile) return;
+    setRenderedFileSet((prev) => {
+      if (prev.has(selectedFile)) return prev;
+      const next = new Set(prev);
+      next.add(selectedFile);
+      return next;
+    });
+  }, [selectedFile, isLargeDiffMode]);
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -717,14 +725,6 @@ export function UnifiedDiffView({
     },
     [],
   );
-
-  const handleCopyFilePath = useCallback(async (filePath: string) => {
-    try {
-      await invoke(TauriCommands.ClipboardWriteText, { text: filePath });
-    } catch (err) {
-      logger.error("Failed to copy file path to clipboard", err);
-    }
-  }, []);
 
   const beginSidebarResize = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -1218,6 +1218,7 @@ export function UnifiedDiffView({
       lineSelectionRef.current.clearSelection();
       setShowCommentForm(false);
       setCommentFormPosition(null);
+      setEditingCommentId(null);
       window.setTimeout(() => {
         suppressAutoSelectRef.current = false;
       }, 250);
@@ -1236,9 +1237,12 @@ export function UnifiedDiffView({
 );
 
   const prevFilePathForScrollRef = useRef<string | null>(filePath);
+  const pendingScrollRef = useRef<string | null>(null);
+
   useLayoutEffect(() => {
     if (viewMode !== "sidebar" || !isOpen || !filePath) {
       prevFilePathForScrollRef.current = filePath;
+      pendingScrollRef.current = null;
       return;
     }
     const prevPath = prevFilePathForScrollRef.current;
@@ -1254,6 +1258,7 @@ export function UnifiedDiffView({
     const container = scrollContainerRef.current;
     const fileElement = fileRefs.current.get(filePath);
     if (!container || !fileElement) {
+      pendingScrollRef.current = filePath;
       return;
     }
 
@@ -1268,6 +1273,31 @@ export function UnifiedDiffView({
       suppressAutoSelectRef.current = false;
     });
   }, [filePath, viewMode, isOpen]);
+
+  useEffect(() => {
+    const targetPath = pendingScrollRef.current;
+    if (!targetPath || viewMode !== "sidebar" || !isOpen) {
+      return;
+    }
+
+    const container = scrollContainerRef.current;
+    const fileElement = fileRefs.current.get(targetPath);
+    if (!container || !fileElement) {
+      return;
+    }
+
+    pendingScrollRef.current = null;
+    suppressAutoSelectRef.current = true;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = fileElement.getBoundingClientRect();
+    const delta = elementRect.top - containerRect.top;
+    if (Math.abs(delta) >= 1) {
+      container.scrollTop += delta;
+    }
+    requestAnimationFrame(() => {
+      suppressAutoSelectRef.current = false;
+    });
+  }, [renderedFileSet, viewMode, isOpen]);
 
   useEffect(() => {
     if (!isOpen || isLargeDiffMode) {
@@ -2223,7 +2253,7 @@ export function UnifiedDiffView({
   const HIGHLIGHT_LINE_CAP = 3000;
   const HIGHLIGHT_BLOCK_SIZE = 200;
 
-  const { requestBlockHighlight, readBlockLine } = useHighlightWorker();
+  const { requestBlockHighlight, readBlockLine: _readBlockLine } = useHighlightWorker();
 
   const highlightTargets = useMemo(() => {
     if (!isOpen) {
@@ -2297,26 +2327,6 @@ export function UnifiedDiffView({
     });
   }, [highlightPlans, requestBlockHighlight]);
 
-  const highlightCode = useCallback(
-    (filePath: string, lineKey: string, code: string) => {
-      if (!code) return "";
-
-      const plan = highlightPlans.get(filePath);
-      if (!plan || plan.bypass) {
-        return undefined;
-      }
-
-      const location = plan.lineMap.get(lineKey);
-      if (!location) {
-        return undefined;
-      }
-
-      const candidate = readBlockLine(location.cacheKey, location.index, code);
-      return candidate === code ? undefined : candidate;
-    },
-    [highlightPlans, readBlockLine],
-  );
-
   useEffect(() => {
     if (!isOpen) return;
     performance.mark("udm-open");
@@ -2334,60 +2344,6 @@ export function UnifiedDiffView({
     lineSelection.clearSelection();
     activeSelectionFileRef.current = null;
   }, [lineSelection]);
-
-  const handleLineMouseDown = useCallback(
-    ({
-      lineNum,
-      side,
-      filePath,
-      event,
-    }: {
-      lineNum: number;
-      side: "old" | "new";
-      filePath: string;
-      event: React.MouseEvent;
-    }) => {
-      event.preventDefault();
-      setIsDraggingSelection(true);
-      activeSelectionFileRef.current = filePath;
-
-      lineSelection.handleLineClick(lineNum, side, filePath, event);
-    },
-    [lineSelection],
-  );
-
-  const handleLineMouseEnter = useCallback(
-    ({
-      lineNum,
-      side,
-      filePath,
-    }: {
-      lineNum: number;
-      side: "old" | "new";
-      filePath: string;
-    }) => {
-      if (
-        isDraggingSelection &&
-        lineSelection.selection &&
-        lineSelection.selection.side === side &&
-        activeSelectionFileRef.current === filePath
-      ) {
-        lineSelection.extendSelection(lineNum, side, filePath);
-      }
-
-      if (selectedFile) {
-        setHoveredLineInfo(lineNum, side, selectedFile);
-      }
-    },
-    [isDraggingSelection, lineSelection, selectedFile, setHoveredLineInfo],
-  );
-
-  const handleLineMouseLeave = useCallback(
-    (_: { filePath: string }) => {
-      clearHoveredLine();
-    },
-    [clearHoveredLine],
-  );
 
   const startCommentOnLine = useCallback(
     (lineNum: number, side: "old" | "new", filePath: string) => {
@@ -2410,6 +2366,39 @@ export function UnifiedDiffView({
       startCommentOnLine(payload.lineNumber, payload.side, payload.filePath);
     },
     [startCommentOnLine],
+  );
+
+  const setSelectionDirect = lineSelection.setSelectionDirect;
+  const handlePierreLineSelectionChange = useCallback(
+    (selection: { filePath: string; startLine: number; endLine: number; side: 'old' | 'new' } | null) => {
+      setSelectionDirect(selection)
+    },
+    [setSelectionDirect],
+  );
+
+  const handleEditComment = useCallback(
+    (commentId: string) => {
+      const comment = currentReview?.comments.find((c) => c.id === commentId);
+      if (!comment) return;
+
+      lineSelection.setSelectionDirect({
+        filePath: comment.filePath,
+        startLine: comment.lineRange.start,
+        endLine: comment.lineRange.end,
+        side: comment.side ?? 'new',
+      });
+      activeSelectionFileRef.current = comment.filePath;
+      setEditingCommentId(commentId);
+      setShowCommentForm(true);
+    },
+    [currentReview, lineSelection],
+  );
+
+  const handleDeleteComment = useCallback(
+    (commentId: string) => {
+      removeComment(commentId);
+    },
+    [removeComment],
   );
 
   useHoverKeyboardShortcuts(startCommentOnLine, isOpen && mode !== "history");
@@ -2491,74 +2480,6 @@ export function UnifiedDiffView({
     };
   }, [isDraggingSelection]);
 
-  const registerFileBodyHeight = useCallback(
-    (filePath: string, height: number) => {
-      if (userScrollingRef.current) {
-        deferredHeightPathsRef.current.add(filePath);
-        return;
-      }
-      const normalizedHeight = Math.max(0, Math.round(height));
-      const previous = fileBodyHeightsRef.current.get(filePath);
-      if (previous !== undefined && Math.abs(previous - normalizedHeight) < 2) {
-        return;
-      }
-      const delta = previous === undefined ? 0 : normalizedHeight - previous;
-      fileBodyHeightsRef.current.set(filePath, normalizedHeight);
-      if (
-        viewMode === "sidebar" &&
-        previous !== undefined &&
-        delta !== 0 &&
-        scrollContainerRef.current
-      ) {
-        const container = scrollContainerRef.current;
-        const element = fileRefs.current.get(filePath);
-        if (element) {
-          const containerRect = container.getBoundingClientRect();
-          const elementRect = element.getBoundingClientRect();
-          const elementTop =
-            elementRect.top - containerRect.top + container.scrollTop;
-          const elementBottom = elementTop + elementRect.height;
-          const viewportTop = container.scrollTop;
-          const fullyAboveViewport = elementBottom <= viewportTop + 4;
-          if (fullyAboveViewport) {
-            container.scrollTop += delta;
-            logger.debug(
-              "[DiffSidebar] compensated scroll for height delta",
-              {
-                path: filePath,
-                delta,
-                newScrollTop: container.scrollTop,
-                scrollHeight: container.scrollHeight,
-              },
-            );
-            lastLoggedScrollTopRef.current = container.scrollTop;
-          } else if (elementTop < viewportTop - 4) {
-            container.scrollTop += delta;
-            logger.debug(
-              "[DiffSidebar] adjusted scroll for partially visible height delta",
-              {
-                path: filePath,
-                delta,
-                newScrollTop: container.scrollTop,
-                scrollHeight: container.scrollHeight,
-              },
-            );
-            lastLoggedScrollTopRef.current = container.scrollTop;
-          }
-        }
-      }
-      if (viewMode === "sidebar") {
-        logger.debug("[DiffSidebar] file body height updated", {
-          path: filePath,
-          height: normalizedHeight,
-          previous,
-        });
-      }
-      setFileHeightsVersion((version) => version + 1);
-    },
-    [viewMode],
-  );
-
   useEffect(() => {
     const validPaths = new Set(files.map((f) => f.path));
     let didDelete = false;
@@ -2638,25 +2559,6 @@ export function UnifiedDiffView({
     });
   }, [files]);
 
-  const toggleCollapsed = useCallback((filePath: string, index: number) => {
-    setExpandedSections((prev) => {
-      const next = new Map(prev);
-      const current = next.get(filePath);
-      const updated = new Set(current ?? []);
-      if (updated.has(index)) {
-        updated.delete(index);
-      } else {
-        updated.add(index);
-      }
-      if (updated.size === 0) {
-        next.delete(filePath);
-      } else {
-        next.set(filePath, updated);
-      }
-      return next;
-    });
-  }, []);
-
   const toggleFileExpanded = useCallback((filePath: string) => {
     setExpandedFiles((prev) => {
       const next = new Set(prev);
@@ -2707,6 +2609,15 @@ export function UnifiedDiffView({
 
   const handleSubmitComment = useCallback(
     async (text: string) => {
+      if (editingCommentId) {
+        updateComment(editingCommentId, text);
+        setShowCommentForm(false);
+        setCommentFormPosition(null);
+        setEditingCommentId(null);
+        clearActiveSelection();
+        return;
+      }
+
       if (!lineSelection.selection) return;
 
       // Snapshot selection to avoid races if state changes while awaiting file reads
@@ -2750,6 +2661,8 @@ export function UnifiedDiffView({
     [
       lineSelection,
       addComment,
+      updateComment,
+      editingCommentId,
       sessionName,
       clearActiveSelection,
     ],
@@ -2905,6 +2818,7 @@ export function UnifiedDiffView({
         } else if (showCommentForm) {
           setShowCommentForm(false);
           setCommentFormPosition(null);
+          setEditingCommentId(null);
           clearActiveSelection();
         } else if (mode === "session" && !isSidebarMode) {
           onClose();
@@ -3150,18 +3064,18 @@ export function UnifiedDiffView({
           }}
           className="p-1.5 hover:bg-slate-800 rounded-lg"
           title={
-            diffLayout === "unified"
+            diffLayoutPreference === "unified"
               ? "Switch to side-by-side diff"
               : "Switch to unified diff"
           }
           aria-label={
-            diffLayout === "unified"
+            diffLayoutPreference === "unified"
               ? "Switch to side-by-side diff"
               : "Switch to unified diff"
           }
           data-testid="diff-layout-toggle"
         >
-          {diffLayout === "unified" ? (
+          {diffLayoutPreference === "unified" ? (
             <VscSplitHorizontal className="text-xl" />
           ) : (
             <VscDiff className="text-xl" />
@@ -3194,51 +3108,39 @@ export function UnifiedDiffView({
     <div
       className={`flex-1 flex flex-col overflow-hidden min-h-0 w-full relative bg-slate-900/30 ${className || ""}`}
     >
-      <DiffViewer
+      <PierreDiffViewer
         files={files}
         visualFileOrder={visualFileOrder}
         selectedFile={selectedFile}
         allFileDiffs={allFileDiffs}
         fileError={fileError}
         branchInfo={branchInfo}
-        expandedSectionsByFile={expandedSections}
         isLargeDiffMode={isLargeDiffMode}
         isCompactView={compactDiffs}
-        visibleFileSet={visibleFileSet}
-        renderedFileSet={renderedFileSet}
-        loadingFiles={loadingFiles}
-        observerRef={observerRef}
-        scrollContainerRef={
-          scrollContainerRef as React.RefObject<HTMLDivElement>
-        }
-        fileRefs={fileRefs}
-        fileBodyHeights={fileBodyHeightsRef.current}
         alwaysShowLargeDiffs={alwaysShowLargeDiffs}
         expandedFiles={expandedFiles}
         onToggleFileExpanded={toggleFileExpanded}
-        onFileBodyHeightChange={registerFileBodyHeight}
         getCommentsForFile={getThreadsForFile}
-        highlightCode={highlightCode}
-        toggleCollapsed={toggleCollapsed}
-        handleLineMouseDown={handleLineMouseDown}
-        handleLineMouseEnter={handleLineMouseEnter}
-        handleLineMouseLeave={handleLineMouseLeave}
-        handleLineMouseUp={handleLineMouseUp}
-        lineSelection={lineSelection}
         onCopyLine={(payload) => {
           void handleCopyLineFromContext(payload);
         }}
         onCopyCode={(payload) => {
           void handleCopyCodeFromContext(payload);
         }}
-        onCopyFilePath={(path) => {
-          void handleCopyFilePath(path);
-        }}
         onDiscardFile={handleDiscardFile}
         onStartCommentFromContext={handleStartCommentFromContext}
+        onEditComment={handleEditComment}
+        onDeleteComment={handleDeleteComment}
+        onLineSelectionChange={handlePierreLineSelectionChange}
         onOpenFile={openFileHandler}
-        keyboardFocus={keyboardFocus}
-        hoveredLine={hoveredLine}
+        themeId={themeId}
+        diffStyle={diffLayoutPreference === 'split' ? 'split' : 'unified'}
+        visibleFileSet={isLargeDiffMode ? undefined : visibleFileSet}
+        renderedFileSet={isLargeDiffMode ? undefined : renderedFileSet}
+        loadingFiles={isLargeDiffMode ? undefined : loadingFiles}
+        observerRef={isLargeDiffMode ? undefined : observerRef}
+        scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+        fileRefs={isLargeDiffMode ? undefined : fileRefs}
       />
 
       <SearchBox
@@ -3255,6 +3157,7 @@ export function UnifiedDiffView({
               e.stopPropagation();
               setShowCommentForm(false);
               setCommentFormPosition(null);
+              setEditingCommentId(null);
               clearActiveSelection();
             }}
           />
@@ -3269,7 +3172,7 @@ export function UnifiedDiffView({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-sm mb-3 text-slate-300">
-              <div className="font-medium mb-1">Add Review Comment</div>
+              <div className="font-medium mb-1">{editingCommentId ? "Edit Review Comment" : "Add Review Comment"}</div>
               <div className="text-xs text-slate-500">
                 {lineSelection.selection.startLine ===
                 lineSelection.selection.endLine
@@ -3282,16 +3185,20 @@ export function UnifiedDiffView({
               </div>
             </div>
             <CommentForm
+              key={editingCommentId ?? 'new'}
               onSubmit={(value) => {
                 void handleSubmitComment(value);
               }}
               onCancel={() => {
                 setShowCommentForm(false);
                 setCommentFormPosition(null);
+                setEditingCommentId(null);
                 clearActiveSelection();
               }}
               keyboardShortcutConfig={keyboardShortcutConfig}
               platform={platform}
+              initialValue={editingCommentId ? currentReview?.comments.find((c) => c.id === editingCommentId)?.comment ?? '' : ''}
+              isEditing={!!editingCommentId}
             />
           </div>
         </>
@@ -3399,50 +3306,38 @@ export function UnifiedDiffView({
           <div
             className={`flex-1 flex flex-col overflow-hidden relative bg-slate-900/30 ${className || ""}`}
           >
-            <DiffViewer
+            <PierreDiffViewer
               files={files}
               visualFileOrder={visualFileOrder}
               selectedFile={selectedFile}
               allFileDiffs={allFileDiffs}
               fileError={fileError}
               branchInfo={null}
-              expandedSectionsByFile={expandedSections}
               isLargeDiffMode={isLargeDiffMode}
               isCompactView={compactDiffs}
-              visibleFileSet={visibleFileSet}
-              renderedFileSet={renderedFileSet}
-              loadingFiles={loadingFiles}
-              observerRef={observerRef}
-              scrollContainerRef={
-                scrollContainerRef as React.RefObject<HTMLDivElement>
-              }
-              fileRefs={fileRefs}
-              fileBodyHeights={fileBodyHeightsRef.current}
               alwaysShowLargeDiffs={alwaysShowLargeDiffs}
               expandedFiles={expandedFiles}
               onToggleFileExpanded={toggleFileExpanded}
-              onFileBodyHeightChange={registerFileBodyHeight}
               getCommentsForFile={emptyThreadCommentsForFile}
-              highlightCode={highlightCode}
-              toggleCollapsed={toggleCollapsed}
-              handleLineMouseDown={() => {}}
-              handleLineMouseEnter={() => {}}
-              handleLineMouseLeave={() => {}}
-              handleLineMouseUp={() => {}}
-              lineSelection={historyLineSelection}
               onCopyLine={(payload) => {
                 void handleCopyLineFromContext(payload);
               }}
               onCopyCode={(payload) => {
                 void handleCopyCodeFromContext(payload);
               }}
-              onCopyFilePath={(path) => {
-                void handleCopyFilePath(path);
-              }}
               onStartCommentFromContext={handleStartCommentFromContext}
+              onEditComment={handleEditComment}
+              onDeleteComment={handleDeleteComment}
+              onLineSelectionChange={handlePierreLineSelectionChange}
               onOpenFile={openFileHandler}
-              keyboardFocus={keyboardFocus}
-              hoveredLine={hoveredLine}
+              themeId={themeId}
+              diffStyle={diffLayoutPreference === 'split' ? 'split' : 'unified'}
+              visibleFileSet={isLargeDiffMode ? undefined : visibleFileSet}
+              renderedFileSet={isLargeDiffMode ? undefined : renderedFileSet}
+              loadingFiles={isLargeDiffMode ? undefined : loadingFiles}
+              observerRef={isLargeDiffMode ? undefined : observerRef}
+              scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+              fileRefs={isLargeDiffMode ? undefined : fileRefs}
             />
             <SearchBox
               targetRef={scrollContainerRef}
@@ -3720,13 +3615,17 @@ function CommentForm({
   onCancel,
   keyboardShortcutConfig,
   platform,
+  initialValue = "",
+  isEditing = false,
 }: {
   onSubmit: (text: string) => void;
   onCancel: () => void;
   keyboardShortcutConfig: KeyboardShortcutConfig;
   platform: Platform;
+  initialValue?: string;
+  isEditing?: boolean;
 }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialValue);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -3778,7 +3677,7 @@ function CommentForm({
           className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
         >
           <VscSend />
-          Submit
+          {isEditing ? "Update" : "Submit"}
         </button>
       </div>
     </>

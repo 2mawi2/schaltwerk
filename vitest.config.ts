@@ -6,6 +6,11 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    server: {
+      deps: {
+        inline: ['@pierre/diffs', 'lru_map'],
+      },
+    },
     pool: 'threads',
     poolOptions: {
       threads: {

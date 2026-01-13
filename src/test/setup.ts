@@ -197,3 +197,55 @@ vi.mock('@tauri-apps/api/core', () => ({
     throw new Error('no tauri')
   })
 }))
+
+// Mock Web Worker for Pierre diffs library (workers not available in happy-dom)
+// This mock is intentionally minimal and stateless to avoid interfering with tests
+// that define their own Worker mocks
+const createMinimalWorkerMock = () => {
+  return class MinimalWorkerMock {
+    onmessage: ((event: MessageEvent) => void) | null = null
+    onerror: ((event: ErrorEvent) => void) | null = null
+    onmessageerror: ((event: MessageEvent) => void) | null = null
+
+    postMessage(_message: unknown, _options?: StructuredSerializeOptions | Transferable[]): void {
+      // No-op in tests
+    }
+
+    terminate(): void {
+      // No-op in tests
+    }
+
+    addEventListener(_type: string, _listener: EventListener): void {
+      // No-op in tests
+    }
+
+    removeEventListener(_type: string, _listener: EventListener): void {
+      // No-op in tests
+    }
+
+    dispatchEvent(_event: Event): boolean {
+      return false
+    }
+  }
+}
+
+// Only set up the mock if Worker is truly undefined (not already mocked by a test)
+const setupWorkerMockIfNeeded = () => {
+  if (typeof globalThis.Worker === 'undefined') {
+    Object.defineProperty(globalThis, 'Worker', {
+      configurable: true,
+      writable: true,
+      value: createMinimalWorkerMock(),
+    })
+  }
+
+  if (typeof window !== 'undefined' && typeof window.Worker === 'undefined') {
+    Object.defineProperty(window, 'Worker', {
+      configurable: true,
+      writable: true,
+      value: createMinimalWorkerMock(),
+    })
+  }
+}
+
+setupWorkerMockIfNeeded()

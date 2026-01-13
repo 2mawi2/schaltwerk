@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor, fireEvent, screen } from '@testing-library/react'
+import { render, waitFor, screen } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders, createChangedFile } from '../../tests/test-utils'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -158,58 +158,6 @@ describe('UnifiedDiffModal line selection behaviour', () => {
       expect(screen.getAllByText('+1').length).toBeGreaterThan(0)
       expect(screen.getAllByText('-0').length).toBeGreaterThan(0)
       expect(screen.queryByText('Σ1')).toBeNull()
-    })
-  })
-
-  it('calls selection handlers with file path when dragging across rows', async () => {
-    await renderModal()
-
-    const firstRow = await waitFor(() => document.body.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
-    const secondRow = await waitFor(() => document.body.querySelector('tr[data-line-num="2"]') as HTMLTableRowElement)
-
-    fireEvent.mouseDown(firstRow, { button: 0 })
-
-    await waitFor(() => {
-      expect(handleLineClick).toHaveBeenCalledWith(
-        1,
-        'new',
-        sampleDiff.file.path,
-        expect.objectContaining({ type: 'mousedown' })
-      )
-    })
-
-    await waitFor(() => {
-      expect(document.body.classList.contains('sw-no-text-select')).toBe(true)
-    })
-
-    fireEvent.mouseEnter(secondRow)
-
-    await waitFor(() => {
-      expect(extendSelection).toHaveBeenCalledWith(2, 'new', sampleDiff.file.path)
-    })
-
-    fireEvent.mouseUp(secondRow)
-
-    await waitFor(() => {
-      expect(document.body.classList.contains('sw-no-text-select')).toBe(false)
-    })
-  })
-
-  it('clears dragging state when mouseup happens outside the diff row', async () => {
-    await renderModal()
-
-    const firstRow = await waitFor(() => document.body.querySelector('tr[data-line-num="1"]') as HTMLTableRowElement)
-
-    fireEvent.mouseDown(firstRow, { button: 0 })
-
-    await waitFor(() => {
-      expect(handleLineClick).toHaveBeenCalled()
-    })
-
-    fireEvent.mouseUp(document)
-
-    await waitFor(() => {
-      expect(document.body.classList.contains('sw-no-text-select')).toBe(false)
     })
   })
 

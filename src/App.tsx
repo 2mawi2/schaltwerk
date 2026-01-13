@@ -8,6 +8,7 @@ import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
 import ErrorBoundary from './components/ErrorBoundary'
 import SessionErrorBoundary from './components/SessionErrorBoundary'
 import { UnifiedDiffModal, type HistoryDiffContext } from './components/diff/UnifiedDiffModal'
+import { PierreDiffProvider } from './components/diff/PierreDiffProvider'
 import type { HistoryItem, CommitFileChange } from './components/git-graph/types'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
@@ -2182,8 +2183,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <GithubIntegrationProvider>
-      <AppContent />
-    </GithubIntegrationProvider>
+    <PierreDiffProvider>
+      <GithubIntegrationProvider>
+        <AppContent />
+      </GithubIntegrationProvider>
+    </PierreDiffProvider>
   )
 }
