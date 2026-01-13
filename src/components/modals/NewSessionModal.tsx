@@ -566,12 +566,21 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 ? (normalizedAgentTypes[0] ?? agentType)
                 : agentType
 
-            const effectiveUseExistingBranch = useExistingBranch
-            const effectiveCustomBranch = useExistingBranch
-                ? baseBranch
-                : customBranch.trim() || undefined
+            const isPrFromSameRepo = promptSource === 'github_pull_request'
+                && githubPrSelection
+                && !githubPrSelection.details.isFork
+            const isPrFromFork = promptSource === 'github_pull_request'
+                && githubPrSelection
+                && githubPrSelection.details.isFork
 
-            const prInfo = promptSource === 'github_pull_request' && githubPrSelection
+            const effectiveUseExistingBranch = isPrFromSameRepo || useExistingBranch
+            const effectiveCustomBranch = isPrFromSameRepo
+                ? githubPrSelection.details.headRefName
+                : useExistingBranch
+                    ? baseBranch
+                    : customBranch.trim() || undefined
+
+            const prInfo = isPrFromFork && githubPrSelection
                 ? { prNumber: githubPrSelection.details.number, prUrl: githubPrSelection.details.url }
                 : {}
 
@@ -581,7 +590,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 baseBranch: createAsDraft ? '' : baseBranch,
                 customBranch: effectiveCustomBranch,
                 useExistingBranch: effectiveUseExistingBranch,
-                syncWithOrigin: useExistingBranch,
+                syncWithOrigin: effectiveUseExistingBranch,
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? currentPrompt : undefined,

@@ -5,13 +5,19 @@ import type { MockedFunction, MockInstance } from 'vitest'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
-import type { GithubIssueDetails } from '../../types/githubIssues'
+import type { GithubIssueDetails, GithubPrDetails } from '../../types/githubIssues'
 import type { UseGithubIssueSearchResult } from '../../hooks/useGithubIssueSearch'
+import type { UseGithubPrSearchResult } from '../../hooks/useGithubPrSearch'
 
 const mockUseGithubIssueSearch = vi.fn<() => UseGithubIssueSearchResult>()
+const mockUseGithubPrSearch = vi.fn<() => UseGithubPrSearchResult>()
 
 vi.mock('../../hooks/useGithubIssueSearch', () => ({
     useGithubIssueSearch: () => mockUseGithubIssueSearch(),
+}))
+
+vi.mock('../../hooks/useGithubPrSearch', () => ({
+    useGithubPrSearch: () => mockUseGithubPrSearch(),
 }))
 
 import { NewSessionModal } from './NewSessionModal'
@@ -302,6 +308,28 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                 labels: [],
                 comments: [],
             } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+        mockUseGithubPrSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+                headRefName: '',
+                reviewDecision: null,
+                statusCheckState: null,
+                latestReviews: [],
+                isFork: false,
+            } as GithubPrDetails),
             clearError: vi.fn(),
         })
         mockInvoke.mockImplementation(defaultInvokeHandler)
@@ -898,6 +926,28 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             } as GithubIssueDetails),
             clearError: vi.fn(),
         })
+        mockUseGithubPrSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+                headRefName: '',
+                reviewDecision: null,
+                statusCheckState: null,
+                latestReviews: [],
+                isFork: false,
+            } as GithubPrDetails),
+            clearError: vi.fn(),
+        })
         mockInvoke.mockImplementation(defaultInvokeHandler)
     })
 
@@ -1253,6 +1303,291 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(mockInvoke).toHaveBeenCalledWith(
                 TauriCommands.OpenExternalUrl,
                 expect.objectContaining({ url: 'https://github.com/example/repo/issues/99' })
+            )
+        })
+    })
+})
+
+describe('NewSessionModal GitHub PR prompt source', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        if (windowOpenSpy) {
+            windowOpenSpy.mockRestore()
+        }
+        windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
+        delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+        mockUseGithubPrSearch.mockReturnValue({
+            results: [],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 0,
+                title: '',
+                url: '',
+                body: '',
+                labels: [],
+                comments: [],
+                headRefName: '',
+                reviewDecision: null,
+                statusCheckState: null,
+                latestReviews: [],
+                isFork: false,
+            } as GithubPrDetails),
+            clearError: vi.fn(),
+        })
+        mockInvoke.mockImplementation(defaultInvokeHandler)
+    })
+
+    afterEach(() => {
+        windowOpenSpy?.mockRestore()
+        windowOpenSpy = null
+        delete (window as unknown as Record<string, unknown>).__TAURI__
+    })
+
+    test('same-repo PR uses useExistingBranch with headRefName as customBranch', async () => {
+        const onCreate = vi.fn()
+
+        const sameRepoPrDetails: GithubPrDetails = {
+            number: 123,
+            title: 'Same repo PR',
+            url: 'https://github.com/example/repo/pull/123',
+            body: 'PR description',
+            labels: [],
+            comments: [],
+            headRefName: 'feature/same-repo-branch',
+            reviewDecision: null,
+            statusCheckState: null,
+            latestReviews: [],
+            isFork: false,
+        }
+
+        mockUseGithubPrSearch.mockReturnValue({
+            results: [
+                {
+                    number: 123,
+                    title: 'Same repo PR',
+                    state: 'OPEN',
+                    updatedAt: '2024-01-01T00:00:00Z',
+                    author: 'contributor',
+                    labels: [],
+                    url: 'https://github.com/example/repo/pull/123',
+                    headRefName: 'feature/same-repo-branch',
+                },
+            ],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue(sameRepoPrDetails),
+            clearError: vi.fn(),
+        })
+
+        mockInvoke.mockImplementation((command: string) => {
+            switch (command) {
+                case TauriCommands.RepositoryIsEmpty:
+                    return Promise.resolve(false)
+                case TauriCommands.ListProjectBranches:
+                    return Promise.resolve(['main', 'feature/same-repo-branch'])
+                case TauriCommands.GetProjectDefaultBaseBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.GetProjectDefaultBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+                    return Promise.resolve(false)
+                case TauriCommands.SchaltwerkCoreGetAgentType:
+                    return Promise.resolve('claude')
+                case TauriCommands.GetAgentEnvVars:
+                    return Promise.resolve({})
+                case TauriCommands.GetAgentCliArgs:
+                    return Promise.resolve('')
+                case TauriCommands.GetAgentPreferences:
+                    return Promise.resolve({})
+                case TauriCommands.SchaltwerkCoreListCodexModels:
+                    return Promise.resolve({ models: [], defaultModelId: '' })
+                default:
+                    return Promise.resolve()
+            }
+        })
+
+        render(
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: true,
+                        authenticated: true,
+                        userLogin: 'octocat',
+                        repository: {
+                            nameWithOwner: 'example/repo',
+                            defaultBranch: 'main',
+                        },
+                    },
+                    isGhMissing: false,
+                    hasRepository: true,
+                    canCreatePr: true,
+                }}
+            >
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub PR' })))
+
+        const prButton = await screen.findByRole('button', { name: /Use GitHub pull request 123/ })
+        await fireAsync(() => fireEvent.click(prButton))
+
+        await waitFor(() => {
+            expect(screen.getByText('Start Agent')).not.toBeDisabled()
+        })
+
+        await fireAsync(() => fireEvent.click(screen.getByText('Start Agent')))
+
+        await waitFor(() => {
+            expect(onCreate).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    useExistingBranch: true,
+                    customBranch: 'feature/same-repo-branch',
+                    syncWithOrigin: true,
+                })
+            )
+        })
+
+        const createPayload = onCreate.mock.calls[0][0]
+        expect(createPayload.prNumber).toBeUndefined()
+    })
+
+    test('fork PR uses prNumber instead of useExistingBranch', async () => {
+        const onCreate = vi.fn()
+
+        const forkPrDetails: GithubPrDetails = {
+            number: 456,
+            title: 'Fork PR',
+            url: 'https://github.com/example/repo/pull/456',
+            body: 'Fork PR description',
+            labels: [],
+            comments: [],
+            headRefName: 'external-contributor:feature/fork-branch',
+            reviewDecision: null,
+            statusCheckState: null,
+            latestReviews: [],
+            isFork: true,
+        }
+
+        mockUseGithubPrSearch.mockReturnValue({
+            results: [
+                {
+                    number: 456,
+                    title: 'Fork PR',
+                    state: 'OPEN',
+                    updatedAt: '2024-01-01T00:00:00Z',
+                    author: 'external-contributor',
+                    labels: [],
+                    url: 'https://github.com/example/repo/pull/456',
+                    headRefName: 'external-contributor:feature/fork-branch',
+                },
+            ],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue(forkPrDetails),
+            clearError: vi.fn(),
+        })
+
+        mockInvoke.mockImplementation((command: string) => {
+            switch (command) {
+                case TauriCommands.RepositoryIsEmpty:
+                    return Promise.resolve(false)
+                case TauriCommands.ListProjectBranches:
+                    return Promise.resolve(['main'])
+                case TauriCommands.GetProjectDefaultBaseBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.GetProjectDefaultBranch:
+                    return Promise.resolve('main')
+                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+                    return Promise.resolve(false)
+                case TauriCommands.SchaltwerkCoreGetAgentType:
+                    return Promise.resolve('claude')
+                case TauriCommands.GetAgentEnvVars:
+                    return Promise.resolve({})
+                case TauriCommands.GetAgentCliArgs:
+                    return Promise.resolve('')
+                case TauriCommands.GetAgentPreferences:
+                    return Promise.resolve({})
+                case TauriCommands.SchaltwerkCoreListCodexModels:
+                    return Promise.resolve({ models: [], defaultModelId: '' })
+                default:
+                    return Promise.resolve()
+            }
+        })
+
+        render(
+            <TestProviders
+                githubOverrides={{
+                    status: {
+                        installed: true,
+                        authenticated: true,
+                        userLogin: 'octocat',
+                        repository: {
+                            nameWithOwner: 'example/repo',
+                            defaultBranch: 'main',
+                        },
+                    },
+                    isGhMissing: false,
+                    hasRepository: true,
+                    canCreatePr: true,
+                }}
+            >
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />
+            </TestProviders>
+        )
+
+        await waitFor(() => {
+            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub PR' })))
+
+        const prButton = await screen.findByRole('button', { name: /Use GitHub pull request 456/ })
+        await fireAsync(() => fireEvent.click(prButton))
+
+        await waitFor(() => {
+            expect(screen.getByText('Start Agent')).not.toBeDisabled()
+        })
+
+        await fireAsync(() => fireEvent.click(screen.getByText('Start Agent')))
+
+        await waitFor(() => {
+            expect(onCreate).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    prNumber: 456,
+                    useExistingBranch: false,
+                })
             )
         })
     })

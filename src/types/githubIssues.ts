@@ -61,6 +61,7 @@ export interface GithubPrDetails {
   reviewDecision?: string | null
   statusCheckState?: string | null
   latestReviews: GithubPrReview[]
+  isFork: boolean
 }
 
 export interface GithubPrSelectionResult {

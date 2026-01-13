@@ -113,6 +113,7 @@ pub struct GitHubPrDetailsPayload {
     pub review_decision: Option<String>,
     pub status_check_state: Option<String>,
     pub latest_reviews: Vec<GitHubPrReviewPayload>,
+    pub is_fork: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -920,6 +921,7 @@ fn map_pr_details_payload(details: GitHubPrDetails) -> GitHubPrDetailsPayload {
             .into_iter()
             .map(map_pr_review_payload)
             .collect(),
+        is_fork: details.is_fork,
     }
 }
 

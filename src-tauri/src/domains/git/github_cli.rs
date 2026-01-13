@@ -131,6 +131,7 @@ pub struct GitHubPrDetails {
     pub review_decision: Option<String>,
     pub status_check_rollup: Vec<GitHubStatusCheck>,
     pub latest_reviews: Vec<GitHubPrReview>,
+    pub is_fork: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -813,7 +814,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             "view".to_string(),
             number.to_string(),
             "--json".to_string(),
-            "number,title,body,url,labels,comments,headRefName,reviewDecision,statusCheckRollup,latestReviews".to_string(),
+            "number,title,body,url,labels,comments,headRefName,reviewDecision,statusCheckRollup,latestReviews,isCrossRepository".to_string(),
         ];
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
@@ -895,6 +896,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             review_decision: parsed.review_decision,
             status_check_rollup,
             latest_reviews,
+            is_fork: parsed.is_cross_repository,
         })
     }
 
@@ -1970,6 +1972,8 @@ struct PrDetailsResponse {
     status_check_rollup: Option<Vec<StatusCheckRollupNode>>,
     #[serde(rename = "latestReviews")]
     latest_reviews: Option<Vec<LatestReviewsNode>>,
+    #[serde(rename = "isCrossRepository", default)]
+    is_cross_repository: bool,
 }
 
 #[derive(Debug, Deserialize)]
