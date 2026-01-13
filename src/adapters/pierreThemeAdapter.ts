@@ -98,7 +98,7 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       --diffs-line-height: 20px;
       --diffs-tab-size: 4;
       --diffs-gap-block: 0;
-      --diffs-min-number-column-width: 4ch;
+      --diffs-min-number-column-width: 2ch;
     }
 
     .shiki {
@@ -130,10 +130,16 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       -webkit-user-select: text;
     }
 
+    [data-line] {
+      grid-template-columns: 5ch 1fr !important;
+    }
+
     [data-column-number] {
       position: sticky;
       left: 0;
       z-index: 1;
+      text-align: right;
+      padding-right: 1.5ch;
     }
 
     [data-column-number]::after {
