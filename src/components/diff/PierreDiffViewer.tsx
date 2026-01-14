@@ -194,7 +194,7 @@ const MemoizedFileDiff = memo(function MemoizedFileDiff({
       themeType,
       diffStyle,
       unsafeCSS,
-      overflow: 'scroll' as const,
+      overflow: 'wrap' as const,
       lineDiffType: 'word' as const,
       diffIndicators: 'none' as const,
       expandUnchanged: false,
