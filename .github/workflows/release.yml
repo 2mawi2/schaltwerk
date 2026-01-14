@@ -521,7 +521,7 @@ jobs:
     name: Build Windows Installer
     runs-on: windows-latest
     needs: [tag-check]
-    if: always() && (needs.tag-check.result == 'success' || needs.tag-check.result == 'skipped')
+    if: false  # Temporarily disabled - Windows builds not ready for release
     env:
       SCHALTWERK_PM: bun
       SCCACHE_GHA_ENABLED: "true"
@@ -655,7 +655,7 @@ jobs:
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
       (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped') &&
       (needs.build-macos.result == 'success') &&
-      (needs.build-windows.result == 'success')
+      (needs.build-windows.result == 'success' || needs.build-windows.result == 'skipped')
     permissions:
       contents: write
 
@@ -670,63 +670,26 @@ jobs:
           path: artifacts/macos
 
       - name: Download Windows artifacts
+        if: needs.build-windows.result == 'success'
         uses: actions/download-artifact@v7
         with:
           name: windows-installer
           path: artifacts/windows
 
-      - name: Create combined latest.json
+      - name: Create latest.json (macOS only)
         env:
           VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
           set -euo pipefail
-          VERSION="${VERSION#v}"
-
-          MACOS_SIG=$(jq -r '.platforms["darwin-aarch64"].signature' artifacts/macos/latest.json)
-          WINDOWS_SIG=$(cat artifacts/windows/windows-signature.txt)
-
-          MACOS_URL="https://github.com/2mawi2/schaltwerk/releases/download/v${VERSION}/Schaltwerk-${VERSION}-macos-universal.app.tar.gz"
-          WINDOWS_URL="https://github.com/2mawi2/schaltwerk/releases/download/v${VERSION}/Schaltwerk-${VERSION}-windows-x64.nsis.zip"
-          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          cat > artifacts/latest.json <<EOF
-          {
-            "version": "${VERSION}",
-            "pub_date": "${PUB_DATE}",
-            "notes": "",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "${MACOS_SIG}",
-                "url": "${MACOS_URL}"
-              },
-              "darwin-x86_64": {
-                "signature": "${MACOS_SIG}",
-                "url": "${MACOS_URL}"
-              },
-              "darwin-aarch64-app": {
-                "signature": "${MACOS_SIG}",
-                "url": "${MACOS_URL}"
-              },
-              "darwin-x86_64-app": {
-                "signature": "${MACOS_SIG}",
-                "url": "${MACOS_URL}"
-              },
-              "windows-x86_64": {
-                "signature": "${WINDOWS_SIG}",
-                "url": "${WINDOWS_URL}"
-              }
-            }
-          }
-          EOF
-
-          echo "Combined latest.json:"
+          # Use macOS latest.json directly (Windows disabled)
+          cp artifacts/macos/latest.json artifacts/latest.json
+          echo "latest.json (macOS only):"
           cat artifacts/latest.json
 
-      - name: Merge checksums
+      - name: Prepare checksums
         run: |
           cat artifacts/macos/checksums.txt > artifacts/checksums.txt
-          cat artifacts/windows/windows-checksums.txt >> artifacts/checksums.txt
-          echo "Combined checksums:"
+          echo "Checksums:"
           cat artifacts/checksums.txt
 
       - name: Create Release
@@ -739,7 +702,5 @@ jobs:
           files: |
             artifacts/macos/*.dmg
             artifacts/macos/*.app.tar.gz
-            artifacts/windows/*.exe
-            artifacts/windows/*.nsis.zip
             artifacts/checksums.txt
             artifacts/latest.json
