@@ -38,7 +38,7 @@ function ensureHighlighterPreloaded(): Promise<void> {
   }
   if (!highlighterPreloadPromise) {
     highlighterPreloadPromise = preloadHighlighter({
-      themes: THEME_NAMES,
+      themes: [...THEME_NAMES],
       langs: COMMON_LANGUAGES,
     }).then(() => {
       highlighterPreloaded = true
