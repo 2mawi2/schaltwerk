@@ -339,15 +339,18 @@ describe('App.tsx', () => {
 
   it('renders without crashing (shows Home by default)', async () => {
     await renderApp()
-    expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+    })
   })
 
   it('routes between Home and Main app states', async () => {
     await renderApp()
 
     // Initially Home
-    const home = screen.getByTestId('home-screen')
-    expect(home).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+    })
 
     // Open a project via HomeScreen prop
     await clickElement(screen.getByTestId('open-project'))
