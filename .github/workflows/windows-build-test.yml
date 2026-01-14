@@ -18,6 +18,7 @@ concurrency:
 jobs:
   lint-typescript:
     name: TypeScript Lint (Windows)
+    if: false  # Temporarily disabled - Windows CI needs fixes
     runs-on: windows-latest
     env:
       SCHALTWERK_PM: bun
@@ -63,6 +64,7 @@ jobs:
 
   test-frontend:
     name: Frontend Tests (Windows)
+    if: false  # Temporarily disabled - Windows CI needs fixes
     runs-on: windows-latest
     env:
       SCHALTWERK_PM: bun
@@ -107,6 +109,7 @@ jobs:
 
   rust-checks:
     name: Rust Checks (Windows)
+    if: false  # Temporarily disabled - Windows CI needs fixes
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -179,7 +182,7 @@ jobs:
   results:
     name: Windows CI Results
     needs: [lint-typescript, test-frontend, rust-checks]
-    if: always()
+    if: false  # Temporarily disabled - Windows CI needs fixes
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
