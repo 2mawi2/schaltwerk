@@ -265,6 +265,12 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));
                             i = term_idx + terminator_len;
+                        } else if text.starts_with("12;?") {
+                            log::trace!("Responding to OSC cursor color query {text:?}");
+                            responses.push(SequenceResponse::Immediate(
+                                b"\x1b]12;rgb:ef/ef/ef\x07".to_vec(),
+                            ));
+                            i = term_idx + terminator_len;
                         } else if text.starts_with("8;") {
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
@@ -453,6 +459,21 @@ mod tests {
         assert_eq!(
             result.responses[0],
             SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()),
+        );
+    }
+
+    #[test]
+    fn responds_to_cursor_color_query() {
+        let result = sanitize_control_sequences(b"pre\x1b]12;?\x07post");
+
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b]12;rgb:ef/ef/ef\x07".to_vec()),
         );
     }
 
