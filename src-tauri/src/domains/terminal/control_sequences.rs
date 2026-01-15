@@ -7,6 +7,7 @@ pub enum SequenceResponse {
 pub enum WindowSizeRequest {
     Cells,
     Pixels,
+    CellPixels,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,13 +19,29 @@ pub struct SanitizedOutput {
     pub responses: Vec<SequenceResponse>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ControlSequenceAction {
     Respond(&'static [u8]),
+    RespondDynamic(Vec<u8>),
     RespondCursorPosition,
     RespondWindowSize(WindowSizeRequest),
     Drop,
     Pass,
+}
+
+fn build_decrqm_response(params: &[u8]) -> Option<Vec<u8>> {
+    let trimmed = params.strip_suffix(b"$")?;
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed
+        .iter()
+        .all(|byte| byte.is_ascii_digit() || *byte == b';')
+    {
+        Some(format!("\x1b[?{};2$y", String::from_utf8_lossy(trimmed)).into_bytes())
+    } else {
+        None
+    }
 }
 
 fn analyze_control_sequence(
@@ -71,13 +88,19 @@ fn analyze_control_sequence(
                 ControlSequenceAction::RespondWindowSize(WindowSizeRequest::Cells)
             } else if prefix.is_none() && params == b"14" {
                 ControlSequenceAction::RespondWindowSize(WindowSizeRequest::Pixels)
+            } else if prefix.is_none() && params == b"16" {
+                ControlSequenceAction::RespondWindowSize(WindowSizeRequest::CellPixels)
             } else {
                 ControlSequenceAction::Pass
             }
         }
         b'p' => {
-            if prefix == Some(b'?') && params == b"12$" {
-                ControlSequenceAction::Respond(b"\x1b[?12;2$y")
+            if prefix == Some(b'?') {
+                if let Some(response) = build_decrqm_response(params) {
+                    ControlSequenceAction::RespondDynamic(response)
+                } else {
+                    ControlSequenceAction::Pass
+                }
             } else {
                 ControlSequenceAction::Pass
             }
@@ -151,6 +174,11 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         responses.push(SequenceResponse::Immediate(reply.to_vec()));
                         i = cursor + 1;
                     }
+                    ControlSequenceAction::RespondDynamic(reply) => {
+                        log::trace!("Handled terminal query {:?}", &input[i..=cursor]);
+                        responses.push(SequenceResponse::Immediate(reply));
+                        i = cursor + 1;
+                    }
                     ControlSequenceAction::RespondCursorPosition => {
                         log::trace!("Captured cursor position query {:?}", &input[i..=cursor]);
                         cursor_query_offsets.push(data.len());
@@ -166,7 +194,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Pass => {
-                        const KNOWN_TERMINATORS: &[u8] = b"mHJKABCDrhls@PLMGdfSTtupXZ";
+                        const KNOWN_TERMINATORS: &[u8] = b"mHJKABCDrhls@PLMGdfSTtupXZq";
                         if !KNOWN_TERMINATORS.contains(&terminator) {
                             log::debug!(
                                 "Unknown CSI sequence passing through: prefix={:?} params={:?} terminator={:?}",
@@ -304,14 +332,18 @@ mod tests {
 
     #[test]
     fn captures_window_size_queries() {
-        let result = sanitize_control_sequences(b"pre\x1b[18t\x1b[14tpost");
+        let result = sanitize_control_sequences(b"pre\x1b[18t\x1b[14t\x1b[16tpost");
         assert_eq!(result.data, b"prepost");
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
         assert_eq!(
             result.window_size_requests,
-            vec![WindowSizeRequest::Cells, WindowSizeRequest::Pixels]
+            vec![
+                WindowSizeRequest::Cells,
+                WindowSizeRequest::Pixels,
+                WindowSizeRequest::CellPixels,
+            ]
         );
     }
 
@@ -326,6 +358,20 @@ mod tests {
         assert_eq!(
             result.responses[0],
             SequenceResponse::Immediate(b"\x1b[?12;2$y".to_vec())
+        );
+    }
+
+    #[test]
+    fn responds_to_dec_private_mode_query_with_other_param() {
+        let result = sanitize_control_sequences(b"pre\x1b[?2004$ppost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.window_size_requests.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?2004;2$y".to_vec())
         );
     }
 

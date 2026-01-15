@@ -546,6 +546,7 @@ impl LocalPtyAdapter {
                                 format!("\x1b[8;{rows};{cols}t").into_bytes()
                             }
                             WindowSizeRequest::Pixels => b"\x1b[4;0;0t".to_vec(),
+                            WindowSizeRequest::CellPixels => b"\x1b[6;0;0t".to_vec(),
                         };
                         window_size_responses.push(response);
                     }
