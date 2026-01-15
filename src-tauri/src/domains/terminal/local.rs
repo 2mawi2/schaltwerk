@@ -482,7 +482,10 @@ impl LocalPtyAdapter {
             }
         }
 
-        if sanitized.is_empty() && cursor_query_offsets.is_empty() {
+        if sanitized.is_empty()
+            && cursor_query_offsets.is_empty()
+            && window_size_requests.is_empty()
+        {
             return Ok(());
         }
 
