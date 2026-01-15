@@ -144,6 +144,7 @@ fn build_unix_path(
         let mut priority_paths = vec![
             format!("{home}/.local/bin"),
             format!("{home}/.cargo/bin"),
+            format!("{home}/.bun/bin"),
             format!("{home}/.pyenv/shims"),
             format!("{home}/bin"),
         ];
@@ -354,6 +355,7 @@ fn resolve_command_unix(command: &str, cwd: &str) -> String {
         let mut user_paths = vec![
             format!("{}/.local/bin", home),
             format!("{}/.cargo/bin", home),
+            format!("{}/.bun/bin", home),
             format!("{}/bin", home),
         ];
         user_paths.extend(super::nvm::nvm_bin_paths(&home, cwd));

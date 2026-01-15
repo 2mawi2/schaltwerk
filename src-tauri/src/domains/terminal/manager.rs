@@ -426,6 +426,21 @@ impl TerminalManager {
         Ok(())
     }
 
+    pub async fn inject_terminal_error(
+        &self,
+        id: String,
+        cwd: String,
+        message: String,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), String> {
+        self.backend
+            .inject_terminal_error(id.clone(), cwd, message, cols, rows)
+            .await?;
+        self.active_ids.write().await.insert(id);
+        Ok(())
+    }
+
     pub async fn write_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
         self.backend.write(&id, &data).await
     }

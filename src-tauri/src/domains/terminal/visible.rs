@@ -69,4 +69,8 @@ impl VisibleScreen {
     pub fn cursor_position(&self) -> (u16, u16) {
         self.parser.screen().cursor_position()
     }
+
+    pub fn size(&self) -> (u16, u16) {
+        self.parser.screen().size()
+    }
 }

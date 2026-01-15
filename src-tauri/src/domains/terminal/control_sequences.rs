@@ -3,20 +3,45 @@ pub enum SequenceResponse {
     Immediate(Vec<u8>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowSizeRequest {
+    Cells,
+    Pixels,
+    CellPixels,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SanitizedOutput {
     pub data: Vec<u8>,
     pub remainder: Option<Vec<u8>>,
     pub cursor_query_offsets: Vec<usize>,
+    pub window_size_requests: Vec<WindowSizeRequest>,
     pub responses: Vec<SequenceResponse>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ControlSequenceAction {
     Respond(&'static [u8]),
+    RespondDynamic(Vec<u8>),
     RespondCursorPosition,
+    RespondWindowSize(WindowSizeRequest),
     Drop,
     Pass,
+}
+
+fn build_decrqm_response(params: &[u8]) -> Option<Vec<u8>> {
+    let trimmed = params.strip_suffix(b"$")?;
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed
+        .iter()
+        .all(|byte| byte.is_ascii_digit() || *byte == b';')
+    {
+        Some(format!("\x1b[?{};2$y", String::from_utf8_lossy(trimmed)).into_bytes())
+    } else {
+        None
+    }
 }
 
 fn analyze_control_sequence(
@@ -58,6 +83,28 @@ fn analyze_control_sequence(
                 ControlSequenceAction::Pass
             }
         }
+        b't' => {
+            if prefix.is_none() && params == b"18" {
+                ControlSequenceAction::RespondWindowSize(WindowSizeRequest::Cells)
+            } else if prefix.is_none() && params == b"14" {
+                ControlSequenceAction::RespondWindowSize(WindowSizeRequest::Pixels)
+            } else if prefix.is_none() && params == b"16" {
+                ControlSequenceAction::RespondWindowSize(WindowSizeRequest::CellPixels)
+            } else {
+                ControlSequenceAction::Pass
+            }
+        }
+        b'p' => {
+            if prefix == Some(b'?') {
+                if let Some(response) = build_decrqm_response(params) {
+                    ControlSequenceAction::RespondDynamic(response)
+                } else {
+                    ControlSequenceAction::Pass
+                }
+            } else {
+                ControlSequenceAction::Pass
+            }
+        }
         _ => ControlSequenceAction::Pass,
     }
 }
@@ -66,6 +113,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
     let mut data = Vec::with_capacity(input.len());
     let mut remainder = None;
     let mut cursor_query_offsets = Vec::new();
+    let mut window_size_requests = Vec::new();
     let mut responses = Vec::new();
 
     let mut i = 0;
@@ -126,9 +174,19 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         responses.push(SequenceResponse::Immediate(reply.to_vec()));
                         i = cursor + 1;
                     }
+                    ControlSequenceAction::RespondDynamic(reply) => {
+                        log::trace!("Handled terminal query {:?}", &input[i..=cursor]);
+                        responses.push(SequenceResponse::Immediate(reply));
+                        i = cursor + 1;
+                    }
                     ControlSequenceAction::RespondCursorPosition => {
                         log::trace!("Captured cursor position query {:?}", &input[i..=cursor]);
                         cursor_query_offsets.push(data.len());
+                        i = cursor + 1;
+                    }
+                    ControlSequenceAction::RespondWindowSize(request) => {
+                        log::trace!("Captured window size query {:?}", &input[i..=cursor]);
+                        window_size_requests.push(request);
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Drop => {
@@ -136,7 +194,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         i = cursor + 1;
                     }
                     ControlSequenceAction::Pass => {
-                        const KNOWN_TERMINATORS: &[u8] = b"mHJKABCDrhls@PLMGdfSTtuXZ";
+                        const KNOWN_TERMINATORS: &[u8] = b"mHJKABCDrhls@PLMGdfSTtupXZq";
                         if !KNOWN_TERMINATORS.contains(&terminator) {
                             log::debug!(
                                 "Unknown CSI sequence passing through: prefix={:?} params={:?} terminator={:?}",
@@ -148,6 +206,27 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                         data.extend_from_slice(&input[i..=cursor]);
                         i = cursor + 1;
                     }
+                }
+                continue;
+            }
+            b'P' => {
+                let mut cursor = i + 2;
+                let mut terminator_index = None;
+                while cursor < input.len() {
+                    if input[cursor] == 0x1b && cursor + 1 < input.len() && input[cursor + 1] == b'\\'
+                    {
+                        terminator_index = Some(cursor);
+                        break;
+                    }
+                    cursor += 1;
+                }
+
+                if let Some(term_idx) = terminator_index {
+                    data.extend_from_slice(&input[i..=term_idx + 1]);
+                    i = term_idx + 2;
+                } else {
+                    remainder = Some(input[i..].to_vec());
+                    break;
                 }
                 continue;
             }
@@ -186,6 +265,12 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                                 b"\x1b]11;rgb:1e/1e/1e\x07".to_vec(),
                             ));
                             i = term_idx + terminator_len;
+                        } else if text.starts_with("12;?") {
+                            log::trace!("Responding to OSC cursor color query {text:?}");
+                            responses.push(SequenceResponse::Immediate(
+                                b"\x1b]12;rgb:ef/ef/ef\x07".to_vec(),
+                            ));
+                            i = term_idx + terminator_len;
                         } else if text.starts_with("8;") {
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
@@ -209,7 +294,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                 continue;
             }
             _ => {
-                const KNOWN_ESC_KINDS: &[u8] = b"78MDEc=>()";
+                const KNOWN_ESC_KINDS: &[u8] = b"78MDEc=>()\\";
                 if !KNOWN_ESC_KINDS.contains(&kind) {
                     log::debug!(
                         "Unknown escape sequence passing through: ESC {:?}",
@@ -227,13 +312,14 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
         data,
         remainder,
         cursor_query_offsets,
+        window_size_requests,
         responses,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
+    use super::{SanitizedOutput, SequenceResponse, WindowSizeRequest, sanitize_control_sequences};
 
     #[test]
     fn handles_cursor_position_queries() {
@@ -244,9 +330,66 @@ mod tests {
                 data: b"prepost".to_vec(),
                 remainder: None,
                 cursor_query_offsets: vec![3],
+                window_size_requests: Vec::new(),
                 responses: Vec::new(),
             }
         );
+    }
+
+    #[test]
+    fn captures_window_size_queries() {
+        let result = sanitize_control_sequences(b"pre\x1b[18t\x1b[14t\x1b[16tpost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+        assert_eq!(
+            result.window_size_requests,
+            vec![
+                WindowSizeRequest::Cells,
+                WindowSizeRequest::Pixels,
+                WindowSizeRequest::CellPixels,
+            ]
+        );
+    }
+
+    #[test]
+    fn responds_to_dec_private_mode_query() {
+        let result = sanitize_control_sequences(b"pre\x1b[?12$ppost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.window_size_requests.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?12;2$y".to_vec())
+        );
+    }
+
+    #[test]
+    fn responds_to_dec_private_mode_query_with_other_param() {
+        let result = sanitize_control_sequences(b"pre\x1b[?2004$ppost");
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.window_size_requests.is_empty());
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b[?2004;2$y".to_vec())
+        );
+    }
+
+    #[test]
+    fn passes_through_dcs_sequences() {
+        let sequence = b"pre\x1bP1;2|abcd\x1b\\post";
+        let result = sanitize_control_sequences(sequence);
+        assert_eq!(result.data, sequence);
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.window_size_requests.is_empty());
+        assert!(result.responses.is_empty());
     }
 
     #[test]
@@ -316,6 +459,21 @@ mod tests {
         assert_eq!(
             result.responses[0],
             SequenceResponse::Immediate(b"\x1b]11;rgb:1e/1e/1e\x07".to_vec()),
+        );
+    }
+
+    #[test]
+    fn responds_to_cursor_color_query() {
+        let result = sanitize_control_sequences(b"pre\x1b]12;?\x07post");
+
+        assert_eq!(result.data, b"prepost");
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+
+        assert_eq!(result.responses.len(), 1);
+        assert_eq!(
+            result.responses[0],
+            SequenceResponse::Immediate(b"\x1b]12;rgb:ef/ef/ef\x07".to_vec()),
         );
     }
 

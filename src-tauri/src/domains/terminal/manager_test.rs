@@ -766,6 +766,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_inject_terminal_error_populates_buffer() {
+        let manager = TerminalManager::new();
+        let id = unique_id("error-terminal");
+        let message = "Error: Failed to start agent".to_string();
+
+        manager
+            .inject_terminal_error(id.clone(), "/tmp".to_string(), message.clone(), 80, 24)
+            .await
+            .unwrap();
+
+        assert!(manager.terminal_exists(&id).await.unwrap());
+
+        let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
+        let rendered = String::from_utf8_lossy(&snapshot.data);
+        assert!(rendered.contains(&message));
+
+        manager.close_terminal(id).await.unwrap();
+    }
+
+    #[tokio::test]
     async fn test_empty_env_vs_custom_env() {
         let manager = TerminalManager::new();
 

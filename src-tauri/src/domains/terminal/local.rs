@@ -2,7 +2,7 @@ use super::coalescing::{
     CoalescingParams, CoalescingState, flush_terminal_output, handle_coalesced_output,
 };
 use super::command_builder::build_command_spec;
-use super::control_sequences::{SanitizedOutput, SequenceResponse, sanitize_control_sequences};
+use super::control_sequences::{SanitizedOutput, SequenceResponse, WindowSizeRequest, sanitize_control_sequences};
 use super::idle_detection::{IdleDetector, IdleTransition};
 use super::lifecycle::{self, LifecycleDeps};
 use super::submission::build_submission_payload;
@@ -256,6 +256,40 @@ impl LocalPtyAdapter {
         results
     }
 
+    pub async fn inject_terminal_error(
+        &self,
+        id: String,
+        cwd: String,
+        message: String,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), String> {
+        let error_bytes = message.into_bytes();
+        let seq = error_bytes.len() as u64;
+        let session_id = session_id_from_terminal_id(&id);
+        let state = TerminalState {
+            buffer: error_bytes,
+            seq,
+            start_seq: 0,
+            last_output: SystemTime::now(),
+            screen: VisibleScreen::new(rows, cols, id.clone()),
+            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, id.clone()),
+            session_id,
+        };
+
+        self.terminals.write().await.insert(id.clone(), state);
+        self.creating.lock().await.remove(&id);
+
+        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd });
+            if let Err(e) = emit_event(handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn wait_for_output_change(&self, id: &str, min_seq: u64) -> Result<u64, String> {
         let mut receiver = self.output_event_sender.subscribe();
 
@@ -452,6 +486,7 @@ impl LocalPtyAdapter {
             data: sanitized,
             remainder,
             cursor_query_offsets,
+            window_size_requests,
             responses,
         } = sanitize_control_sequences(&data);
 
@@ -481,11 +516,15 @@ impl LocalPtyAdapter {
             }
         }
 
-        if sanitized.is_empty() && cursor_query_offsets.is_empty() {
+        if sanitized.is_empty()
+            && cursor_query_offsets.is_empty()
+            && window_size_requests.is_empty()
+        {
             return Ok(());
         }
 
         let mut cursor_responses: Vec<Vec<u8>> = Vec::new();
+        let mut window_size_responses: Vec<Vec<u8>> = Vec::new();
         let mut current_seq: Option<u64> = None;
 
         {
@@ -536,6 +575,20 @@ impl LocalPtyAdapter {
                     apply_segment(state, segment);
                 }
 
+                if !window_size_requests.is_empty() {
+                    let (rows, cols) = state.screen.size();
+                    for request in &window_size_requests {
+                        let response = match request {
+                            WindowSizeRequest::Cells => {
+                                format!("\x1b[8;{rows};{cols}t").into_bytes()
+                            }
+                            WindowSizeRequest::Pixels => b"\x1b[4;0;0t".to_vec(),
+                            WindowSizeRequest::CellPixels => b"\x1b[6;0;0t".to_vec(),
+                        };
+                        window_size_responses.push(response);
+                    }
+                }
+
                 current_seq = Some(state.seq);
             }
         }
@@ -571,19 +624,19 @@ impl LocalPtyAdapter {
             .await;
         }
 
-        if !cursor_responses.is_empty() {
+        if !cursor_responses.is_empty() || !window_size_responses.is_empty() {
             let mut writers = reader_state.pty_writers.lock().await;
             if let Some(writer) = writers.get_mut(id) {
-                for response in cursor_responses {
+                for response in cursor_responses.into_iter().chain(window_size_responses) {
                     if response.is_empty() {
                         continue;
                     }
                     if let Err(e) = writer.write_all(&response) {
-                        warn!("Failed to write cursor response for {id}: {e}");
+                        warn!("Failed to write terminal response for {id}: {e}");
                         break;
                     }
                     if let Err(e) = writer.flush() {
-                        warn!("Failed to flush cursor response for {id}: {e}");
+                        warn!("Failed to flush terminal response for {id}: {e}");
                         break;
                     }
                 }

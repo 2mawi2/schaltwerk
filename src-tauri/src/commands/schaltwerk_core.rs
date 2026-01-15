@@ -79,6 +79,13 @@ fn summarize_error(message: &str) -> String {
         .to_string()
 }
 
+fn format_agent_start_error(message: &str) -> String {
+    let summary = summarize_error(message);
+    format!(
+        "\r\n\x1b[1;31mError: Failed to start agent\x1b[0m\r\n\r\n{summary}\r\n\r\nPlease check:\r\n- The agent binary path is correct in Settings\r\n- The binary exists and has execute permissions\r\n- The binary is compatible with your system\r\n"
+    )
+}
+
 fn emit_terminal_agent_started(
     app: &tauri::AppHandle,
     terminal_id: &str,
@@ -1598,15 +1605,27 @@ async fn schaltwerk_core_start_agent_in_terminal(
         .map(|m| (m.auto_send_initial_command, m.ready_marker.clone()))
         .unwrap_or((false, None));
 
-    // Check if we have permission to access the working directory
-    log::info!("Checking permissions for working directory: {cwd}");
-    terminals::ensure_cwd_access(&cwd)?;
-    log::info!("Working directory access confirmed: {cwd}");
-
     // Use override terminal ID if provided, otherwise derive from session name
     let terminal_id = terminal_id_override
         .unwrap_or_else(|| terminals::terminal_id_for_session_top(&session_name));
     let terminal_manager = get_terminal_manager().await?;
+
+    // Check if we have permission to access the working directory
+    log::info!("Checking permissions for working directory: {cwd}");
+    if let Err(err) = terminals::ensure_cwd_access(&cwd) {
+        let message = format_agent_start_error(&err);
+        let _ = terminal_manager
+            .inject_terminal_error(
+                terminal_id.clone(),
+                cwd.clone(),
+                message,
+                cols.unwrap_or(80),
+                rows.unwrap_or(24),
+            )
+            .await;
+        return Err(err);
+    }
+    log::info!("Working directory access confirmed: {cwd}");
 
     // Always relaunch: close existing terminal if present
     if terminal_manager.terminal_exists(&terminal_id).await? {
@@ -1775,7 +1794,7 @@ async fn schaltwerk_core_start_agent_in_terminal(
         agent_launcher::apply_command_prefix(command_prefix, agent_name, final_args);
 
     // Create terminal with initial size if provided
-    if use_shell_chain {
+    let create_result = if use_shell_chain {
         let sh_cmd = "sh".to_string();
         let Some(chained_command) = shell_cmd.take() else {
             log::error!("Shell chain requested without prepared command");
@@ -1794,11 +1813,11 @@ async fn schaltwerk_core_start_agent_in_terminal(
                     cols: c,
                     rows: r,
                 })
-                .await?;
+                .await
         } else {
             terminal_manager
                 .create_terminal_with_app(terminal_id.clone(), cwd, sh_cmd, sh_args, env_vars)
-                .await?;
+                .await
         }
     } else {
         match (cols, rows) {
@@ -1814,7 +1833,7 @@ async fn schaltwerk_core_start_agent_in_terminal(
                         cols: c,
                         rows: r,
                     })
-                    .await?;
+                    .await
             }
             _ => {
                 terminal_manager
@@ -1825,9 +1844,23 @@ async fn schaltwerk_core_start_agent_in_terminal(
                         final_args,
                         env_vars,
                     )
-                    .await?;
+                    .await
             }
         }
+    };
+
+    if let Err(err) = create_result {
+        let message = format_agent_start_error(&err);
+        let _ = terminal_manager
+            .inject_terminal_error(
+                terminal_id.clone(),
+                session.worktree_path.to_string_lossy().to_string(),
+                message,
+                cols.unwrap_or(80),
+                rows.unwrap_or(24),
+            )
+            .await;
+        return Err(err);
     }
 
     // For OpenCode and other TUI applications, the frontend will handle
