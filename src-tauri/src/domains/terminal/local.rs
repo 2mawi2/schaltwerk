@@ -256,6 +256,40 @@ impl LocalPtyAdapter {
         results
     }
 
+    pub async fn inject_terminal_error(
+        &self,
+        id: String,
+        cwd: String,
+        message: String,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), String> {
+        let error_bytes = message.into_bytes();
+        let seq = error_bytes.len() as u64;
+        let session_id = session_id_from_terminal_id(&id);
+        let state = TerminalState {
+            buffer: error_bytes,
+            seq,
+            start_seq: 0,
+            last_output: SystemTime::now(),
+            screen: VisibleScreen::new(rows, cols, id.clone()),
+            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, id.clone()),
+            session_id,
+        };
+
+        self.terminals.write().await.insert(id.clone(), state);
+        self.creating.lock().await.remove(&id);
+
+        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd });
+            if let Err(e) = emit_event(handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn wait_for_output_change(&self, id: &str, min_seq: u64) -> Result<u64, String> {
         let mut receiver = self.output_event_sender.subscribe();
 
