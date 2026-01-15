@@ -64,7 +64,7 @@ export function usePrComments(): UsePrCommentsResult {
 
       let useBracketedPaste = true
       let needsDelayedSubmit = false
-      if (agentType === 'claude' || agentType === 'droid') {
+      if (agentType === 'claude' || agentType === 'droid' || agentType === 'kilocode') {
         useBracketedPaste = false
         needsDelayedSubmit = true
       }

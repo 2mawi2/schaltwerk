@@ -39,7 +39,7 @@ pub fn build_submission_payload(
 /// - Claude/Droid require direct paste + delayed submit
 pub fn submission_options_for_agent(agent_type: Option<&str>) -> (bool, bool) {
     match agent_type {
-        Some("claude") | Some("droid") => (false, true),
+        Some("claude") | Some("droid") | Some("kilocode") => (false, true),
         _ => (true, false),
     }
 }
@@ -98,5 +98,10 @@ mod tests {
     fn submission_options_for_claude_and_droid_use_direct_delayed() {
         assert_eq!(submission_options_for_agent(Some("claude")), (false, true));
         assert_eq!(submission_options_for_agent(Some("droid")), (false, true));
+    }
+
+    #[test]
+    fn submission_options_for_kilocode_use_direct_delayed() {
+        assert_eq!(submission_options_for_agent(Some("kilocode")), (false, true));
     }
 }
