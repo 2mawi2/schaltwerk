@@ -688,8 +688,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
           }
 
           const signature = isCommanderMatch
-            ? `${ORCHESTRATOR_SESSION_NAME}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}`
-            : `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
+            ? `${ORCHESTRATOR_SESSION_NAME}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_commit}-${event.branch_info.head_commit}`
+            : `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map(serializeChangedFileSignature).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}-${event.branch_info.base_commit}-${event.branch_info.head_commit}`
+
+          if (signature === lastResultRef.current) {
+            return
+          }
 
           const cacheKey = isCommanderMatch
             ? getSessionKey(null, true)
