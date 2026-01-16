@@ -34,12 +34,16 @@ pub fn build_submission_payload(
 
 /// Determine the submission mode to use for a given agent.
 ///
+/// Returns (use_bracketed_paste, needs_delayed_submit).
+///
 /// This mirrors the frontend "review paste" behavior:
-/// - Most agents get bracketed paste + immediate submit
-/// - Claude/Droid require direct paste + delayed submit
+/// - Claude/Droid: direct paste + delayed submit (no brackets, delayed CR)
+/// - Kilocode (TUI agent): bracketed paste + delayed submit (brackets work for TUI, but needs delayed CR)
+/// - Others: bracketed paste + immediate submit (default)
 pub fn submission_options_for_agent(agent_type: Option<&str>) -> (bool, bool) {
     match agent_type {
-        Some("claude") | Some("droid") | Some("kilocode") => (false, true),
+        Some("claude") | Some("droid") => (false, true),
+        Some("kilocode") => (true, true),
         _ => (true, false),
     }
 }
@@ -101,7 +105,7 @@ mod tests {
     }
 
     #[test]
-    fn submission_options_for_kilocode_use_direct_delayed() {
-        assert_eq!(submission_options_for_agent(Some("kilocode")), (false, true));
+    fn submission_options_for_kilocode_use_bracketed_delayed() {
+        assert_eq!(submission_options_for_agent(Some("kilocode")), (true, true));
     }
 }

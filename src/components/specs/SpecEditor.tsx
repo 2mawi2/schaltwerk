@@ -30,6 +30,7 @@ import { SpecReviewEditor } from './SpecReviewEditor'
 import { useSpecLineSelection } from '../../hooks/useSpecLineSelection'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { getPasteSubmissionOptions } from '../../common/terminalPaste'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import type { SpecReviewComment } from '../../types/specReview'
 import { VscSend } from 'react-icons/vsc'
@@ -359,19 +360,14 @@ export function SpecEditor({ sessionName, onStart, disableFocusShortcut = false,
 
     const reviewText = formatSpecReviewForPrompt(reviewComments, sessionName, displayName)
 
-    let useBracketedPaste = true
-    let needsDelayedSubmit = false
-
+    let agentType: string | undefined
     try {
-      const agentType = await getOrchestratorAgentType()
-      if (agentType === 'claude' || agentType === 'droid') {
-        useBracketedPaste = false
-        needsDelayedSubmit = true
-      }
+      agentType = await getOrchestratorAgentType()
     } catch (err) {
       logger.error('[SpecEditor] Failed to get orchestrator agent type', err)
     }
 
+    const { useBracketedPaste, needsDelayedSubmit } = getPasteSubmissionOptions(agentType)
     const terminalId = getActiveAgentTerminalId('orchestrator') ?? 'orchestrator-top'
 
     try {

@@ -54,6 +54,7 @@ import { useHighlightWorker } from "../../hooks/useHighlightWorker";
 import { hashSegments } from "../../utils/hashSegments";
 import { stableSessionTerminalId } from "../../common/terminalIdentity";
 import { getActiveAgentTerminalId } from "../../common/terminalTargeting";
+import { getPasteSubmissionOptions } from "../../common/terminalPaste";
 import { ReviewCommentThread, ReviewComment } from "../../types/review";
 import { listenEvent, SchaltEvent } from "../../common/eventSystem";
 import { ORCHESTRATOR_SESSION_NAME } from "../../constants/sessions";
@@ -2675,8 +2676,6 @@ export function UnifiedDiffView({
 
     const reviewText = formatReviewForPrompt(currentReview.comments);
 
-    let useBracketedPaste = true;
-    let needsDelayedSubmit = false;
     let agentType: string | undefined;
 
     if (sessionName) {
@@ -2690,10 +2689,7 @@ export function UnifiedDiffView({
       }
     }
 
-    if (agentType === "claude" || agentType === "droid") {
-      useBracketedPaste = false;
-      needsDelayedSubmit = true;
-    }
+    const { useBracketedPaste, needsDelayedSubmit } = getPasteSubmissionOptions(agentType);
 
     try {
       if (selectedKind === "orchestrator") {

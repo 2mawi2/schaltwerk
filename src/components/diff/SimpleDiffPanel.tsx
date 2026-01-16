@@ -27,6 +27,7 @@ import { useFocus } from '../../contexts/FocusContext'
 import { useSessions } from '../../hooks/useSessions'
 import { stableSessionTerminalId } from '../../common/terminalIdentity'
 import { getActiveAgentTerminalId } from '../../common/terminalTargeting'
+import { getPasteSubmissionOptions } from '../../common/terminalPaste'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
@@ -156,8 +157,6 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     if (!currentReview || currentReview.comments.length === 0) return
 
     const reviewText = formatReviewForPrompt(currentReview.comments)
-    let useBracketedPaste = true
-    let needsDelayedSubmit = false
     let agentType: string | undefined
 
     if (selection.kind === 'session') {
@@ -171,10 +170,7 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
       }
     }
 
-    if (agentType === 'claude' || agentType === 'droid') {
-      useBracketedPaste = false
-      needsDelayedSubmit = true
-    }
+    const { useBracketedPaste, needsDelayedSubmit } = getPasteSubmissionOptions(agentType)
 
     try {
       if (selection.kind === 'orchestrator') {
