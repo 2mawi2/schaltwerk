@@ -18,7 +18,7 @@ use super::file_index::refresh_project_files;
 use crate::domains::git::service as git;
 use crate::shared::merge_snapshot_gateway::MergeSnapshotGateway;
 use crate::shared::session_metadata_gateway::{ChangedFile, SessionGitStatsUpdated};
-use git2::Repository;
+use git2::{Oid, Repository};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {
@@ -100,6 +100,16 @@ pub struct FileWatcher {
     _worktree_path: PathBuf,
     _debouncer: Debouncer<RecommendedWatcher>,
     _gitdir_index: Option<PathBuf>,
+}
+
+fn short_oid(repo: &Repository, oid: Oid) -> String {
+    if let Ok(obj) = repo.find_object(oid, None)
+        && let Ok(buf) = obj.short_id()
+        && let Ok(s) = std::str::from_utf8(&buf)
+    {
+        return s.to_string();
+    }
+    oid.to_string().chars().take(7).collect()
 }
 
 impl FileWatcher {
@@ -515,7 +525,6 @@ impl FileWatcher {
         worktree_path: &Path,
         base_branch: &str,
     ) -> Result<BranchInfo, String> {
-        // Use libgit2 to get branch and commit info
         let (current_branch, base_commit, head_commit) = match git2::Repository::open(worktree_path)
         {
             Ok(repo) => {
@@ -527,19 +536,27 @@ impl FileWatcher {
                 if cur.is_empty() {
                     cur = "HEAD".to_string();
                 }
-                let base = repo
+
+                let head_oid = repo.head().ok().and_then(|h| h.target());
+                let base_branch_oid = repo
                     .revparse_single(base_branch)
                     .ok()
-                    .map(|o| o.id().to_string())
-                    .map(|s| s.chars().take(7).collect())
-                    .unwrap_or_else(|| "".to_string());
-                let head = repo
-                    .head()
-                    .ok()
-                    .and_then(|h| h.target())
-                    .map(|oid| oid.to_string())
-                    .map(|s| s.chars().take(7).collect())
-                    .unwrap_or_else(|| "".to_string());
+                    .and_then(|o| o.peel_to_commit().ok())
+                    .map(|c| c.id());
+
+                let base = match (head_oid, base_branch_oid) {
+                    (Some(head), Some(base_tip)) => {
+                        let merge_base_oid = repo.merge_base(head, base_tip).unwrap_or(base_tip);
+                        short_oid(&repo, merge_base_oid)
+                    }
+                    (_, Some(base_tip)) => short_oid(&repo, base_tip),
+                    _ => String::new(),
+                };
+
+                let head = head_oid
+                    .map(|oid| short_oid(&repo, oid))
+                    .unwrap_or_default();
+
                 (cur, base, head)
             }
             Err(_) => ("HEAD".to_string(), "".to_string(), "".to_string()),
