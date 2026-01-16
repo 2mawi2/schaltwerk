@@ -8,6 +8,7 @@ import { useSessions } from './useSessions'
 import { useClaudeSession } from './useClaudeSession'
 import { stableSessionTerminalId } from '../common/terminalIdentity'
 import { getActiveAgentTerminalId } from '../common/terminalTargeting'
+import { getPasteSubmissionOptions } from '../common/terminalPaste'
 import { logger } from '../utils/logger'
 import { useTranslation } from '../common/i18n'
 import {
@@ -61,13 +62,7 @@ export function usePrComments(): UsePrCommentsResult {
 
       const formatted = formatPrReviewCommentsForTerminal(comments, prNumber)
       const agentType = await determineAgentType()
-
-      let useBracketedPaste = true
-      let needsDelayedSubmit = false
-      if (agentType === 'claude' || agentType === 'droid' || agentType === 'kilocode') {
-        useBracketedPaste = false
-        needsDelayedSubmit = true
-      }
+      const { useBracketedPaste, needsDelayedSubmit } = getPasteSubmissionOptions(agentType)
 
       if (selection.kind === 'orchestrator') {
         const baseTerminalId = terminals.top || 'orchestrator-top'
