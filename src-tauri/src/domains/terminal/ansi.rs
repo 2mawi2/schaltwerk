@@ -72,9 +72,24 @@ fn is_incomplete_sequence(sequence: &[u8]) -> bool {
             }
             true // No terminator found
         }
+        // DCS sequences: ESC P ... ST (ESC \)
+        b'P' => {
+            if sequence.len() < 3 {
+                return true;
+            }
+            for i in 2..sequence.len() {
+                if sequence[i] == 0x1B
+                    && i + 1 < sequence.len()
+                    && sequence[i + 1] == b'\\'
+                {
+                    return false;
+                }
+            }
+            true
+        }
         // Single character sequences (like ESC c, ESC =, etc.)
-        b'=' | b'>' | b'c' | b'D' | b'E' | b'H' | b'M' | b'N' | b'O' | b'P' | b'Q' | b'R'
-        | b'S' | b'T' | b'U' | b'V' | b'W' | b'X' | b'Y' | b'Z' | b'\\' => {
+        b'=' | b'>' | b'c' | b'D' | b'E' | b'H' | b'M' | b'N' | b'O' | b'Q' | b'R' | b'S'
+        | b'T' | b'U' | b'V' | b'W' | b'X' | b'Y' | b'Z' | b'\\' => {
             false // These are complete single-character sequences
         }
         // Two character sequences starting with # or (
@@ -204,10 +219,10 @@ mod tests {
     #[test]
     fn test_incomplete_dcs_sequences() {
         // DCS (Device Control String) sequences
-        assert!(!has_incomplete_ansi_sequence(b"\x1bP")); // P is a complete single-character sequence
-        assert!(!has_incomplete_ansi_sequence(b"\x1bP0")); // Current impl stops at 'P'
-        assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1")); // Current impl stops at 'P'
-        assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1|17/ab")); // P is not recognized as DCS start
+        assert!(has_incomplete_ansi_sequence(b"\x1bP"));
+        assert!(has_incomplete_ansi_sequence(b"\x1bP0"));
+        assert!(has_incomplete_ansi_sequence(b"\x1bP0;1"));
+        assert!(has_incomplete_ansi_sequence(b"\x1bP0;1|17/ab"));
 
         // Complete DCS sequence (terminated with ST)
         assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1|17/ab\x1b\\"));
