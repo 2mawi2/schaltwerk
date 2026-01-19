@@ -1481,8 +1481,24 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return false; // Prevent default Enter behavior
             }
 
-            if (isMac && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-                // On macOS, intercept Option+Arrow to avoid stray text injection from DOM key handling.
+            if (
+                isMac &&
+                event.type === 'keydown' &&
+                event.altKey &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.shiftKey &&
+                (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+            ) {
+                event.preventDefault()
+
+                if (!readOnlyRef.current) {
+                    const sequence = event.key === 'ArrowLeft' ? '\x1bb' : '\x1bf'
+                    const filter = inputFilterRef.current
+                    if (!filter || filter(sequence)) {
+                        writeTerminalBackend(terminalId, sequence).catch(err => logger.debug('[Terminal] option+arrow ignored (backend not ready yet)', err))
+                    }
+                }
                 return false
             }
             // Prefer Shift+Modifier+N as "New spec"

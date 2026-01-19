@@ -480,7 +480,7 @@ describe('Terminal', () => {
     expect(result).toBe(false)
   })
 
-  it('blocks Option+Arrow navigation from being injected on macOS', async () => {
+  it('routes Option+Arrow navigation to word-move sequences on macOS', async () => {
     renderTerminal({ terminalId: 'session-alt-arrow-top', sessionName: 'alt-arrow' })
 
     await waitFor(() => {
@@ -501,9 +501,11 @@ describe('Terminal', () => {
       preventDefault: vi.fn(),
     } as unknown as KeyboardEvent
 
+    vi.mocked(writeTerminalBackend).mockClear()
     const result = handler(event)
 
-    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(writeTerminalBackend).toHaveBeenCalledWith('session-alt-arrow-top', '\x1bb')
     expect(result).toBe(false)
   })
 
