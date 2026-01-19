@@ -1480,6 +1480,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
                 return false; // Prevent default Enter behavior
             }
+
+            if (isMac && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+                // On macOS, intercept Option+Arrow to avoid stray text injection from DOM key handling.
+                return false
+            }
             // Prefer Shift+Modifier+N as "New spec"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 emitUiEvent(UiEvent.NewSpecRequest)

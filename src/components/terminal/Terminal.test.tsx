@@ -480,6 +480,33 @@ describe('Terminal', () => {
     expect(result).toBe(false)
   })
 
+  it('blocks Option+Arrow navigation from being injected on macOS', async () => {
+    renderTerminal({ terminalId: 'session-alt-arrow-top', sessionName: 'alt-arrow' })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).raw.attachCustomKeyEventHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.raw.attachCustomKeyEventHandler.mock.calls[0]?.[0] as ((event: KeyboardEvent) => boolean)
+
+    const event = {
+      type: 'keydown',
+      key: 'ArrowLeft',
+      metaKey: false,
+      ctrlKey: false,
+      altKey: true,
+      shiftKey: false,
+      preventDefault: vi.fn(),
+    } as unknown as KeyboardEvent
+
+    const result = handler(event)
+
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(result).toBe(false)
+  })
+
   it('selects all terminal output on Cmd+A via window capture handler', async () => {
     const utils = renderTerminal({ terminalId: 'session-select-all-capture-top', sessionName: 'select-all-capture' })
 
