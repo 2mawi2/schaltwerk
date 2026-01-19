@@ -239,8 +239,11 @@ mod tests {
     use tempfile::TempDir;
 
     fn run_git(path: &Path, args: &[&str]) {
+        let global_config = path.join(".gitconfig-test");
         let output = Command::new("git")
             .current_dir(path)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", &global_config)
             .args(args)
             .output()
             .expect("failed to execute git command");
@@ -255,8 +258,11 @@ mod tests {
     }
 
     fn run_git_allow_failure(path: &Path, args: &[&str]) -> ExitStatus {
+        let global_config = path.join(".gitconfig-test");
         Command::new("git")
             .current_dir(path)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", &global_config)
             .args(args)
             .output()
             .expect("failed to execute git command")

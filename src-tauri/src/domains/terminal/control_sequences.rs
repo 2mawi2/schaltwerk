@@ -166,6 +166,21 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
 
                 let terminator = input[cursor];
                 let params = &input[params_start..cursor];
+
+                // X10 mouse mode encodes the payload as three bytes immediately after `CSI M`.
+                // If a TUI forgets to disable mouse tracking, those bytes can get echoed back by the shell
+                // and show up as "messy" control characters.
+                if terminator == b'M'
+                    && prefix.is_none()
+                    && params.is_empty()
+                    && cursor + 3 < input.len()
+                    && (0x20..=0x3f).contains(&input[cursor + 1])
+                {
+                    log::trace!("Dropped X10 mouse sequence {:?}", &input[i..=cursor + 3]);
+                    i = cursor + 4;
+                    continue;
+                }
+
                 let action = analyze_control_sequence(prefix, params, terminator);
 
                 match action {
@@ -415,6 +430,19 @@ mod tests {
     #[test]
     fn drops_sgr_mouse_release_sequences() {
         let sequence = b"\x1b[<0;12;24m";
+        let result = sanitize_control_sequences(sequence);
+
+        assert!(result.data.is_empty());
+        assert!(result.remainder.is_none());
+        assert!(result.cursor_query_offsets.is_empty());
+        assert!(result.responses.is_empty());
+    }
+
+    #[test]
+    fn drops_x10_mouse_sequences() {
+        // X10 mouse mode: CSI M Cb Cx Cy
+        // Cx/Cy are 1-based coordinates encoded as (value + 32), so the smallest is '!'.
+        let sequence = b"\x1b[M !!";
         let result = sanitize_control_sequences(sequence);
 
         assert!(result.data.is_empty());
