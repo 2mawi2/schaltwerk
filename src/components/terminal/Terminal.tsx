@@ -528,12 +528,38 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         return true;
     }, [terminalId]);
 
-     // Initialize agentStopped state from sessionStorage (only for agent top terminals)
-     useEffect(() => {
-         if (!isAgentTopTerminal) return;
-         const key = `schaltwerk:agent-stopped:${terminalId}`;
-         setAgentStopped(sessionStorage.getItem(key) === 'true');
-     }, [isAgentTopTerminal, terminalId]);
+    const shouldFilterMouseTracking = useCallback(() => {
+        const wrapper = xtermWrapperRef.current;
+        if (!wrapper) return true;
+        if (typeof wrapper.isTuiMode === 'function') {
+            return !wrapper.isTuiMode();
+        }
+        return true;
+    }, []);
+
+    const isMouseTrackingSequence = useCallback((data: string): boolean => {
+        if (!data.startsWith('\u001b[')) return false;
+        const body = data.slice(2);
+        if (/^<\d+;\d+;\d+[Mm]$/.test(body)) {
+            return true;
+        }
+        if (body.startsWith('M') && body.length >= 4) {
+            const b1 = body.charCodeAt(1);
+            const b2 = body.charCodeAt(2);
+            const b3 = body.charCodeAt(3);
+            if (b1 >= 0x20 && b1 <= 0x7f && b2 >= 0x20 && b2 <= 0x7f && b3 >= 0x20 && b3 <= 0x7f) {
+                return true;
+            }
+        }
+        return false;
+    }, []);
+
+    // Initialize agentStopped state from sessionStorage (only for agent top terminals)
+    useEffect(() => {
+        if (!isAgentTopTerminal) return;
+        const key = `schaltwerk:agent-stopped:${terminalId}`;
+        setAgentStopped(sessionStorage.getItem(key) === 'true');
+    }, [isAgentTopTerminal, terminalId]);
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, _force = false) => {
         if (!terminal.current) return false;
@@ -1668,6 +1694,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 return;
             }
 
+            if (isMouseTrackingSequence(data) && shouldFilterMouseTracking()) {
+                return;
+            }
+
             // Filter out xterm.js focus reporting sequences that get sent when focus changes.
             // These are CSI I (focus in) and CSI O (focus out) - we don't want them sent to the PTY
             // as they'll be displayed as raw ^[[I / ^[[O if the shell doesn't handle them.
@@ -1817,6 +1847,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 }
                 onScrollDisposableRef.current = null;
             }
+
+            // Do not emit mouse disable on unmount; agents may still be shutting down and interpret it as stdin.
 
             detachTerminalInstance(terminalId);
             logScrollSnapshot('cleanup:after-detach');

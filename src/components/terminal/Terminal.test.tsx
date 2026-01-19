@@ -802,6 +802,30 @@ describe('Terminal', () => {
     }
   })
 
+  it('drops mouse tracking sequences before sending to the backend', async () => {
+    const { instances } = terminalHarness
+
+    renderTerminal({ terminalId: 'session-mouse-top', sessionName: 'demo' })
+
+    await waitFor(() => {
+      expect(instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = instances[0] as HarnessInstance
+    const onData = instance.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onData).toBeTypeOf('function')
+
+    vi.mocked(writeTerminalBackend).mockClear()
+
+    onData?.('\u001b[<1;2;3M')
+    onData?.('\u001b[<1;2;3m')
+    onData?.('\u001b[M!!#')
+    onData?.('\u001b[32m')
+
+    expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+    expect(writeTerminalBackend).toHaveBeenCalledWith('session-mouse-top', '\u001b[32m')
+  })
+
   it('ignores duplicate resize observer measurements', async () => {
     renderTerminal({ terminalId: 'session-resize-case-top', sessionName: 'resize-case' })
 
