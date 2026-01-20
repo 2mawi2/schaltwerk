@@ -20,7 +20,7 @@ describe('getPasteSubmissionOptions', () => {
   it('returns brackets and immediate submit for standard agents', () => {
     expect(getPasteSubmissionOptions('codex')).toEqual({ useBracketedPaste: true, needsDelayedSubmit: false })
     expect(getPasteSubmissionOptions('gemini')).toEqual({ useBracketedPaste: true, needsDelayedSubmit: false })
-    expect(getPasteSubmissionOptions('opencode')).toEqual({ useBracketedPaste: true, needsDelayedSubmit: false })
+    expect(getPasteSubmissionOptions('opencode')).toEqual({ useBracketedPaste: true, needsDelayedSubmit: true })
   })
 
   it('returns default for undefined agent type', () => {
