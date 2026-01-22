@@ -922,9 +922,12 @@ fn run_git(current_dir: &Path, args: Vec<OsString>) -> Result<()> {
         path = current_dir.display()
     );
 
+    let global_config = current_dir.join(".gitconfig-test");
     let output = std::process::Command::new("git")
         .args(&args)
         .current_dir(current_dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", &global_config)
         .output()
         .with_context(|| format!("Failed to execute git command: {args:?}"))?;
 
@@ -1425,13 +1428,16 @@ pub fn update_session_from_parent(
         }
     };
 
+    let mut merge_args = vec!["merge".to_string()];
+    if merge_base != session_oid {
+        merge_args.push("--no-ff".to_string());
+    }
+    merge_args.push(merge_target_ref.clone());
+    merge_args.push("-m".to_string());
+    merge_args.push(format!("Merge {local_parent_branch} into {session_name}"));
+
     let merge_commit_result = std::process::Command::new("git")
-        .args([
-            "merge",
-            &merge_target_ref,
-            "-m",
-            &format!("Merge {local_parent_branch} into {session_name}"),
-        ])
+        .args(&merge_args)
         .current_dir(worktree_path)
         .output();
 
@@ -2325,7 +2331,7 @@ mod tests {
         commit_file(&repo_path, "conflict.txt", "parent change\n", "parent edit");
 
         let merge_attempt = std::process::Command::new("git")
-            .args(["merge", "main"])
+            .args(["merge", "--no-ff", "main"])
             .current_dir(&session.worktree_path)
             .output()
             .unwrap();

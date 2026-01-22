@@ -12,7 +12,7 @@ export const AGENT_TYPES = [
 ] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
-export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilocode', 'claude'] as const
+export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilocode', 'claude', 'opencode'] as const
 
 export function isTuiAgent(agentType: string | null | undefined): boolean {
     if (!agentType) return false

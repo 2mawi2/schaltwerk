@@ -480,6 +480,35 @@ describe('Terminal', () => {
     expect(result).toBe(false)
   })
 
+  it('routes Option+Arrow navigation to word-move sequences on macOS', async () => {
+    renderTerminal({ terminalId: 'session-alt-arrow-top', sessionName: 'alt-arrow' })
+
+    await waitFor(() => {
+      expect(terminalHarness.instances.length).toBeGreaterThan(0)
+      expect((terminalHarness.instances[0] as HarnessInstance).raw.attachCustomKeyEventHandler).toHaveBeenCalled()
+    })
+
+    const instance = terminalHarness.instances[0] as HarnessInstance
+    const handler = instance.raw.attachCustomKeyEventHandler.mock.calls[0]?.[0] as ((event: KeyboardEvent) => boolean)
+
+    const event = {
+      type: 'keydown',
+      key: 'ArrowLeft',
+      metaKey: false,
+      ctrlKey: false,
+      altKey: true,
+      shiftKey: false,
+      preventDefault: vi.fn(),
+    } as unknown as KeyboardEvent
+
+    vi.mocked(writeTerminalBackend).mockClear()
+    const result = handler(event)
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(writeTerminalBackend).toHaveBeenCalledWith('session-alt-arrow-top', '\x1bb')
+    expect(result).toBe(false)
+  })
+
   it('selects all terminal output on Cmd+A via window capture handler', async () => {
     const utils = renderTerminal({ terminalId: 'session-select-all-capture-top', sessionName: 'select-all-capture' })
 
@@ -771,6 +800,30 @@ describe('Terminal', () => {
         terminalHarness.acquireMock.mockImplementation(originalAcquire)
       }
     }
+  })
+
+  it('drops mouse tracking sequences before sending to the backend', async () => {
+    const { instances } = terminalHarness
+
+    renderTerminal({ terminalId: 'session-mouse-top', sessionName: 'demo' })
+
+    await waitFor(() => {
+      expect(instances.length).toBeGreaterThan(0)
+    })
+
+    const instance = instances[0] as HarnessInstance
+    const onData = instance.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
+    expect(onData).toBeTypeOf('function')
+
+    vi.mocked(writeTerminalBackend).mockClear()
+
+    onData?.('\u001b[<1;2;3M')
+    onData?.('\u001b[<1;2;3m')
+    onData?.('\u001b[M!!#')
+    onData?.('\u001b[32m')
+
+    expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
+    expect(writeTerminalBackend).toHaveBeenCalledWith('session-mouse-top', '\u001b[32m')
   })
 
   it('ignores duplicate resize observer measurements', async () => {
