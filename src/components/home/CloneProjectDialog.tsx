@@ -210,10 +210,10 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
       style={{ backgroundColor: 'var(--color-overlay-backdrop)' }}
     >
       <div
-        className="w-full max-w-2xl mx-4 border rounded-lg shadow-xl"
+        className="w-full max-w-2xl mx-4 border rounded-lg shadow-xl max-h-[90vh] flex flex-col"
         style={{ backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-default)' }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--color-border-default)' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--color-border-default)' }}>
           <div className="flex items-center gap-3">
             <VscRepoClone className="text-2xl" style={{ color: 'var(--color-accent-blue)' }} />
             <div>
@@ -231,7 +231,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
           {error && (
             <div
               className="p-3 rounded text-sm"
@@ -331,7 +331,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
 
           {progressMessage && (
             <div
-              className="text-sm font-mono px-3 py-2 rounded"
+              className="text-sm font-mono px-3 py-2 rounded overflow-y-auto max-h-32"
               style={{
                 backgroundColor: 'var(--color-bg-secondary)',
                 color: 'var(--color-text-secondary)'
@@ -342,7 +342,7 @@ export function CloneProjectDialog({ isOpen, onClose, onProjectCloned }: ClonePr
           )}
         </div>
 
-        <div className="flex items-center gap-3 px-6 py-4 border-t" style={{ borderColor: 'var(--color-border-default)' }}>
+        <div className="flex items-center gap-3 px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--color-border-default)' }}>
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded-lg transition-colors"
