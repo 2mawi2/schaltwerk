@@ -1018,8 +1018,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             logger.info('Run script not saved - requires active project', error)
         }
         
-        // Save action buttons if they've been modified
-        if (hasUnsavedChanges) {
+        // Save action buttons if they've been modified (only when a project is active)
+        if (hasUnsavedChanges && projectPath) {
             // Ensure color is explicitly present (avoid undefined getting dropped over invoke)
             const normalizedButtons = editableActionButtons.map(b => ({
                 ...b,
