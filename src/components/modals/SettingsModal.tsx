@@ -1233,7 +1233,12 @@ fi`}
                                             />
                                             <button
                                                 onClick={() => handleRemoveRunEnvVar(index)}
-                                                className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                                className="px-3 py-2 rounded-lg border transition-colors"
+                                                style={{
+                                                    backgroundColor: 'var(--color-bg-elevated)',
+                                                    borderColor: 'var(--color-border-subtle)',
+                                                    color: 'var(--color-text-tertiary)',
+                                                }}
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1243,7 +1248,12 @@ fi`}
                             ))}
                             <button
                                 onClick={handleAddRunEnvVar}
-                                className="w-full mt-1 px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary flex items-center justify-center gap-2"
+                                className="w-full mt-1 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2"
+                                style={{
+                                    backgroundColor: 'var(--color-bg-elevated)',
+                                    borderColor: 'var(--color-border-subtle)',
+                                    color: 'var(--color-text-secondary)',
+                                }}
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1299,7 +1309,12 @@ fi`}
                                     />
                                     <button
                                         onClick={() => handleRemoveProjectEnvVar(index)}
-                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                        className="px-3 py-2 rounded-lg border transition-colors"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-elevated)',
+                                            borderColor: 'var(--color-border-subtle)',
+                                            color: 'var(--color-text-tertiary)',
+                                        }}
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1310,7 +1325,12 @@ fi`}
 
                             <button
                                 onClick={handleAddProjectEnvVar}
-                                className="w-full mt-2 px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary flex items-center justify-center gap-2"
+                                className="w-full mt-2 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2"
+                                style={{
+                                    backgroundColor: 'var(--color-bg-elevated)',
+                                    borderColor: 'var(--color-border-subtle)',
+                                    color: 'var(--color-text-secondary)',
+                                }}
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1417,7 +1437,10 @@ fi`}
                                             setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
                                             setHasUnsavedChanges(true)
                                         }}
-                                        className="text-red-400 hover:text-red-300 text-body flex items-center gap-1"
+                                        className="text-body flex items-center gap-1 transition-colors"
+                                        style={{
+                                            color: 'var(--color-text-tertiary)',
+                                        }}
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1440,7 +1463,11 @@ fi`}
                                     setEditableActionButtons([...editableActionButtons, newButton])
                                     setHasUnsavedChanges(true)
                                 }}
-                                className="w-full border-2 border-dashed border-border-strong rounded-lg p-4 text-text-tertiary hover:text-text-secondary hover:border-border-strong transition-colors flex items-center justify-center gap-2"
+                                className="w-full border-2 border-dashed rounded-lg p-4 transition-colors flex items-center justify-center gap-2"
+                                style={{
+                                    borderColor: 'var(--color-border-subtle)',
+                                    color: 'var(--color-text-tertiary)',
+                                }}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1470,7 +1497,10 @@ fi`}
                             }
                         })()
                     }}
-                    className="text-text-tertiary hover:text-text-secondary text-body"
+                    className="text-body transition-colors"
+                    style={{
+                        color: 'var(--color-text-tertiary)',
+                    }}
                 >
                     {t.settings.projectActions.resetToDefaults}
                 </button>
@@ -1551,11 +1581,17 @@ fi`}
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
-                             className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
-                                 activeAgentTab === agent
-                                     ? 'text-text-primary border-b-2 border-[var(--color-border-focus)]'
-                                     : 'text-text-tertiary hover:text-text-secondary'
-                             }`}
+                            className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
+                                activeAgentTab === agent
+                                    ? 'border-b-2'
+                                    : ''
+                            }`}
+                            style={activeAgentTab === agent ? {
+                                color: 'var(--color-text-primary)',
+                                borderColor: 'var(--color-border-focus)',
+                            } : {
+                                color: 'var(--color-text-tertiary)',
+                            }}
                         >
                             {displayNameForAgent(agent)}
                         </button>
@@ -1590,7 +1626,12 @@ fi`}
                                 <span className="text-caption text-text-tertiary">{t.settings.environment.currentBinary}</span>
                                 <button
                                     onClick={() => { void handleRefreshBinaryDetection(activeAgentTab) }}
-                                    className="px-3 py-1.5 bg-bg-hover/50 hover:bg-bg-active active:bg-bg-hover border border-border-strong hover:border-accent-blue/50 rounded transition-all duration-150 text-caption text-text-secondary hover:text-accent-blue flex items-center gap-1.5 active:scale-95"
+                                    className="flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-elevated)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-secondary)',
+                                    }}
                                     title={t.settings.common.refresh}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1608,7 +1649,10 @@ fi`}
                                     <div className="text-caption text-text-muted">{t.settings.environment.customPath}</div>
                                     <button
                                         onClick={() => { void handleBinaryPathChange(activeAgentTab, null) }}
-                                        className="text-caption text-orange-400 hover:text-orange-300 transition-colors"
+                                        className="text-caption transition-colors"
+                                        style={{
+                                            color: 'var(--color-text-secondary)',
+                                        }}
                                     >
                                         {t.settings.environment.resetToAutoDetect}
                                     </button>
@@ -1660,7 +1704,12 @@ fi`}
                                 />
                                 <button
                                     onClick={() => { void openFilePicker(activeAgentTab) }}
-                                    className="px-3 py-2 bg-bg-hover hover:bg-bg-active text-text-primary rounded border border-border-strong text-body transition-colors"
+                                    className="rounded-lg border px-3 py-2 transition-colors"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-elevated)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-secondary)',
+                                    }}
                                     title={t.settings.common.browse}
                                 >
                                     {t.settings.common.browse}
@@ -1675,7 +1724,11 @@ fi`}
                                         {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
                                             <div
                                                 key={index}
-                                                className="flex items-center justify-between p-2 bg-bg-tertiary rounded hover:bg-bg-hover transition-colors cursor-pointer"
+                                                className="flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer"
+                                                style={{
+                                                    backgroundColor: 'var(--color-bg-elevated)',
+                                                    borderColor: 'var(--color-border-subtle)',
+                                                }}
                                                 onClick={() => { void handleBinaryPathChange(activeAgentTab, binary.path) }}
                                             >
                                                 <div className="flex-1 min-w-0">
@@ -1855,7 +1908,12 @@ fi`}
                                     />
                                     <button
                                         onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
-                                        className="px-3 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary hover:text-red-400"
+                                        className="px-3 py-2 rounded-lg border transition-colors"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-elevated)',
+                                            borderColor: 'var(--color-border-subtle)',
+                                            color: 'var(--color-text-tertiary)',
+                                        }}
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1867,7 +1925,12 @@ fi`}
 
                         <button
                             onClick={() => handleAddEnvVar(activeAgentTab)}
-                            className="flex items-center gap-2 px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-secondary"
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors"
+                            style={{
+                                backgroundColor: 'var(--color-bg-elevated)',
+                                borderColor: 'var(--color-border-subtle)',
+                                color: 'var(--color-text-secondary)',
+                            }}
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -1999,7 +2062,12 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setTerminalFontSize(13)}
-                                        className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
+                                        className="px-3 py-1 text-caption rounded-lg border transition-colors"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-elevated)',
+                                            borderColor: 'var(--color-border-subtle)',
+                                            color: 'var(--color-text-secondary)',
+                                        }}
                                     >
                                         {t.settings.common.reset}
                                     </button>
@@ -2025,7 +2093,12 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setUiFontSize(12)}
-                                        className="px-3 py-1 text-caption bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-tertiary"
+                                        className="px-3 py-1 text-caption rounded-lg border transition-colors"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-elevated)',
+                                            borderColor: 'var(--color-border-subtle)',
+                                            color: 'var(--color-text-secondary)',
+                                        }}
                                     >
                                         {t.settings.common.reset}
                                     </button>
@@ -2045,7 +2118,12 @@ fi`}
                             <div className="mt-2">
                                 <button
                                     onClick={() => setShowFontPicker(v => !v)}
-                                    className="px-3 py-1.5 text-caption bg-bg-tertiary hover:bg-bg-hover rounded text-text-secondary"
+                                    className="px-3 py-1.5 text-caption rounded-lg border transition-colors"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-elevated)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-secondary)',
+                                    }}
                                 >{t.settings.appearance.browseFonts}</button>
                             </div>
                             {showFontPicker && (
@@ -2153,23 +2231,38 @@ fi`}
                                             />
                                             <button
                                                 onClick={() => handleShortcutRecord(item.action)}
-                                                className={`px-2.5 py-1.5 text-caption rounded-lg transition-colors ${
-                                                     isRecording
-                                                         ? 'border border-accent-blue text-accent-blue bg-accent-blue/10'
-                                                         : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'
-                                                 }`}
+                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
+                                                style={isRecording ? {
+                                                    backgroundColor: 'var(--color-accent-blue-bg)',
+                                                    borderColor: 'var(--color-accent-blue)',
+                                                    color: 'var(--color-accent-blue)',
+                                                } : {
+                                                    backgroundColor: 'var(--color-bg-elevated)',
+                                                    borderColor: 'var(--color-border-subtle)',
+                                                    color: 'var(--color-text-primary)',
+                                                }}
                                             >
                                                 {isRecording ? 'Listening…' : 'Record'}
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutReset(item.action)}
-                                                className="px-2.5 py-1.5 text-caption bg-bg-tertiary text-text-secondary rounded-lg hover:bg-bg-hover"
+                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
+                                                style={{
+                                                    backgroundColor: 'var(--color-bg-elevated)',
+                                                    borderColor: 'var(--color-border-subtle)',
+                                                    color: 'var(--color-text-secondary)',
+                                                }}
                                             >
                                                 Reset
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutClear(item.action)}
-                                                className="px-2.5 py-1.5 text-caption bg-bg-tertiary text-text-tertiary rounded-lg hover:bg-bg-hover"
+                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
+                                                style={{
+                                                    backgroundColor: 'var(--color-bg-elevated)',
+                                                    borderColor: 'var(--color-border-subtle)',
+                                                    color: 'var(--color-text-tertiary)',
+                                                }}
                                             >
                                                 Clear
                                             </button>
@@ -2192,7 +2285,12 @@ fi`}
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleResetAllShortcuts}
-                        className="px-3 py-1.5 text-caption rounded-lg bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
+                        className="px-3 py-1.5 text-caption rounded-lg border transition-colors"
+                        style={{
+                            backgroundColor: 'var(--color-bg-elevated)',
+                            borderColor: 'var(--color-border-subtle)',
+                            color: 'var(--color-text-secondary)',
+                        }}
                     >
                         Reset All
                     </button>
@@ -2422,7 +2520,12 @@ fi`}
                                     <button
                                         type="button"
                                         onClick={() => { void requestDockBounce() }}
-                                        className="mt-2 px-3 py-1.5 bg-bg-tertiary hover:bg-bg-hover rounded text-body text-text-secondary transition-colors"
+                                        className="mt-2 px-3 py-1.5 rounded-lg border text-body transition-colors"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-elevated)',
+                                            borderColor: 'var(--color-border-subtle)',
+                                            color: 'var(--color-text-secondary)',
+                                        }}
                                     >
                                         {t.settings.sessions.testNotification}
                                     </button>
@@ -2496,7 +2599,12 @@ fi`}
                                     type="button"
                                     onClick={() => { void handleManualUpdateCheck() }}
                                     disabled={checkingUpdate}
-                                    className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover border border-border-subtle rounded text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-4 py-2 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-elevated)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-secondary)',
+                                    }}
                                 >
                                     {checkingUpdate ? t.settings.version.checking : t.settings.version.checkForUpdates}
                                 </button>
@@ -2555,7 +2663,10 @@ fi`}
                     <span>{t.settings.title}</span>
                     <button
                         onClick={onClose}
-                        className="text-text-tertiary hover:text-text-primary transition-colors"
+                        className="transition-colors"
+                        style={{
+                            color: 'var(--color-text-tertiary)',
+                        }}
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2583,10 +2694,15 @@ fi`}
                                                 onClick={() => setActiveCategory(category.id)}
                                                 className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                                     activeCategory === category.id
-                                                        ? 'text-text-primary font-medium'
-                                                        : 'text-text-tertiary hover:text-text-secondary hover:bg-white/5'
+                                                        ? 'font-medium'
+                                                        : ''
                                                 }`}
-                                                style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
+                                                style={activeCategory === category.id ? {
+                                                    backgroundColor: 'var(--color-bg-selected)',
+                                                    color: 'var(--color-text-primary)',
+                                                } : {
+                                                    color: 'var(--color-text-tertiary)',
+                                                }}
                                             >
                                                 {category.icon}
                                                 <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
@@ -2610,10 +2726,15 @@ fi`}
                                         onClick={() => setActiveCategory(category.id)}
                                         className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                             activeCategory === category.id
-                                                ? 'text-text-primary font-medium'
-                                                : 'text-text-tertiary hover:text-text-secondary hover:bg-white/5'
+                                                ? 'font-medium'
+                                                : ''
                                         }`}
-                                        style={activeCategory === category.id ? { backgroundColor: 'var(--color-bg-selected)' } : undefined}
+                                        style={activeCategory === category.id ? {
+                                            backgroundColor: 'var(--color-bg-selected)',
+                                            color: 'var(--color-text-primary)',
+                                        } : {
+                                            color: 'var(--color-text-tertiary)',
+                                        }}
                                     >
                                         {category.icon}
                                         <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
@@ -2639,7 +2760,12 @@ fi`}
                                         onOpenTutorial()
                                         onClose()
                                     }}
-                                    className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-secondary flex items-center gap-2"
+                                    className="px-4 py-2 rounded-lg border transition-colors flex items-center gap-2"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-elevated)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-secondary)',
+                                    }}
                                     title="Open interactive tutorial"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2652,7 +2778,12 @@ fi`}
                         <div className="flex gap-2">
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 bg-bg-tertiary hover:bg-bg-hover rounded transition-colors text-text-secondary"
+                                className="px-4 py-2 rounded-lg border transition-colors"
+                                style={{
+                                    backgroundColor: 'var(--color-bg-elevated)',
+                                    borderColor: 'var(--color-border-subtle)',
+                                    color: 'var(--color-text-secondary)',
+                                }}
                             >
                                 {t.settings.common.cancel}
                             </button>
