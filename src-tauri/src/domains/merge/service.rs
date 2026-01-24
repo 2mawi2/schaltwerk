@@ -1726,6 +1726,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn preview_detects_conflicts() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);
@@ -3379,6 +3380,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn merge_squash_preserves_session_on_conflict() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);
@@ -3612,6 +3614,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn merge_squash_handles_dirty_parent_branch_without_touching_worktree() {
         let temp = TempDir::new().unwrap();
         let (manager, db, repo_path) = create_session_manager(&temp);

@@ -8,6 +8,60 @@ import { defaultShortcutConfig } from '../../keyboardShortcuts/config'
 import { TauriCommands } from '../../common/tauriCommands'
 import { renderWithProviders } from '../../tests/test-utils'
 
+// Mock MarkdownEditor to avoid CodeMirror coordinate calculation issues in happy-dom
+vi.mock('../specs/MarkdownEditor', async () => {
+  const React = await import('react')
+  const { forwardRef, useImperativeHandle, useRef } = React
+
+  const MockMarkdownEditor = forwardRef(({ value, onChange, placeholder, className }: { value: string; onChange: (next: string) => void; placeholder?: string; className?: string }, ref) => {
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+    useImperativeHandle(ref, () => ({
+      focus: () => {
+        textareaRef.current?.focus()
+      },
+      focusEnd: () => {
+        const el = textareaRef.current
+        if (el) {
+          el.focus()
+          const len = el.value.length
+          el.selectionStart = len
+          el.selectionEnd = len
+        }
+      },
+    }))
+
+    return (
+      <div data-testid="mock-markdown-editor" className={className}>
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          style={{ width: '100%', minHeight: '100px' }}
+          data-testid="setup-script-textarea"
+        />
+        <div className="cm-editor">
+          <div className="cm-scroller">
+            <div className="cm-content">
+              {value ? (
+                value.split('\n').map((line, index) => (
+                  <div key={index} className="cm-line">
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div className="cm-placeholder">{placeholder ?? ''}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  })
+
+  return { MarkdownEditor: MockMarkdownEditor }
+})
+
 const baseInvokeImplementation = async (command: string, _args?: unknown) => {
   switch (command) {
     case TauriCommands.GetAllAgentBinaryConfigs:
@@ -568,12 +622,10 @@ describe('SettingsModal project settings navigation', () => {
     await user.click(projectNavButton)
     await user.click(await screen.findByRole('button', { name: 'Run & Environment' }))
 
-    const setupEditor = await screen.findByTestId('setup-script-editor')
-    const setupScriptInput = setupEditor.querySelector('.cm-content') as HTMLElement
-    expect(setupScriptInput).toBeTruthy()
-    await user.click(setupScriptInput)
-    await user.keyboard('{Control>}a{/Control}')
-    await user.type(setupScriptInput, '#!/bin/bash\necho changed')
+    // Use the mocked textarea instead of CodeMirror's .cm-content
+    const setupScriptTextarea = await screen.findByTestId('setup-script-textarea')
+    await user.clear(setupScriptTextarea)
+    await user.type(setupScriptTextarea, '#!/bin/bash\necho changed')
 
     await user.click(await screen.findByRole('button', { name: 'Save' }))
 
@@ -611,12 +663,10 @@ describe('SettingsModal project settings navigation', () => {
     await user.click(projectNavButton)
     await user.click(await screen.findByRole('button', { name: 'Run & Environment' }))
 
-    const setupEditor = await screen.findByTestId('setup-script-editor')
-    const setupScriptInput = setupEditor.querySelector('.cm-content') as HTMLElement
-    expect(setupScriptInput).toBeTruthy()
-    await user.click(setupScriptInput)
-    await user.keyboard('{Control>}a{/Control}')
-    await user.type(setupScriptInput, '#!/bin/bash\necho changed')
+    // Use the mocked textarea instead of CodeMirror's .cm-content
+    const setupScriptTextarea = await screen.findByTestId('setup-script-textarea')
+    await user.clear(setupScriptTextarea)
+    await user.type(setupScriptTextarea, '#!/bin/bash\necho changed')
 
     await user.click(await screen.findByRole('button', { name: 'Save' }))
 
