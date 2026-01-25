@@ -1289,5 +1289,18 @@
     "runSpec": "Run spec",
     "deleteSpec": "Delete spec",
     "createPrShortcut": "Create pull request (⌘⇧P)"
+  },
+  "dashboard": {
+    "title": "Running Services",
+    "loading": "Loading services...",
+    "error": "Failed to load services",
+    "retry": "Retry",
+    "noServices": "No running services",
+    "noServicesHint": "Services started from terminals will appear here",
+    "openInBrowser": "Open in browser",
+    "openInPreview": "Open in preview",
+    "goToTerminal": "Go to terminal",
+    "removeService": "Remove from dashboard",
+    "refresh": "Refresh"
   }
 }

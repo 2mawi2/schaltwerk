@@ -1289,5 +1289,18 @@
     "runSpec": "运行规格",
     "deleteSpec": "删除规格",
     "createPrShortcut": "创建拉取请求 (⌘⇧P)"
+  },
+  "dashboard": {
+    "title": "运行中的服务",
+    "loading": "正在加载服务...",
+    "error": "加载服务失败",
+    "retry": "重试",
+    "noServices": "没有运行中的服务",
+    "noServicesHint": "从终端启动的服务将显示在这里",
+    "openInBrowser": "在浏览器中打开",
+    "openInPreview": "在预览中打开",
+    "goToTerminal": "转到终端",
+    "removeService": "从仪表板中移除",
+    "refresh": "刷新"
   }
 }

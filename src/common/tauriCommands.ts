@@ -204,4 +204,16 @@ export const TauriCommands = {
   ClipboardReadText: 'clipboard_read_text',
   CheckForUpdatesNow: 'check_for_updates_now',
   RestartApp: 'restart_app',
+  // Running services (project dashboard)
+  RegisterRunningService: 'register_running_service',
+  UnregisterRunningService: 'unregister_running_service',
+  UnregisterRunningServiceByPort: 'unregister_running_service_by_port',
+  UnregisterRunningServicesByTerminal: 'unregister_running_services_by_terminal',
+  UnregisterRunningServicesBySession: 'unregister_running_services_by_session',
+  ListRunningServices: 'list_running_services',
+  ListRunningServicesBySession: 'list_running_services_by_session',
+  GetRunningService: 'get_running_service',
+  GetRunningServiceByPort: 'get_running_service_by_port',
+  UpdateRunningServiceStatus: 'update_running_service_status',
+  ClearRunningServices: 'clear_running_services',
 } as const
