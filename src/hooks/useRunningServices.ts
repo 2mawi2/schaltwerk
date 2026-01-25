@@ -79,7 +79,7 @@ export function useRunningServices(options: UseRunningServicesOptions = {}): Use
 
     // Initial load
     useEffect(() => {
-        refresh()
+        void refresh()
     }, [refresh])
 
     // Set up polling if enabled
@@ -92,20 +92,16 @@ export function useRunningServices(options: UseRunningServicesOptions = {}): Use
 
     // Listen for terminal close events to refresh (services may need to be removed)
     useEffect(() => {
-        let unlisten: Promise<() => void> | null = null
+        let unlisten: (() => void) | null = null
         
-        const setup = async () => {
-            unlisten = listenEvent(SchaltEvent.TerminalClosed, () => {
-                refresh()
-            })
-        }
-        
-        setup()
+        void listenEvent(SchaltEvent.TerminalClosed, () => {
+            void refresh()
+        }).then(fn => {
+            unlisten = fn
+        })
         
         return () => {
-            if (unlisten) {
-                unlisten.then(fn => fn())
-            }
+            unlisten?.()
         }
     }, [refresh])
 

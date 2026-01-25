@@ -200,7 +200,7 @@ export function ProcessDashboard({ sessionName, onOpenInPreview, compact = false
                     {t.dashboard.error}
                 </div>
                 <button
-                    onClick={refresh}
+                    onClick={() => void refresh()}
                     className="flex items-center gap-1 px-2 py-1 rounded bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] hover:bg-[var(--vscode-button-hoverBackground)]"
                 >
                     <VscRefresh className="w-4 h-4" />
@@ -231,7 +231,7 @@ export function ProcessDashboard({ sessionName, onOpenInPreview, compact = false
                     {t.dashboard.title} ({services.length})
                 </span>
                 <button
-                    onClick={refresh}
+                    onClick={() => void refresh()}
                     className="p-1 rounded hover:bg-[var(--vscode-toolbar-hoverBackground)]"
                     title={t.dashboard.refresh}
                 >
@@ -246,7 +246,7 @@ export function ProcessDashboard({ sessionName, onOpenInPreview, compact = false
                         onOpenInBrowser={() => handleOpenInBrowser(service)}
                         onOpenInPreview={onOpenInPreview ? () => handleOpenInPreview(service) : undefined}
                         onGoToTerminal={() => handleGoToTerminal(service)}
-                        onRemove={() => handleRemove(service)}
+                        onRemove={() => void handleRemove(service)}
                         compact={compact}
                     />
                 ))}
