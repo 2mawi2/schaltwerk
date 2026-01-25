@@ -141,6 +141,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: changed
     if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
+    env:
+      # Override target-cpu=native from .cargo/config.toml - CI runners have varying CPU features
+      # which can cause SIGILL crashes with native CPU targeting
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
     steps:
       - uses: actions/checkout@v6
 
