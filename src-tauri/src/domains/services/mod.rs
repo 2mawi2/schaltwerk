@@ -35,19 +35,14 @@ pub struct RunningService {
     pub metadata: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceStatus {
     Running,
     Starting,
     Stopped,
+    #[default]
     Unknown,
-}
-
-impl Default for ServiceStatus {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 /// Request to register a new running service
@@ -255,7 +250,7 @@ impl RunningServicesRegistry {
         let mut services = self.services.write().await;
         let count = services.len();
         services.clear();
-        log::info!("Cleared {} services from registry", count);
+        log::info!("Cleared {count} services from registry");
     }
 }
 
