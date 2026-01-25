@@ -86,7 +86,7 @@ export function useRunningServices(options: UseRunningServicesOptions = {}): Use
     useEffect(() => {
         if (pollInterval <= 0) return
 
-        const interval = setInterval(refresh, pollInterval)
+        const interval = setInterval(() => void refresh(), pollInterval)
         return () => clearInterval(interval)
     }, [pollInterval, refresh])
 
