@@ -9,6 +9,7 @@ import { SessionState, type SessionInfo } from '../../types/session'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { projectPathAtom } from './project'
 import { setSelectionFilterModeActionAtom, clearTerminalTrackingActionAtom } from './selection'
+import { clearAgentTabsForSessionsActionAtom } from './agentTabs'
 import type { GitOperationFailedPayload, GitOperationPayload, SessionsRefreshedEventPayload } from '../../common/events'
 import { hasInflight, singleflight } from '../../utils/singleflight'
 import { stableSessionTerminalId, isTopTerminalId } from '../../common/terminalIdentity'
@@ -16,6 +17,7 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { isTerminalStartingOrStarted, clearTerminalStartState, markTerminalStarted } from '../../common/terminalStartState'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
 import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
+import { clearActiveAgentTerminalId } from '../../common/terminalTargeting'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../types/errors'
 
@@ -274,6 +276,7 @@ async function releaseRemovedSessions(get: Getter, set: Setter, previous: Enrich
     const pending = new Map(get(pendingStartupsAtom))
     let pendingChanged = false
     const terminalsToClear: string[] = []
+    const sessionsToCleanup: string[] = []
 
     for (const sessionId of removed) {
         const protectionUntil = protectedReleaseUntil.get(sessionId) ?? 0
@@ -293,10 +296,20 @@ async function releaseRemovedSessions(get: Getter, set: Setter, previous: Enrich
         releaseSessionTerminals(sessionId)
         terminalsToClear.push(stableSessionTerminalId(sessionId, 'top'))
         terminalsToClear.push(stableSessionTerminalId(sessionId, 'bottom'))
+        sessionsToCleanup.push(sessionId)
     }
 
     if (terminalsToClear.length > 0) {
         await set(clearTerminalTrackingActionAtom, terminalsToClear)
+    }
+
+    // Clean up agent tabs state for removed sessions to prevent ghost tabs
+    if (sessionsToCleanup.length > 0) {
+        set(clearAgentTabsForSessionsActionAtom, sessionsToCleanup)
+        // Also clear the active agent terminal ID tracking
+        for (const sessionId of sessionsToCleanup) {
+            clearActiveAgentTerminalId(sessionId)
+        }
     }
 
     if (pendingChanged) {
