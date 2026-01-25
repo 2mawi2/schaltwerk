@@ -579,8 +579,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             try {
                 term.scrollToLine(term.buffer.active.baseY);
                 logScrollChange(source);
-            } catch (e) {
-                // Terminal may have been disposed
+            } catch {
+                // Terminal may have been disposed - safe to ignore
             }
         });
     }, [logScrollChange]);
