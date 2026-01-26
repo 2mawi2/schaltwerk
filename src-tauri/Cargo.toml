@@ -42,7 +42,7 @@ which = "8.0"
 nix = { version = "0.31", features = ["signal", "process"] }
 rusqlite = { version = "0.37", features = ["bundled", "chrono"] }
 r2d2 = "0.8"
-uuid = { version = "1.19", features = ["v4", "serde"] }
+uuid = { version = "1.20", features = ["v4", "serde"] }
 walkdir = "2.5"
 git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
 sha2 = "0.10"
