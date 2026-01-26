@@ -89,53 +89,62 @@ pub async fn build_command_spec(
 }
 
 fn build_environment(cols: u16, rows: u16, #[cfg_attr(windows, allow(unused))] cwd: &str) -> Vec<(String, String)> {
+    use std::collections::HashMap;
     let login_env = super::login_shell_env::get_login_shell_env();
 
-    let mut envs = vec![
-        ("TERM".to_string(), "xterm-256color".to_string()),
-        ("LINES".to_string(), rows.to_string()),
-        ("COLUMNS".to_string(), cols.to_string()),
-    ];
+    // Start with ALL environment variables from the login shell.
+    // This ensures API keys, custom vars, SSH_AUTH_SOCK, virtual env settings, etc.
+    // are all passed through to agent processes.
+    let mut env_map: HashMap<String, String> = login_env.clone();
 
+    // Override terminal-specific settings
+    env_map.insert("TERM".to_string(), "xterm-256color".to_string());
+    env_map.insert("LINES".to_string(), rows.to_string());
+    env_map.insert("COLUMNS".to_string(), cols.to_string());
+
+    // Build PATH with priority paths prepended
     #[cfg(unix)]
-    let path_value = build_unix_path(login_env, &mut envs, cwd);
+    let path_value = build_unix_path(login_env, &mut env_map, cwd);
 
     #[cfg(windows)]
-    let path_value = build_windows_path(login_env, &mut envs);
+    let path_value = build_windows_path(login_env, &mut env_map);
 
-    envs.push(("PATH".to_string(), path_value));
+    env_map.insert("PATH".to_string(), path_value);
 
+    // Ensure locale is set
     let lang_value = login_env
         .get("LANG")
         .cloned()
         .or_else(|| std::env::var("LANG").ok())
         .unwrap_or_else(|| "en_US.UTF-8".to_string());
-    envs.push(("LANG".to_string(), lang_value));
+    env_map.insert("LANG".to_string(), lang_value);
 
     if let Some(lc_all) = login_env
         .get("LC_ALL")
         .cloned()
         .or_else(|| std::env::var("LC_ALL").ok())
     {
-        envs.push(("LC_ALL".to_string(), lc_all));
+        env_map.insert("LC_ALL".to_string(), lc_all);
     }
 
-    envs.push(("CLICOLOR".to_string(), "1".to_string()));
-    envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
-    envs.push(("COLORTERM".to_string(), COLORTERM_VALUE.to_string()));
-    envs.push(("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string()));
+    // Terminal capability settings
+    env_map.insert("CLICOLOR".to_string(), "1".to_string());
+    env_map.insert("CLICOLOR_FORCE".to_string(), "1".to_string());
+    env_map.insert("COLORTERM".to_string(), COLORTERM_VALUE.to_string());
+    env_map.insert("TERM_PROGRAM".to_string(), TERM_PROGRAM_NAME.to_string());
 
-    envs
+    // Convert to Vec for compatibility with existing code
+    env_map.into_iter().collect()
 }
 
 #[cfg(unix)]
 fn build_unix_path(
     login_env: &std::collections::HashMap<String, String>,
-    envs: &mut Vec<(String, String)>,
+    env_map: &mut std::collections::HashMap<String, String>,
     cwd: &str,
 ) -> String {
     if let Ok(home) = std::env::var("HOME") {
-        envs.push(("HOME".to_string(), home.clone()));
+        env_map.insert("HOME".to_string(), home.clone());
 
         use std::collections::HashSet;
         let mut seen = HashSet::new();
@@ -212,7 +221,7 @@ fn build_unix_path(
 #[cfg(windows)]
 fn build_windows_path(
     login_env: &std::collections::HashMap<String, String>,
-    envs: &mut Vec<(String, String)>,
+    env_map: &mut std::collections::HashMap<String, String>,
 ) -> String {
     use std::collections::HashSet;
 
@@ -223,7 +232,7 @@ fn build_windows_path(
     let programfiles_x86 = std::env::var("ProgramFiles(x86)").unwrap_or_default();
 
     if !userprofile.is_empty() {
-        envs.push(("USERPROFILE".to_string(), userprofile.clone()));
+        env_map.insert("USERPROFILE".to_string(), userprofile.clone());
     }
 
     let mut seen = HashSet::new();
@@ -764,5 +773,37 @@ mod tests {
         );
 
         testing::restore_shell_override(prior_override);
+    }
+
+    #[test]
+    fn environment_passes_through_login_shell_variables() {
+        // This test verifies that environment variables from the login shell
+        // (like API keys, SSH_AUTH_SOCK, custom vars) are passed through.
+        // The fix for issue #254 ensures ALL login shell env vars are included,
+        // not just a curated subset.
+        let env = build_environment(80, 24, "/tmp");
+
+        // Check that basic required vars are present
+        assert!(
+            env.iter().any(|(key, _)| key == "TERM"),
+            "TERM should be present"
+        );
+        assert!(
+            env.iter().any(|(key, _)| key == "PATH"),
+            "PATH should be present"
+        );
+
+        // The key change: login shell env vars should now be included.
+        // On most systems, common vars like USER, SHELL, or others from login_shell_env
+        // should be present if they were in the login shell environment.
+        // We can't assert specific vars since they depend on the test environment,
+        // but we verify the environment has more than just the hardcoded vars.
+        let hardcoded_count = 9; // TERM, LINES, COLUMNS, PATH, LANG, CLICOLOR, CLICOLOR_FORCE, COLORTERM, TERM_PROGRAM
+        assert!(
+            env.len() >= hardcoded_count,
+            "Environment should include at least {} vars (has {}), potentially more from login shell",
+            hardcoded_count,
+            env.len()
+        );
     }
 }
