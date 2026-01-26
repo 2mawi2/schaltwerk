@@ -295,6 +295,8 @@ pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::c
 pub static ATTENTION_REGISTRY: OnceCell<Arc<Mutex<AttentionStateRegistry>>> = OnceCell::const_new();
 pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> =
     OnceCell::const_new();
+pub static SERVICES_REGISTRY: OnceCell<Arc<schaltwerk::domains::services::RunningServicesRegistry>> =
+    OnceCell::const_new();
 static LAST_CORE_WRITE: Lazy<StdMutex<Option<(Uuid, std::time::Instant)>>> =
     Lazy::new(|| StdMutex::new(None));
 
@@ -331,6 +333,15 @@ pub async fn get_terminal_manager()
         .current_terminal_manager()
         .await
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
+}
+
+pub async fn get_services_registry() -> Arc<schaltwerk::domains::services::RunningServicesRegistry> {
+    SERVICES_REGISTRY
+        .get_or_init(|| async {
+            Arc::new(schaltwerk::domains::services::RunningServicesRegistry::new())
+        })
+        .await
+        .clone()
 }
 
 pub async fn get_schaltwerk_core()
@@ -1379,7 +1390,19 @@ fn main() {
             get_amp_mcp_servers,
             set_amp_mcp_servers,
             get_agent_command_prefix,
-            set_agent_command_prefix
+            set_agent_command_prefix,
+            // Running services commands (project dashboard)
+            register_running_service,
+            unregister_running_service,
+            unregister_running_service_by_port,
+            unregister_running_services_by_terminal,
+            unregister_running_services_by_session,
+            list_running_services,
+            list_running_services_by_session,
+            get_running_service,
+            get_running_service_by_port,
+            update_running_service_status,
+            clear_running_services
         ])
         .setup(move |app| {
             if ATTENTION_REGISTRY.get().is_none() {

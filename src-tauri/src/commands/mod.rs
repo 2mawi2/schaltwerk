@@ -10,6 +10,7 @@ pub mod preview;
 pub mod project;
 pub mod pty;
 pub mod schaltwerk_core;
+pub mod services;
 pub mod session_lookup_cache;
 pub mod sessions_refresh;
 pub mod settings;
@@ -69,6 +70,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_update_epic,
 };
 pub use preview::*;
+pub use services::*;
 pub use settings::*;
 pub use terminal::*;
 pub use updater::*;
