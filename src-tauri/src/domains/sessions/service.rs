@@ -4442,4 +4442,11 @@ impl SessionManager {
     pub fn mark_session_prompted(&self, worktree_path: &std::path::Path) {
         self.cache_manager.mark_session_prompted(worktree_path);
     }
+
+    pub fn update_session_initial_prompt(&self, session_name: &str, prompt: &str) -> Result<()> {
+        let session = self.db_manager.get_session_by_name(session_name)?;
+        self.db_manager.update_session_initial_prompt(&session.id, prompt)?;
+        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, session_name);
+        Ok(())
+    }
 }

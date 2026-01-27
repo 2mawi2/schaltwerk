@@ -89,6 +89,45 @@ pub fn terminal_id_for_session_bottom(name: &str) -> String {
     format!("{}-bottom", session_terminal_base(name))
 }
 
+pub fn terminal_id_for_orchestrator_top(project_path: &std::path::Path) -> String {
+    // Must match frontend computeProjectOrchestratorId(projectPath)
+    // - dirName = basename(projectPath)
+    // - sanitizedDirName = replace /[^a-zA-Z0-9_-]/g with '_'
+    // - hash = JS 32-bit: hash = ((hash << 5) - hash) + charCodeAt(i)
+    // - fragment = Math.abs(hash).toString(16).slice(0, 6)
+    // - id = `orchestrator-${sanitizedDirName}-${fragment}-top`
+    let dir_name = project_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+
+    let sanitized: String = dir_name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let sanitized = if sanitized.is_empty() {
+        "unknown".to_string()
+    } else {
+        sanitized
+    };
+
+    let mut hash: i32 = 0;
+    for unit in project_path.to_string_lossy().encode_utf16() {
+        hash = hash.wrapping_mul(31).wrapping_add(unit as i32);
+    }
+    let abs_hash: i64 = (hash as i64).abs();
+    let hex = format!("{abs_hash:x}");
+    let fragment = if hex.len() > 6 { &hex[..6] } else { &hex };
+
+    format!("orchestrator-{sanitized}-{fragment}-top")
+}
+
 pub fn previous_tilde_hashed_terminal_id_for_session_top(name: &str) -> String {
     format!("{}-top", session_terminal_base_v1(name))
 }
@@ -135,6 +174,7 @@ pub fn previous_hashed_terminal_id_for_session_bottom(name: &str) -> String {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use std::path::Path;
 
     #[test]
     fn sanitizes_session_name_and_handles_empty() {
@@ -221,5 +261,21 @@ mod tests {
         assert!(is_session_top_terminal_id("orchestrator-main-top"));
         assert!(!is_session_top_terminal_id("orchestrator-main-bottom"));
         assert!(!is_session_top_terminal_id("run-terminal-main"));
+    }
+
+    #[test]
+    fn orchestrator_top_id_matches_expected_shape() {
+        let id = terminal_id_for_orchestrator_top(Path::new("/tmp/my project !@#"));
+        assert!(id.starts_with("orchestrator-my_project____-"));
+        assert!(id.ends_with("-top"));
+
+        let middle = id
+            .strip_prefix("orchestrator-my_project____-")
+            .unwrap()
+            .strip_suffix("-top")
+            .unwrap();
+        assert!(!middle.is_empty());
+        assert!(middle.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(middle.len() <= 6);
     }
 }
