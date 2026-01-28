@@ -19,15 +19,15 @@ use crate::commands::schaltwerk_core::{
 };
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
-use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
+use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write, SETTINGS_MANAGER};
 use schaltwerk::domains::attention::get_session_attention_state;
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
-use schaltwerk::domains::terminal::submission::submission_options_for_agent;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::shared::terminal_id::terminal_id_for_orchestrator_top;
+use crate::commands::schaltwerk_core::agent_launcher;
 
 mod diff_api;
 
@@ -1306,41 +1306,76 @@ async fn reset_orchestrator(
     let terminal_id = terminal_id_for_orchestrator_top(core.repo_path.as_path());
     drop(core);
 
-    let start_result = schaltwerk_core_start_claude_orchestrator(
+    let start_result = start_orchestrator_with_prompt(
         app.clone(),
         terminal_id.clone(),
-        None,
-        None,
         Some(effective_agent_type.clone()),
+        payload.prompt.as_deref(),
+        payload.skip_prompt.unwrap_or(false),
     )
     .await;
 
     match start_result {
-        Ok(msg) => {
-            if !payload.skip_prompt.unwrap_or(false)
-                && let Some(prompt) = payload.prompt.as_deref().filter(|p| !p.trim().is_empty())
-                && let Ok(manager) = crate::get_terminal_manager().await
-            {
-                let (use_bracketed_paste, needs_delayed_submit) =
-                    submission_options_for_agent(Some(&effective_agent_type));
-
-                if let Err(e) = manager
-                    .paste_and_submit_terminal(
-                        terminal_id,
-                        prompt.as_bytes().to_vec(),
-                        use_bracketed_paste,
-                        needs_delayed_submit,
-                    )
-                    .await
-                {
-                    warn!("Failed to submit prompt override to orchestrator terminal: {e}");
-                }
-            }
-
-            Ok(Response::new(msg))
-        }
+        Ok(msg) => Ok(Response::new(msg)),
         Err(err) => Ok(error_response(StatusCode::BAD_REQUEST, err)),
     }
+}
+
+async fn start_orchestrator_with_prompt(
+    app: tauri::AppHandle,
+    terminal_id: String,
+    agent_type: Option<String>,
+    prompt: Option<&str>,
+    skip_prompt: bool,
+) -> Result<String, String> {
+    let Some(prompt) = prompt.filter(|p| !p.trim().is_empty()) else {
+        return schaltwerk_core_start_claude_orchestrator(app, terminal_id, None, None, agent_type).await;
+    };
+    if skip_prompt {
+        return schaltwerk_core_start_claude_orchestrator(app, terminal_id, None, None, agent_type)
+            .await;
+    }
+
+    let core = get_core_read().await?;
+    let manager = core.session_manager();
+    let db = core.db.clone();
+    let repo_path = core.repo_path.clone();
+    let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let settings = settings_manager.lock().await;
+        let mut paths = std::collections::HashMap::new();
+        for agent in [
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "kilocode",
+        ] {
+            if let Ok(path) = settings.get_effective_binary_path(agent) {
+                paths.insert(agent.to_string(), path);
+            }
+        }
+        paths
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    let command_spec = manager.start_agent_in_orchestrator(
+        &binary_paths,
+        agent_type.as_deref(),
+        Some(prompt),
+    )
+    .map_err(|e| e.to_string())?;
+    drop(core);
+
+    let launch_result = agent_launcher::launch_in_terminal(
+        terminal_id,
+        command_spec,
+        &db,
+        repo_path.as_path(),
+        None,
+        None,
+        true,
+    )
+    .await;
+
+    launch_result.map(|_| "orchestrator-started".to_string())
 }
 
 async fn reset_session_with_payload(
@@ -1348,6 +1383,26 @@ async fn reset_session_with_payload(
     payload: ResetSessionRequest,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
+    if let Ok(core) = get_core_write().await {
+        let manager = core.session_manager();
+        if let Some(agent_type) = payload.agent_type.as_deref() {
+            let skip = payload.skip_permissions.unwrap_or(false);
+            if let Err(e) = manager.set_session_original_settings(name, agent_type, skip) {
+                warn!("Failed to update session agent settings for '{name}': {e}");
+            }
+        } else if let Some(skip) = payload.skip_permissions
+            && let Ok(session) = manager.get_session(name)
+        {
+            let agent = session
+                .original_agent_type
+                .as_deref()
+                .unwrap_or("claude");
+            if let Err(e) = manager.set_session_original_settings(name, agent, skip) {
+                warn!("Failed to update session skip permissions for '{name}': {e}");
+            }
+        }
+    }
+
     let result = schaltwerk_core_start_session_agent_with_restart(
         app.clone(),
         StartAgentParams {

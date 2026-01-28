@@ -529,13 +529,16 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [terminalId]);
 
     const shouldFilterMouseTracking = useCallback(() => {
+        if (isAgentTopTerminal) {
+            return true;
+        }
         const wrapper = xtermWrapperRef.current;
         if (!wrapper) return true;
         if (typeof wrapper.isTuiMode === 'function') {
             return !wrapper.isTuiMode();
         }
         return true;
-    }, []);
+    }, [isAgentTopTerminal]);
 
     const isMouseTrackingSequence = useCallback((data: string): boolean => {
         if (!data.startsWith('\u001b[')) return false;

@@ -1982,7 +1982,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     };
 
     let command_spec = manager
-        .start_agent_in_orchestrator(&binary_paths, agent_type.as_deref())
+        .start_agent_in_orchestrator(&binary_paths, agent_type.as_deref(), None)
         .map_err(|e| {
             log::error!("Failed to build orchestrator command: {e}");
             format!("Failed to start {agent_label} in orchestrator: {e}")
