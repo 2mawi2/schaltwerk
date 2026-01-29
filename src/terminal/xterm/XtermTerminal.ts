@@ -33,6 +33,7 @@ type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
 const MOUSE_TRACKING_PARAMS = new Set([1000, 1002, 1003, 1005, 1006, 1015])
+const ALWAYS_BLOCKED_PARAMS = new Set([1007])
 
 interface IXtermViewport {
   _innerRefresh(): void
@@ -448,6 +449,10 @@ export class XtermTerminal {
     try {
       this.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
         const flatParams = params.flatMap(param => Array.isArray(param) ? param : [param])
+        if (flatParams.some(param => ALWAYS_BLOCKED_PARAMS.has(param))) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Blocked alternate scroll mode (${params.join(';')})`)
+          return true
+        }
         if (!this.allowMouseTracking && flatParams.some(param => MOUSE_TRACKING_PARAMS.has(param))) {
           logger.debug(`[XtermTerminal ${this.terminalId}] Blocked mouse tracking enable (${params.join(';')})`)
           return true
