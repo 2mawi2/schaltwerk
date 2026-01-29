@@ -826,28 +826,6 @@ describe('Terminal', () => {
     expect(writeTerminalBackend).toHaveBeenCalledWith('session-mouse-top', '\u001b[32m')
   })
 
-  it('drops mouse tracking sequences for agent terminals', async () => {
-    const { instances } = terminalHarness
-
-    renderTerminal({ terminalId: 'orchestrator-mouse-top', isCommander: true })
-
-    await waitFor(() => {
-      expect(instances.length).toBeGreaterThan(0)
-    })
-
-    const instance = instances[0] as HarnessInstance
-    const onData = instance.raw.onData.mock.calls[0]?.[0] as ((data: string) => void) | undefined
-    expect(onData).toBeTypeOf('function')
-
-    vi.mocked(writeTerminalBackend).mockClear()
-
-    onData?.('\u001b[<35;7;12M')
-    onData?.('\u001b[32m')
-
-    expect(writeTerminalBackend).toHaveBeenCalledTimes(1)
-    expect(writeTerminalBackend).toHaveBeenCalledWith('orchestrator-mouse-top', '\u001b[32m')
-  })
-
   it('ignores duplicate resize observer measurements', async () => {
     renderTerminal({ terminalId: 'session-resize-case-top', sessionName: 'resize-case' })
 

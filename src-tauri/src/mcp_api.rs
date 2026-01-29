@@ -1389,6 +1389,8 @@ async fn reset_session_with_payload(
             let skip = payload.skip_permissions.unwrap_or(false);
             if let Err(e) = manager.set_session_original_settings(name, agent_type, skip) {
                 warn!("Failed to update session agent settings for '{name}': {e}");
+            } else {
+                request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
             }
         } else if let Some(skip) = payload.skip_permissions
             && let Ok(session) = manager.get_session(name)
@@ -1399,8 +1401,14 @@ async fn reset_session_with_payload(
                 .unwrap_or("claude");
             if let Err(e) = manager.set_session_original_settings(name, agent, skip) {
                 warn!("Failed to update session skip permissions for '{name}': {e}");
+            } else {
+                request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
             }
         }
+    }
+
+    if payload.agent_type.is_some() || payload.skip_permissions.is_some() {
+        request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
     }
 
     let result = schaltwerk_core_start_session_agent_with_restart(

@@ -529,16 +529,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [terminalId]);
 
     const shouldFilterMouseTracking = useCallback(() => {
-        if (isAgentTopTerminal) {
-            return true;
-        }
-        const wrapper = xtermWrapperRef.current;
-        if (!wrapper) return true;
-        if (typeof wrapper.isTuiMode === 'function') {
-            return !wrapper.isTuiMode();
-        }
         return true;
-    }, [isAgentTopTerminal]);
+    }, []);
 
     const isMouseTrackingSequence = useCallback((data: string): boolean => {
         if (!data.startsWith('\u001b[')) return false;
@@ -1260,8 +1252,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.info(`[Terminal ${terminalId}] Syncing UI mode: ${currentMode} → ${mode} (agentType=${agentType})`);
                 instance.setUiMode(mode);
             }
+            instance.setMouseTrackingAllowed(!isAgentTopTerminal);
         }
-    }, [agentType, terminalId]);
+    }, [agentType, terminalId, isAgentTopTerminal]);
 
     useEffect(() => {
         debugCountersRef.current.initRuns += 1;
@@ -1301,6 +1294,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             instance.applyConfig(currentConfig);
         }
         instance.setUiMode(isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard');
+        instance.setMouseTrackingAllowed(!isAgentTopTerminal);
         instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
         instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;

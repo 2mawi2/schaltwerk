@@ -32,6 +32,7 @@ export interface XtermTerminalOptions {
 type TerminalTheme = NonNullable<ITerminalOptions['theme']>
 type FileLinkHandler = (text: string) => Promise<boolean> | boolean
 export type TerminalUiMode = 'standard' | 'tui'
+const MOUSE_TRACKING_PARAMS = new Set([1000, 1002, 1003, 1005, 1006, 1015])
 
 interface IXtermViewport {
   _innerRefresh(): void
@@ -89,6 +90,7 @@ export class XtermTerminal {
   private linkHandler: ((uri: string) => boolean | Promise<boolean>) | null = null
   private uiMode: TerminalUiMode
   private savedDistanceFromBottom: number | null = null
+  private allowMouseTracking = true
 
   constructor(options: XtermTerminalOptions) {
     this.terminalId = options.terminalId
@@ -178,6 +180,20 @@ export class XtermTerminal {
       this.applyTuiMode()
     } else {
       this.applyStandardMode()
+    }
+  }
+
+  setMouseTrackingAllowed(allowed: boolean): void {
+    if (this.allowMouseTracking === allowed) {
+      return
+    }
+    this.allowMouseTracking = allowed
+    if (!allowed && this.opened) {
+      try {
+        this.raw.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1005l\x1b[?1006l\x1b[?1015l')
+      } catch (error) {
+        logger.debug(`[XtermTerminal ${this.terminalId}] Failed to disable mouse tracking`, error)
+      }
     }
   }
 
@@ -427,6 +443,19 @@ export class XtermTerminal {
       })
     } catch (error) {
       logger.debug(`[XtermTerminal ${this.terminalId}] CSI J handler registration failed`, error)
+    }
+
+    try {
+      this.raw.parser.registerCsiHandler({ prefix: '?', final: 'h' }, (params) => {
+        const flatParams = params.flatMap(param => Array.isArray(param) ? param : [param])
+        if (!this.allowMouseTracking && flatParams.some(param => MOUSE_TRACKING_PARAMS.has(param))) {
+          logger.debug(`[XtermTerminal ${this.terminalId}] Blocked mouse tracking enable (${params.join(';')})`)
+          return true
+        }
+        return false
+      })
+    } catch (error) {
+      logger.debug(`[XtermTerminal ${this.terminalId}] Mouse enable handler registration failed`, error)
     }
 
     this.registerSynchronizedOutputHandlers()
