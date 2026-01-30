@@ -157,6 +157,7 @@ const terminalHarness = vi.hoisted(() => {
     detach = vi.fn()
     dispose = vi.fn()
     setSmoothScrolling = vi.fn()
+    setMouseTrackingAllowed = vi.fn()
     uiMode: 'standard' | 'tui' = 'standard'
     isTuiMode = vi.fn(() => this.uiMode === 'tui')
     shouldFollowOutput = vi.fn(() => this.uiMode !== 'tui')
@@ -459,13 +460,16 @@ describe('Terminal', () => {
     const termNode = container.querySelector('[data-terminal-id="orchestrator-opencode-top"]')
     expect(termNode).not.toBeNull()
 
+    const instance = terminalHarness.instances[0]
+    // Set baseY > 0 so scrollLines path is taken (otherwise PageUp/PageDown sequences are sent)
+    instance.raw.buffer.active.baseY = 100
+
     const wheelEvent = createWheelEvent(120)
 
     act(() => {
       termNode?.dispatchEvent(wheelEvent)
     })
 
-    const instance = terminalHarness.instances[0]
     expect(instance.raw.scrollLines).toHaveBeenCalled()
     expect(wheelEvent.defaultPrevented).toBe(true)
   })
