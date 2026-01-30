@@ -209,6 +209,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const startOrchestratorWithNewModel = useCallback(async (terminalId: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId })
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
     }, [])
 
     const startSessionWithNewModel = useCallback(async (
@@ -226,6 +227,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
             params,
         })
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sessionName })
     }, [])
 
     const restartWithNewModel = useCallback(async (
