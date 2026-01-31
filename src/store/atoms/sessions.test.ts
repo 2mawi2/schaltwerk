@@ -113,6 +113,7 @@ import {
     expectSessionActionAtom,
 } from './sessions'
 import { projectPathAtom } from './project'
+import { agentTabsStateAtom } from './agentTabs'
 import { listenEvent as listenEventMock } from '../../common/eventSystem'
 import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
 import { startSessionTop } from '../../common/agentSpawn'
@@ -269,6 +270,49 @@ describe('sessions atoms', () => {
 
         expect(releaseSessionTerminals).toHaveBeenCalledWith('old-session')
         expect(store.get(allSessionsAtom)).toEqual([])
+    })
+
+    it('cleans up agent tabs when sessions are removed on refresh', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        store.set(projectPathAtom, '/project')
+
+        // Set up agent tabs state for a session that will be removed
+        store.set(agentTabsStateAtom, new Map([
+            ['old-session', { 
+                tabs: [{ id: 'tab-0', terminalId: 'old-session-top', label: 'Claude', agentType: 'claude' as const }], 
+                activeTab: 0 
+            }],
+            ['remaining-session', { 
+                tabs: [{ id: 'tab-0', terminalId: 'remaining-session-top', label: 'Claude', agentType: 'claude' as const }], 
+                activeTab: 0 
+            }],
+        ]))
+
+        const enrichedSnapshots = [
+            [createSession({ session_id: 'old-session' }), createSession({ session_id: 'remaining-session' })],
+            [createSession({ session_id: 'remaining-session' })],
+        ]
+
+        vi.mocked(invoke).mockImplementation(async (cmd) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                return enrichedSnapshots.shift() ?? []
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            return undefined
+        })
+
+        await store.set(refreshSessionsActionAtom)
+        expect(store.get(agentTabsStateAtom).has('old-session')).toBe(true)
+        expect(store.get(agentTabsStateAtom).has('remaining-session')).toBe(true)
+
+        await store.set(refreshSessionsActionAtom)
+
+        // Verify that the old session's agent tabs were cleaned up
+        expect(store.get(agentTabsStateAtom).has('old-session')).toBe(false)
+        // Verify that the remaining session's agent tabs were preserved
+        expect(store.get(agentTabsStateAtom).has('remaining-session')).toBe(true)
     })
 
     it('keeps background project terminals alive across switches and releases when sessions truly disappear', async () => {
