@@ -460,6 +460,54 @@ impl ProjectManager {
         Ok(project.terminal_manager.clone())
     }
 
+    /// Get terminal manager for a specific project path
+    pub async fn get_terminal_manager_for_path(
+        &self,
+        path: &PathBuf,
+    ) -> Result<Arc<TerminalManager>> {
+        // Canonicalize the input path for consistent comparison
+        let canonical_path = match std::fs::canonicalize(path) {
+            Ok(p) => p,
+            Err(_) => path.clone(),
+        };
+
+        // First check if the path matches the current project
+        if let Some(current_path) = self.current_project_path().await {
+            let current_canonical = std::fs::canonicalize(&current_path).unwrap_or(current_path);
+            if current_canonical == canonical_path {
+                return self.current_terminal_manager().await;
+            }
+            if canonical_path.starts_with(&current_canonical) {
+                return self.current_terminal_manager().await;
+            }
+        }
+
+        // Check all loaded projects
+        let projects = self.projects.read().await;
+        for project in projects.values() {
+            let project_canonical =
+                std::fs::canonicalize(&project.path).unwrap_or(project.path.clone());
+            if project_canonical == canonical_path {
+                return Ok(project.terminal_manager.clone());
+            }
+            if canonical_path.starts_with(&project_canonical) {
+                return Ok(project.terminal_manager.clone());
+            }
+        }
+
+        // If project not loaded, try to load it without switching current
+        drop(projects);
+
+        let project = Project::new(canonical_path.clone())?;
+        let arc_project = Arc::new(project);
+
+        let mut projects_write = self.projects.write().await;
+        projects_write.insert(canonical_path.clone(), arc_project.clone());
+        drop(projects_write);
+
+        Ok(arc_project.terminal_manager.clone())
+    }
+
     /// Get SchaltwerkCore for current project
     pub async fn current_schaltwerk_core(&self) -> Result<Arc<RwLock<SchaltwerkCore>>> {
         let project = self.current_project().await?;

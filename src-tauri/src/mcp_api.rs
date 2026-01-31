@@ -14,15 +14,20 @@ use schaltwerk::domains::settings::setup_script::SetupScriptService;
 use crate::commands::github::{CreateSessionPrArgs, github_create_session_pr_impl};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
+    schaltwerk_core_start_claude_orchestrator, schaltwerk_core_start_session_agent_with_restart,
+    StartAgentParams,
 };
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
-use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write};
+use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write, SETTINGS_MANAGER};
 use schaltwerk::domains::attention::get_session_attention_state;
 use schaltwerk::domains::merge::MergeMode;
 use schaltwerk::domains::sessions::entity::{Session, Spec};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
+use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
+use schaltwerk::shared::terminal_id::terminal_id_for_orchestrator_top;
+use crate::commands::schaltwerk_core::agent_launcher;
 
 mod diff_api;
 
@@ -55,6 +60,7 @@ async fn handle_mcp_request_inner(
     let path = req.uri().path().to_string();
 
     match (&method, path.as_str()) {
+        (&Method::POST, "/api/reset") => reset_selection(req, app).await,
         (&Method::GET, "/api/diff/summary") => diff_summary(req).await,
         (&Method::GET, "/api/diff/file") => diff_chunk(req).await,
         (&Method::POST, "/api/specs") => create_draft(req, app).await,
@@ -117,6 +123,10 @@ async fn handle_mcp_request_inner(
         {
             let name = extract_session_name_for_action(path, "/convert-to-spec");
             convert_session_to_spec(&name, app).await
+        }
+        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/reset") => {
+            let name = extract_session_name_for_action(path, "/reset");
+            reset_session(req, &name, app).await
         }
         (&Method::GET, "/api/project/setup-script") => get_project_setup_script(app).await,
         (&Method::PUT, "/api/project/setup-script") => set_project_setup_script(req, app).await,
@@ -650,6 +660,50 @@ mod tests {
             .to_string();
         assert_eq!(value, "echo hi");
     }
+
+    #[test]
+    fn reset_session_request_defaults_to_none() {
+        let payload: ResetSessionRequest = serde_json::from_slice(b"{}").expect("payload");
+        assert!(payload.agent_type.is_none());
+        assert!(payload.prompt.is_none());
+        assert!(payload.skip_prompt.is_none());
+        assert!(payload.skip_permissions.is_none());
+    }
+
+    #[test]
+    fn reset_session_request_parses_optional_fields() {
+        let payload: ResetSessionRequest = serde_json::from_slice(
+            br#"{ "agent_type": "claude", "prompt": "hi", "skip_prompt": true, "skip_permissions": false }"#,
+        )
+        .expect("payload");
+        assert_eq!(payload.agent_type.as_deref(), Some("claude"));
+        assert_eq!(payload.prompt.as_deref(), Some("hi"));
+        assert_eq!(payload.skip_prompt, Some(true));
+        assert_eq!(payload.skip_permissions, Some(false));
+    }
+
+    #[test]
+    fn reset_selection_request_defaults_to_none() {
+        let payload = parse_reset_selection_request(b"").expect("payload");
+        assert!(payload.selection.is_none());
+        assert!(payload.session_name.is_none());
+        assert!(payload.agent_type.is_none());
+        assert!(payload.prompt.is_none());
+        assert!(payload.skip_prompt.is_none());
+        assert!(payload.skip_permissions.is_none());
+    }
+
+    #[test]
+    fn reset_selection_request_parses_fields() {
+        let payload = parse_reset_selection_request(
+            br#"{ "selection": "orchestrator", "agent_type": "opencode", "prompt": "go" }"#,
+        )
+        .expect("payload");
+        assert_eq!(payload.selection.as_deref(), Some("orchestrator"));
+        assert_eq!(payload.agent_type.as_deref(), Some("opencode"));
+        assert_eq!(payload.prompt.as_deref(), Some("go"));
+    }
+
 }
 
 async fn create_draft(
@@ -1125,6 +1179,286 @@ async fn create_session(
             ))
         }
     }
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct ResetSessionRequest {
+    #[serde(default)]
+    agent_type: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    skip_prompt: Option<bool>,
+    #[serde(default)]
+    skip_permissions: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct ResetSelectionRequest {
+    #[serde(default)]
+    selection: Option<String>,
+    #[serde(default)]
+    session_name: Option<String>,
+    #[serde(default)]
+    agent_type: Option<String>,
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    skip_prompt: Option<bool>,
+    #[serde(default)]
+    skip_permissions: Option<bool>,
+}
+
+fn parse_reset_selection_request(body_bytes: &[u8]) -> Result<ResetSelectionRequest, (StatusCode, String)> {
+    if body_bytes.is_empty() {
+        return Ok(ResetSelectionRequest {
+            selection: None,
+            session_name: None,
+            agent_type: None,
+            prompt: None,
+            skip_prompt: None,
+            skip_permissions: None,
+        });
+    }
+    serde_json::from_slice::<ResetSelectionRequest>(body_bytes)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON payload: {e}")))
+}
+
+async fn reset_selection(
+    req: Request<Incoming>,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload = match parse_reset_selection_request(&body_bytes) {
+        Ok(p) => p,
+        Err((status, message)) => return Ok(error_response(status, message)),
+    };
+
+    match payload.selection.as_deref() {
+        Some("orchestrator") => reset_orchestrator(payload, app).await,
+        Some("session") => {
+            let name = match payload.session_name.as_deref() {
+                Some(v) if !v.trim().is_empty() => v,
+                _ => {
+                    return Ok(error_response(
+                        StatusCode::BAD_REQUEST,
+                        "Missing 'session_name' field for selection='session'".to_string(),
+                    ));
+                }
+            };
+
+            reset_session_with_payload(
+                name,
+                ResetSessionRequest {
+                    agent_type: payload.agent_type,
+                    prompt: payload.prompt,
+                    skip_prompt: payload.skip_prompt,
+                    skip_permissions: payload.skip_permissions,
+                },
+                app,
+            )
+            .await
+        }
+        Some(other) => Ok(error_response(
+            StatusCode::BAD_REQUEST,
+            format!("Invalid selection '{other}'. Expected 'orchestrator' or 'session'."),
+        )),
+        None => Ok(error_response(
+            StatusCode::BAD_REQUEST,
+            "Missing 'selection' field (expected 'orchestrator' or 'session')".to_string(),
+        )),
+    }
+}
+
+async fn reset_orchestrator(
+    payload: ResetSelectionRequest,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_write().await {
+        Ok(core) => core,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+    let manager = core.session_manager();
+    if let Some(agent_type) = payload.agent_type.as_deref()
+        && let Err(e) = manager.set_orchestrator_agent_type(agent_type)
+    {
+        warn!("Failed to set orchestrator agent type: {e}");
+    }
+    if let Some(skip) = payload.skip_permissions
+        && let Err(e) = manager.set_orchestrator_skip_permissions(skip)
+    {
+        warn!("Failed to set orchestrator skip permissions: {e}");
+    }
+
+    let effective_agent_type = payload.agent_type.clone().unwrap_or_else(|| {
+        core.db
+            .get_orchestrator_agent_type()
+            .unwrap_or_else(|_| "claude".to_string())
+    });
+
+    let terminal_id = terminal_id_for_orchestrator_top(core.repo_path.as_path());
+    drop(core);
+
+    let start_result = start_orchestrator_with_prompt(
+        app.clone(),
+        terminal_id.clone(),
+        Some(effective_agent_type.clone()),
+        payload.prompt.as_deref(),
+        payload.skip_prompt.unwrap_or(false),
+    )
+    .await;
+
+    match start_result {
+        Ok(msg) => Ok(Response::new(msg)),
+        Err(err) => Ok(error_response(StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+async fn start_orchestrator_with_prompt(
+    app: tauri::AppHandle,
+    terminal_id: String,
+    agent_type: Option<String>,
+    prompt: Option<&str>,
+    skip_prompt: bool,
+) -> Result<String, String> {
+    let Some(prompt) = prompt.filter(|p| !p.trim().is_empty()) else {
+        return schaltwerk_core_start_claude_orchestrator(app, terminal_id, None, None, agent_type).await;
+    };
+    if skip_prompt {
+        return schaltwerk_core_start_claude_orchestrator(app, terminal_id, None, None, agent_type)
+            .await;
+    }
+
+    let core = get_core_read().await?;
+    let manager = core.session_manager();
+    let db = core.db.clone();
+    let repo_path = core.repo_path.clone();
+    let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let settings = settings_manager.lock().await;
+        let mut paths = std::collections::HashMap::new();
+        for agent in [
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "kilocode",
+        ] {
+            if let Ok(path) = settings.get_effective_binary_path(agent) {
+                paths.insert(agent.to_string(), path);
+            }
+        }
+        paths
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    let command_spec = manager.start_agent_in_orchestrator(
+        &binary_paths,
+        agent_type.as_deref(),
+        Some(prompt),
+    )
+    .map_err(|e| e.to_string())?;
+    drop(core);
+
+    let launch_result = agent_launcher::launch_in_terminal(
+        terminal_id,
+        command_spec,
+        &db,
+        repo_path.as_path(),
+        None,
+        None,
+        true,
+    )
+    .await;
+
+    launch_result.map(|_| "orchestrator-started".to_string())
+}
+
+async fn reset_session_with_payload(
+    name: &str,
+    payload: ResetSessionRequest,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    if let Ok(core) = get_core_write().await {
+        let manager = core.session_manager();
+        if let Some(agent_type) = payload.agent_type.as_deref() {
+            let skip = payload.skip_permissions.unwrap_or(false);
+            if let Err(e) = manager.set_session_original_settings(name, agent_type, skip) {
+                warn!("Failed to update session agent settings for '{name}': {e}");
+            } else {
+                request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+            }
+        } else if let Some(skip) = payload.skip_permissions
+            && let Ok(session) = manager.get_session(name)
+        {
+            let agent = session
+                .original_agent_type
+                .as_deref()
+                .unwrap_or("claude");
+            if let Err(e) = manager.set_session_original_settings(name, agent, skip) {
+                warn!("Failed to update session skip permissions for '{name}': {e}");
+            } else {
+                request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+            }
+        }
+    }
+
+    if payload.agent_type.is_some() || payload.skip_permissions.is_some() {
+        request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+    }
+
+    let result = schaltwerk_core_start_session_agent_with_restart(
+        app.clone(),
+        StartAgentParams {
+            session_name: name.to_string(),
+            force_restart: true,
+            cols: None,
+            rows: None,
+            terminal_id: None,
+            agent_type: payload.agent_type,
+            prompt: payload.prompt,
+            skip_prompt: payload.skip_prompt,
+            skip_permissions: payload.skip_permissions,
+        },
+    )
+    .await;
+
+    match result {
+        Ok(command) => Ok(Response::new(command)),
+        Err(err) => Ok(error_response(StatusCode::BAD_REQUEST, err)),
+    }
+}
+
+async fn reset_session(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: ResetSessionRequest = if body_bytes.is_empty() {
+        ResetSessionRequest {
+            agent_type: None,
+            prompt: None,
+            skip_prompt: None,
+            skip_permissions: None,
+        }
+    } else {
+        match serde_json::from_slice(&body_bytes) {
+            Ok(p) => p,
+            Err(e) => {
+                return Ok(error_response(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid JSON payload: {e}"),
+                ));
+            }
+        }
+    };
+
+    reset_session_with_payload(name, payload, app).await
 }
 
 async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
