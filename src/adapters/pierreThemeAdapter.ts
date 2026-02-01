@@ -68,26 +68,31 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       --diffs-fg: var(--color-text-primary);
       --diffs-fg-number: var(--color-text-tertiary);
 
-      --diffs-deletion-base: var(--color-diff-removed-text);
-      --diffs-addition-base: var(--color-diff-added-text);
-      --diffs-modified-base: var(--color-diff-modified-text);
+      /* Base colors from theme (terminal ANSI style) */
+      --diffs-deletion-base: var(--color-diff-removed-base);
+      --diffs-addition-base: var(--color-diff-added-base);
+      --diffs-modified-base: var(--color-diff-modified-base);
 
-      --diffs-mixer: white;
+      /* Neutral backgrounds */
+      --diffs-mixer: ${isDark ? 'white' : 'black'};
       --diffs-bg-buffer: color-mix(in lab, var(--diffs-bg) 92%, var(--diffs-mixer));
       --diffs-bg-hover: color-mix(in lab, var(--diffs-bg) 91%, var(--diffs-mixer));
       --diffs-bg-context: color-mix(in lab, var(--diffs-bg) 92.5%, var(--diffs-mixer));
       --diffs-bg-separator: color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-mixer));
 
-      --diffs-bg-deletion: color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-deletion-base));
-      --diffs-bg-deletion-number: color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-deletion-base));
-      --diffs-bg-deletion-hover: color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-deletion-base));
-      --diffs-bg-deletion-emphasis: rgb(from var(--diffs-deletion-base) r g b / 0.2);
+      /* Deletions - layered opacities (8%, 13%, 20%) matching superset */
+      --diffs-bg-deletion: var(--color-diff-removed-bg);
+      --diffs-bg-deletion-number: var(--color-diff-removed-gutter);
+      --diffs-bg-deletion-hover: color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-deletion-base));
+      --diffs-bg-deletion-emphasis: var(--color-diff-removed-text-bg);
 
-      --diffs-bg-addition: color-mix(in lab, var(--diffs-bg) 80%, var(--diffs-addition-base));
-      --diffs-bg-addition-number: color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-addition-base));
-      --diffs-bg-addition-hover: color-mix(in lab, var(--diffs-bg) 70%, var(--diffs-addition-base));
-      --diffs-bg-addition-emphasis: rgb(from var(--diffs-addition-base) r g b / 0.2);
+      /* Additions - layered opacities (8%, 13%, 20%) matching superset */
+      --diffs-bg-addition: var(--color-diff-added-bg);
+      --diffs-bg-addition-number: var(--color-diff-added-gutter);
+      --diffs-bg-addition-hover: color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-addition-base));
+      --diffs-bg-addition-emphasis: var(--color-diff-added-text-bg);
 
+      /* Selection highlighting */
       --diffs-selection-base: var(--diffs-modified-base);
       --diffs-selection-number-fg: color-mix(in lab, var(--diffs-selection-base) 75%, var(--diffs-mixer));
       --diffs-bg-selection: color-mix(in lab, var(--diffs-bg) 75%, var(--diffs-selection-base));

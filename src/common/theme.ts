@@ -132,12 +132,19 @@ export const theme = {
     },
     
     diff: {
-      addedBg: 'rgba(87, 166, 74, 0.15)',
-      addedText: '#57a64a',
-      removedBg: 'rgba(244, 135, 113, 0.15)',
-      removedText: '#f48771',
-      modifiedBg: 'rgba(245, 158, 11, 0.15)',
-      modifiedText: '#f59e0b',
+      addedBase: '#5af78e',
+      removedBase: '#ff5f56',
+      modifiedBase: '#e0af68',
+      addedBg: 'rgba(90, 247, 142, 0.08)',
+      removedBg: 'rgba(255, 95, 86, 0.08)',
+      modifiedBg: 'rgba(224, 175, 104, 0.08)',
+      addedTextBg: 'rgba(90, 247, 142, 0.13)',
+      removedTextBg: 'rgba(255, 95, 86, 0.13)',
+      addedGutter: 'rgba(90, 247, 142, 0.2)',
+      removedGutter: 'rgba(255, 95, 86, 0.2)',
+      addedText: '#5af78e',
+      removedText: '#ff5f56',
+      modifiedText: '#e0af68',
     },
 
     graph: {

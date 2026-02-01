@@ -320,12 +320,28 @@
   --color-status-error: var(--color-accent-red);
   --color-status-error-rgb: var(--color-accent-red-rgb);
 
-  /* Diff Colors */
-  --color-diff-added-bg: #dafbe1;
+  /* Diff Colors - Terminal ANSI style (matching superset) */
+  /* Base colors */
+  --color-diff-added-base: #1a7f37;
+  --color-diff-removed-base: #cf222e;
+  --color-diff-modified-base: #9a6700;
+
+  /* Line backgrounds (8% - subtle) */
+  --color-diff-added-bg: rgba(26, 127, 55, 0.08);
+  --color-diff-removed-bg: rgba(207, 34, 46, 0.08);
+  --color-diff-modified-bg: rgba(154, 103, 0, 0.08);
+
+  /* Word/text highlights (13% - medium emphasis) */
+  --color-diff-added-text-bg: rgba(26, 127, 55, 0.13);
+  --color-diff-removed-text-bg: rgba(207, 34, 46, 0.13);
+
+  /* Gutter backgrounds (20% - prominent) */
+  --color-diff-added-gutter: rgba(26, 127, 55, 0.2);
+  --color-diff-removed-gutter: rgba(207, 34, 46, 0.2);
+
+  /* Text colors (full saturation for indicators) */
   --color-diff-added-text: #1a7f37;
-  --color-diff-removed-bg: #ffebe9;
   --color-diff-removed-text: #cf222e;
-  --color-diff-modified-bg: #fff8c5;
   --color-diff-modified-text: #9a6700;
 
   /* Scrollbar Colors */
