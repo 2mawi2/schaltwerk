@@ -1437,8 +1437,6 @@ pub struct StartAgentParams {
     pub rows: Option<u16>,
     pub terminal_id: Option<String>,
     pub agent_type: Option<String>,
-    #[serde(default)]
-    pub prompt: Option<String>,
     pub skip_prompt: Option<bool>,
     pub skip_permissions: Option<bool>,
 }
@@ -1459,7 +1457,6 @@ pub async fn schaltwerk_core_start_session_agent(
             rows,
             terminal_id: None,
             agent_type: None,
-            prompt: None,
             skip_prompt: None,
             skip_permissions: None,
         },
@@ -1892,21 +1889,12 @@ pub async fn schaltwerk_core_start_session_agent_with_restart(
         rows,
         terminal_id,
         agent_type,
-        prompt,
         skip_prompt,
         skip_permissions,
     } = params;
     log::info!(
-        "[AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session={session_name}, force_restart={force_restart}, terminal_id={terminal_id:?}, agent_type={agent_type:?}, skip_prompt={skip_prompt:?}, skip_permissions={skip_permissions:?}, prompt_override={}",
-        prompt.is_some()
+        "[AGENT_LAUNCH_TRACE] schaltwerk_core_start_session_agent_with_restart called: session={session_name}, force_restart={force_restart}, terminal_id={terminal_id:?}, agent_type={agent_type:?}, skip_prompt={skip_prompt:?}, skip_permissions={skip_permissions:?}"
     );
-    if let Some(prompt) = prompt.as_ref() {
-        let core = get_core_write().await?;
-        let manager = core.session_manager();
-        if let Err(err) = manager.update_session_initial_prompt(&session_name, prompt) {
-            log::warn!("Failed to update initial prompt for session '{session_name}': {err}");
-        }
-    }
     schaltwerk_core_start_agent_in_terminal(
         app,
         AgentStartParams {
@@ -1982,7 +1970,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
     };
 
     let command_spec = manager
-        .start_agent_in_orchestrator(&binary_paths, agent_type.as_deref(), None)
+        .start_agent_in_orchestrator(&binary_paths, agent_type.as_deref())
         .map_err(|e| {
             log::error!("Failed to build orchestrator command: {e}");
             format!("Failed to start {agent_label} in orchestrator: {e}")

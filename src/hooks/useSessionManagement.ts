@@ -27,8 +27,7 @@ export interface SessionManagementHookReturn {
         terminals: TerminalIds,
         clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
         clearTerminalStartedTracking: (terminalIds: string[]) => void,
-        currentAgentType?: string,
-        prompt?: string
+        currentAgentType?: string
     ) => Promise<void>
 }
 
@@ -209,32 +208,21 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const startOrchestratorWithNewModel = useCallback(async (terminalId: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId })
-        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
     }, [])
 
-    const startSessionWithNewModel = useCallback(async (
-        sessionName: string,
-        forceRestart = false,
-        prompt?: string
-    ): Promise<void> => {
-        const params: { sessionName: string; forceRestart: boolean; prompt?: string } = {
-            sessionName,
-            forceRestart,
-        }
-        if (prompt !== undefined) {
-            params.prompt = prompt
-        }
+    const startSessionWithNewModel = useCallback(async (sessionName: string, forceRestart = false): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
-            params,
+            params: {
+                sessionName,
+                forceRestart,
+            },
         })
-        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sessionName })
     }, [])
 
     const restartWithNewModel = useCallback(async (
         selection: SessionSelection,
         terminalId: string,
-        forceRestart = false,
-        prompt?: string
+        forceRestart = false
     ): Promise<void> => {
         if (selection.kind === 'orchestrator') {
             const startedP = waitForAgentStarted(terminalId)
@@ -242,7 +230,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             await startedP
         } else if (selection.kind === 'session' && selection.payload) {
             const startedP = waitForAgentStarted(terminalId)
-            await startSessionWithNewModel(selection.payload, forceRestart, prompt)
+            await startSessionWithNewModel(selection.payload, forceRestart)
             await startedP
         }
     }, [startOrchestratorWithNewModel, startSessionWithNewModel, waitForAgentStarted])
@@ -254,8 +242,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         terminals: TerminalIds,
         clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
         clearTerminalStartedTracking: (terminalIds: string[]) => void,
-        currentAgentType?: string,
-        prompt?: string
+        currentAgentType?: string
     ): Promise<void> => {
         await setSkipPermissionsForSelection(selection, skipPermissions)
         await updateAgentType(selection, agentType)
@@ -275,7 +262,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         markTerminalStarting(claudeTerminalId)
         try {
             const isDifferentAgentType = currentAgentType !== undefined && currentAgentType !== agentType
-            await restartWithNewModel(selection, claudeTerminalId, isDifferentAgentType, prompt)
+            await restartWithNewModel(selection, claudeTerminalId, isDifferentAgentType)
         } finally {
             clearTerminalStartState([claudeTerminalId])
         }

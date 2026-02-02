@@ -3567,7 +3567,7 @@ impl SessionManager {
         &self,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_orchestrator_internal(binary_paths, false, None, None)
+        self.start_orchestrator_internal(binary_paths, false, None)
     }
 
     pub fn start_claude_in_orchestrator_with_binary(
@@ -3589,16 +3589,15 @@ impl SessionManager {
         _cli_args: Option<&str>,
         binary_paths: &HashMap<String, String>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_orchestrator_internal(binary_paths, true, None, None)
+        self.start_orchestrator_internal(binary_paths, true, None)
     }
 
     pub fn start_agent_in_orchestrator(
         &self,
         binary_paths: &HashMap<String, String>,
         agent_type_override: Option<&str>,
-        initial_prompt: Option<&str>,
     ) -> Result<AgentLaunchSpec> {
-        self.start_orchestrator_internal(binary_paths, true, agent_type_override, initial_prompt)
+        self.start_orchestrator_internal(binary_paths, true, agent_type_override)
     }
 
     fn start_orchestrator_internal(
@@ -3606,9 +3605,7 @@ impl SessionManager {
         binary_paths: &HashMap<String, String>,
         resume_session: bool,
         agent_type_override: Option<&str>,
-        initial_prompt: Option<&str>,
     ) -> Result<AgentLaunchSpec> {
-        let resume_session = resume_session && initial_prompt.is_none();
         let mode = if resume_session { "resumable" } else { "fresh" };
         log::info!(
             "Building {mode} orchestrator command for repo: {}",
@@ -3636,18 +3633,9 @@ impl SessionManager {
         };
         let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
-        log::info!(
-            "Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}, resume: {resume_session}, prompt_override={}",
-            initial_prompt.is_some()
-        );
+        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}, resume: {resume_session}");
 
-        self.build_orchestrator_command(
-            &agent_type,
-            skip_permissions,
-            binary_paths,
-            resume_session,
-            initial_prompt,
-        )
+        self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, resume_session)
     }
 
     fn build_orchestrator_command(
@@ -3656,7 +3644,6 @@ impl SessionManager {
         skip_permissions: bool,
         binary_paths: &HashMap<String, String>,
         resume_session: bool,
-        initial_prompt: Option<&str>,
     ) -> Result<AgentLaunchSpec> {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
@@ -3692,7 +3679,7 @@ impl SessionManager {
                 "claude",
                 &self.repo_path,
                 session_id_to_use.as_deref(),
-                initial_prompt,
+                None,
                 skip_permissions,
                 Some(&binary_path),
             ) {
@@ -3718,7 +3705,7 @@ impl SessionManager {
             agent_type,
             &self.repo_path,
             session_id.as_deref(),
-            initial_prompt,
+            None,
             skip_permissions,
             Some(&binary_path),
         ) {
@@ -4208,17 +4195,6 @@ impl SessionManager {
         self.db_manager.set_orchestrator_skip_permissions(skip)
     }
 
-    pub fn set_session_original_settings(
-        &self,
-        session_name: &str,
-        agent_type: &str,
-        skip_permissions: bool,
-    ) -> Result<()> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager
-            .set_session_original_settings(&session.id, agent_type, skip_permissions)
-    }
-
     pub fn update_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
         info!(
             "SessionCore: Updating spec content for session '{}', content length: {}",
@@ -4465,12 +4441,5 @@ impl SessionManager {
 
     pub fn mark_session_prompted(&self, worktree_path: &std::path::Path) {
         self.cache_manager.mark_session_prompted(worktree_path);
-    }
-
-    pub fn update_session_initial_prompt(&self, session_name: &str, prompt: &str) -> Result<()> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager.update_session_initial_prompt(&session.id, prompt)?;
-        crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, session_name);
-        Ok(())
     }
 }

@@ -44,10 +44,6 @@ fn build_decrqm_response(params: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-fn is_alternate_scroll_param(part: &[u8]) -> bool {
-    part == b"1007"
-}
-
 fn analyze_control_sequence(
     prefix: Option<u8>,
     params: &[u8],
@@ -82,13 +78,6 @@ fn analyze_control_sequence(
         b'R' => ControlSequenceAction::Drop,
         b'M' | b'm' => {
             if prefix == Some(b'<') {
-                ControlSequenceAction::Drop
-            } else {
-                ControlSequenceAction::Pass
-            }
-        }
-        b'h' | b'l' => {
-            if prefix == Some(b'?') && params.split(|b| *b == b';').any(is_alternate_scroll_param) {
                 ControlSequenceAction::Drop
             } else {
                 ControlSequenceAction::Pass
@@ -239,9 +228,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                 let mut cursor = i + 2;
                 let mut terminator_index = None;
                 while cursor < input.len() {
-                    if input[cursor] == 0x1b
-                        && cursor + 1 < input.len()
-                        && input[cursor + 1] == b'\\'
+                    if input[cursor] == 0x1b && cursor + 1 < input.len() && input[cursor + 1] == b'\\'
                     {
                         terminator_index = Some(cursor);
                         break;
@@ -303,13 +290,9 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
                             i = term_idx + terminator_len;
                         } else {
-                            let osc_code =
-                                text.split(';').next().and_then(|s| s.parse::<u32>().ok());
+                            let osc_code = text.split(';').next().and_then(|s| s.parse::<u32>().ok());
                             const KNOWN_OSC_CODES: &[u32] = &[0, 1, 2, 4, 7, 9, 52, 133, 1337];
-                            if !osc_code
-                                .map(|c| KNOWN_OSC_CODES.contains(&c))
-                                .unwrap_or(false)
-                            {
+                            if !osc_code.map(|c| KNOWN_OSC_CODES.contains(&c)).unwrap_or(false) {
                                 log::debug!("Unknown OSC sequence passing through: {text:?}");
                             }
                             data.extend_from_slice(&input[i..=term_idx + terminator_len - 1]);
@@ -351,7 +334,7 @@ pub fn sanitize_control_sequences(input: &[u8]) -> SanitizedOutput {
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_control_sequences, SanitizedOutput, SequenceResponse, WindowSizeRequest};
+    use super::{SanitizedOutput, SequenceResponse, WindowSizeRequest, sanitize_control_sequences};
 
     #[test]
     fn handles_cursor_position_queries() {
@@ -450,17 +433,6 @@ mod tests {
         let result = sanitize_control_sequences(sequence);
 
         assert!(result.data.is_empty());
-        assert!(result.remainder.is_none());
-        assert!(result.cursor_query_offsets.is_empty());
-        assert!(result.responses.is_empty());
-    }
-
-    #[test]
-    fn drops_alternate_scroll_decset_sequences() {
-        let sequence = b"pre\x1b[?1007hmid\x1b[?1007lpost";
-        let result = sanitize_control_sequences(sequence);
-
-        assert_eq!(result.data, b"premidpost");
         assert!(result.remainder.is_none());
         assert!(result.cursor_query_offsets.is_empty());
         assert!(result.responses.is_empty());
