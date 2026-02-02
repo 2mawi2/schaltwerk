@@ -327,22 +327,6 @@ pub async fn get_settings_manager(
 pub async fn get_terminal_manager()
 -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
     let manager = get_project_manager().await;
-
-    // Respect MCP request context if one is set for this task
-    if let Ok(Some(project_path)) = REQUEST_PROJECT_OVERRIDE.try_with(|cell| cell.borrow().clone())
-    {
-        match manager.get_terminal_manager_for_path(&project_path).await {
-            Ok(term) => return Ok(term),
-            Err(e) => {
-                log::error!(
-                    "Failed to get terminal manager for override path {}: {e}",
-                    project_path.display()
-                );
-                // Fall through to current project fallback
-            }
-        }
-    }
-
     manager
         .current_terminal_manager()
         .await

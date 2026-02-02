@@ -402,7 +402,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const agentTypeRef = useRef(agentType);
     agentTypeRef.current = agentType;
     const isPhysicalWheelRef = useRef(true);
-    const shouldCaptureWheelRef = useRef(false);
     const isTerminalOnlyAgent = agentType === 'terminal';
     const isAgentTopTerminal = useMemo(() => {
         if (isTerminalOnlyAgent) {
@@ -530,6 +529,11 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     }, [terminalId]);
 
     const shouldFilterMouseTracking = useCallback(() => {
+        const wrapper = xtermWrapperRef.current;
+        if (!wrapper) return true;
+        if (typeof wrapper.isTuiMode === 'function') {
+            return !wrapper.isTuiMode();
+        }
         return true;
     }, []);
 
@@ -911,61 +915,22 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
         const handleWheel = (event: WheelEvent) => {
             const next = classifyWheelEvent(event, isPhysicalWheelRef.current);
-            if (next !== isPhysicalWheelRef.current) {
-                isPhysicalWheelRef.current = next;
-                if (xtermWrapperRef.current) {
-                    xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && next);
-                }
-            }
-
-            if (!shouldCaptureWheelRef.current) {
+            if (next === isPhysicalWheelRef.current) {
                 return;
             }
-
-            if (!terminal.current) {
-                return;
+            isPhysicalWheelRef.current = next;
+            if (xtermWrapperRef.current) {
+                xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && next);
             }
-
-            const delta = event.deltaY;
-            if (!Number.isFinite(delta) || delta === 0) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
-            if (typeof event.stopImmediatePropagation === 'function') {
-                event.stopImmediatePropagation();
-            }
-
-            const buffer = terminal.current.buffer?.active;
-            if (!buffer) {
-                return;
-            }
-
-            if (buffer.baseY > 0) {
-                const multiplier = event.deltaMode === 1 ? 1 : 3;
-                const lines = Math.sign(delta) * Math.max(1, Math.ceil(Math.abs(delta) / 100) * multiplier);
-                terminal.current.scrollLines(lines);
-                logScrollChange('wheel');
-                return;
-            }
-
-            if (readOnlyRef.current) {
-                return;
-            }
-
-            const steps = Math.max(1, Math.ceil(Math.abs(delta) / 120));
-            const sequence = delta < 0 ? '\x1b[5~' : '\x1b[6~';
-            writeTerminalBackend(terminalId, sequence.repeat(steps)).catch(err => logger.debug('[Terminal] wheel scroll ignored (backend not ready yet)', err));
         };
         
         // Use capture phase for wheel events to intercept them before xterm consumes them
         // This is crucial for custom scrolling behavior or monitoring
-        node.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+        node.addEventListener('wheel', handleWheel, { passive: true, capture: true });
         return () => {
             node.removeEventListener('wheel', handleWheel, { capture: true });
         };
-    }, [smoothScrollingEnabled, logScrollChange]);
+    }, [smoothScrollingEnabled]);
 
     useEffect(() => {
         if (!xtermWrapperRef.current) {
@@ -1292,10 +1257,8 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 logger.info(`[Terminal ${terminalId}] Syncing UI mode: ${currentMode} → ${mode} (agentType=${agentType})`);
                 instance.setUiMode(mode);
             }
-            instance.setMouseTrackingAllowed(!isAgentTopTerminal);
         }
-        shouldCaptureWheelRef.current = agentType === 'opencode' && isAgentTopTerminal;
-    }, [agentType, terminalId, isAgentTopTerminal]);
+    }, [agentType, terminalId]);
 
     useEffect(() => {
         debugCountersRef.current.initRuns += 1;
@@ -1335,8 +1298,6 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
             instance.applyConfig(currentConfig);
         }
         instance.setUiMode(isTuiAgent(agentTypeRef.current) ? 'tui' : 'standard');
-        instance.setMouseTrackingAllowed(!isAgentTopTerminal);
-        shouldCaptureWheelRef.current = agentTypeRef.current === 'opencode' && isAgentTopTerminal;
         instance.setLinkHandler((uri: string) => handleLinkClickRef.current?.(uri) ?? false);
         instance.setSmoothScrolling(currentConfig.smoothScrolling && isPhysicalWheelRef.current);
         xtermWrapperRef.current = instance;

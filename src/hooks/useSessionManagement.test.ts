@@ -268,9 +268,7 @@ describe('useSessionManagement', () => {
                     selection,
                     mockTerminals,
                     mockClearTerminalTracking,
-                    mockClearTerminalStartedTracking,
-                    undefined,
-                    'review prompt'
+                    mockClearTerminalStartedTracking
                 )
             })
 
@@ -284,8 +282,7 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSessionAgentWithRestart, {
                 params: {
                     sessionName: 'test-session',
-                    forceRestart: false,
-                    prompt: 'review prompt'
+                    forceRestart: false
                 }
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])

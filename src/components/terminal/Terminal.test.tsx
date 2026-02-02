@@ -157,7 +157,6 @@ const terminalHarness = vi.hoisted(() => {
     detach = vi.fn()
     dispose = vi.fn()
     setSmoothScrolling = vi.fn()
-    setMouseTrackingAllowed = vi.fn()
     uiMode: 'standard' | 'tui' = 'standard'
     isTuiMode = vi.fn(() => this.uiMode === 'tui')
     shouldFollowOutput = vi.fn(() => this.uiMode !== 'tui')
@@ -410,16 +409,6 @@ function renderTerminal(props: Partial<TerminalProps> & { terminalId: string }, 
   )
 }
 
-function createWheelEvent(deltaY: number) {
-  if (typeof WheelEvent !== 'undefined') {
-    return new WheelEvent('wheel', { deltaY, deltaMode: 0, cancelable: true })
-  }
-  const event = new Event('wheel', { cancelable: true }) as WheelEvent
-  Object.defineProperty(event, 'deltaY', { value: deltaY })
-  Object.defineProperty(event, 'deltaMode', { value: 0 })
-  return event
-}
-
 describe('Terminal', () => {
   it('does not reinitialize the terminal when GPU preference changes', async () => {
     gpuMockState.setEnabled(true)
@@ -444,59 +433,6 @@ describe('Terminal', () => {
 
     // If the init effect re-runs, it will detach/cleanup and acquire again.
     expect(terminalHarness.acquireMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('scrolls the buffer and prevents default for opencode wheel events', async () => {
-    const { container } = renderTerminal({
-      terminalId: 'orchestrator-opencode-top',
-      agentType: 'opencode',
-      isCommander: true,
-    })
-
-    await waitFor(() => {
-      expect(terminalHarness.instances.length).toBeGreaterThan(0)
-    })
-
-    const termNode = container.querySelector('[data-terminal-id="orchestrator-opencode-top"]')
-    expect(termNode).not.toBeNull()
-
-    const instance = terminalHarness.instances[0]
-    // Set baseY > 0 so scrollLines path is taken (otherwise PageUp/PageDown sequences are sent)
-    instance.raw.buffer.active.baseY = 100
-
-    const wheelEvent = createWheelEvent(120)
-
-    act(() => {
-      termNode?.dispatchEvent(wheelEvent)
-    })
-
-    expect(instance.raw.scrollLines).toHaveBeenCalled()
-    expect(wheelEvent.defaultPrevented).toBe(true)
-  })
-
-  it('does not intercept wheel events for non-opencode agents', async () => {
-    const { container } = renderTerminal({
-      terminalId: 'session-codex-top',
-      agentType: 'codex',
-      sessionName: 'codex-session',
-    })
-
-    await waitFor(() => {
-      expect(terminalHarness.instances.length).toBeGreaterThan(0)
-    })
-
-    const termNode = container.querySelector('[data-terminal-id="session-codex-top"]')
-    expect(termNode).not.toBeNull()
-
-    const wheelEvent = createWheelEvent(120)
-
-    act(() => {
-      termNode?.dispatchEvent(wheelEvent)
-    })
-
-    const instance = terminalHarness.instances[0]
-    expect(instance.raw.scrollLines).not.toHaveBeenCalled()
-    expect(wheelEvent.defaultPrevented).toBe(false)
   })
 
   it('constructs XtermTerminal with default scrollback for regular terminals', async () => {
