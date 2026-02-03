@@ -1,5 +1,6 @@
 use super::CreateParams;
 use super::shell_invocation::{build_login_shell_invocation_with_shell, sh_quote_string};
+use crate::shared::terminal_id::is_session_top_terminal_id;
 use portable_pty::CommandBuilder;
 use std::path::PathBuf;
 
@@ -40,7 +41,7 @@ pub async fn build_command_spec(
 
     let (program, args) = if let Some(app) = params.app.as_ref() {
         let (resolved_program, resolved_args, used_login_shell) =
-            resolve_app_program_and_args(app, &params.cwd);
+            resolve_app_program_and_args(app, &params.cwd, &params.id);
 
         if used_login_shell {
             log::info!(
@@ -453,6 +454,7 @@ fn resolve_command_windows(command: &str) -> String {
 fn resolve_app_program_and_args(
     app: &super::ApplicationSpec,
     cwd: &str,
+    terminal_id: &str,
 ) -> (String, Vec<String>, bool) {
     let resolved = resolve_command(&app.command, cwd);
 
@@ -467,7 +469,18 @@ fn resolve_app_program_and_args(
 
     let (shell, base_args) = super::get_effective_shell();
     let mut shell_args = base_args;
-    ensure_shell_interactive_flag(&shell, &mut shell_args);
+
+    // Agent terminals (top terminals) need special handling:
+    // - Remove -i flag if present (causes job control conflicts with setRawMode())
+    // - Login shell provides environment, no need for interactive shell
+    let is_agent_terminal = is_session_top_terminal_id(terminal_id)
+        || terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top");
+
+    if is_agent_terminal {
+        filter_interactive_flag(&mut shell_args);
+    } else {
+        ensure_shell_interactive_flag(&shell, &mut shell_args);
+    }
 
     let inner = build_shell_command_string(&shell, &app.command, &app.args);
     let invocation = build_login_shell_invocation_with_shell(&shell, &shell_args, &inner);
@@ -524,6 +537,10 @@ fn ps_quote_string(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+fn filter_interactive_flag(args: &mut Vec<String>) {
+    args.retain(|arg| !contains_short_flag(arg, 'i'));
 }
 
 fn ensure_shell_interactive_flag(shell: &str, args: &mut Vec<String>) {
