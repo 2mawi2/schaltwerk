@@ -470,19 +470,22 @@ fn resolve_app_program_and_args(
     let (shell, base_args) = super::get_effective_shell();
     let mut shell_args = base_args;
 
-    // Agent terminals (top terminals) need special handling:
-    // - Remove -i flag if present (causes job control conflicts with setRawMode())
-    // - Login shell provides environment, no need for interactive shell
+    // All wrapped commands need -i for .zshrc/.bashrc sourcing
+    ensure_shell_interactive_flag(&shell, &mut shell_args);
+
+    // Agent terminals need special handling:
+    // - Keep -i flag for .zshrc/.bashrc sourcing (provides env vars like NVM, PYENV)
+    // - But disable job control with 'set +m' to prevent conflicts with setRawMode()
     let is_agent_terminal = is_session_top_terminal_id(terminal_id)
         || terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top");
 
-    if is_agent_terminal {
-        filter_interactive_flag(&mut shell_args);
+    let inner = if is_agent_terminal {
+        // Disable job control before executing agent
+        format!("set +m; {}", build_shell_command_string(&shell, &app.command, &app.args))
     } else {
-        ensure_shell_interactive_flag(&shell, &mut shell_args);
-    }
+        build_shell_command_string(&shell, &app.command, &app.args)
+    };
 
-    let inner = build_shell_command_string(&shell, &app.command, &app.args);
     let invocation = build_login_shell_invocation_with_shell(&shell, &shell_args, &inner);
 
     (invocation.program, invocation.args, true)
@@ -537,10 +540,6 @@ fn ps_quote_string(s: &str) -> String {
     } else {
         s.to_string()
     }
-}
-
-fn filter_interactive_flag(args: &mut Vec<String>) {
-    args.retain(|arg| !contains_short_flag(arg, 'i'));
 }
 
 fn ensure_shell_interactive_flag(shell: &str, args: &mut Vec<String>) {
