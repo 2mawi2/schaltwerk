@@ -219,47 +219,57 @@ where
     let prompt_plain = format!(
         r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
 
-Generate a SHORT kebab-case name for this agent.
+Generate a SHORT kebab-case name for this coding task.
 
 Rules:
-- Maximum 3-4 words
+- 2-4 words, prefer verb-noun format (e.g., fix-login, add-dark-mode)
 - 20 characters or less preferred
 - Use only lowercase letters, numbers, hyphens
-- Be concise - capture the essence, not details
-- Return ONLY the name, no quotes or exspecation
+- Capture WHAT is being done, not HOW
+- Return ONLY the name, nothing else
 - Do NOT use tools or commands
 
-Examples of good names:
-- "auth-system" (not "implement-user-authentication-system")
-- "horse-app" (not "lets-talk-about-horses-and-build")
-- "fix-login" (not "fix-the-login-button-on-homepage")
-- "api-docs" (not "create-api-documentation-for-endpoints")
+Good examples:
+- "fix-pr-links" (for fixing pull request link behavior)
+- "add-dark-mode" (for implementing dark mode theme)
+- "refactor-auth" (for refactoring authentication)
+- "update-nav-bar" (for changing navigation layout)
 
-Agent: {truncated}
+Bad examples:
+- "implement-the-new-user-authentication-system" (too long)
+- "session-1" (too generic)
+- "claude-task" (describes the agent, not the task)
 
-Respond with just the short kebab-case name:"#
+Task: {truncated}
+
+Name:"#
     );
 
     let prompt_json = format!(
         r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
 
-Generate a SHORT kebab-case name for this agent.
+Generate a SHORT kebab-case name for this coding task.
 
 Rules:
-- Maximum 3-4 words
+- 2-4 words, prefer verb-noun format (e.g., fix-login, add-dark-mode)
 - 20 characters or less preferred
 - Use only lowercase letters, numbers, hyphens
-- Be concise - capture the essence, not details
+- Capture WHAT is being done, not HOW
 - Return ONLY JSON format: {{"name": "kebab-case-name"}}
 - Do NOT use tools or commands
 
-Examples of good names:
-- {{"name": "auth-system"}} (not "implement-user-authentication-system")
-- {{"name": "horse-app"}} (not "lets-talk-about-horses-and-build")
-- {{"name": "fix-login"}} (not "fix-the-login-button-on-homepage")
-- {{"name": "api-docs"}} (not "create-api-documentation-for-endpoints")
+Good examples:
+- {{"name": "fix-pr-links"}} (for fixing pull request link behavior)
+- {{"name": "add-dark-mode"}} (for implementing dark mode theme)
+- {{"name": "refactor-auth"}} (for refactoring authentication)
+- {{"name": "update-nav-bar"}} (for changing navigation layout)
 
-Agent: {truncated}
+Bad examples:
+- "implement-the-new-user-authentication-system" (too long)
+- "session-1" (too generic)
+- "claude-task" (describes the agent, not the task)
+
+Task: {truncated}
 
 Respond with JSON: {{"name": "short-kebab-case-name"}}"#
     );
