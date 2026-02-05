@@ -1472,12 +1472,11 @@ describe('NewSessionModal GitHub PR prompt source', () => {
                     useExistingBranch: true,
                     customBranch: 'feature/same-repo-branch',
                     syncWithOrigin: true,
+                    prNumber: 123,
+                    prUrl: 'https://github.com/example/repo/pull/123',
                 })
             )
         })
-
-        const createPayload = onCreate.mock.calls[0][0]
-        expect(createPayload.prNumber).toBeUndefined()
     })
 
     test('fork PR uses prNumber instead of useExistingBranch', async () => {
@@ -1586,6 +1585,7 @@ describe('NewSessionModal GitHub PR prompt source', () => {
             expect(onCreate).toHaveBeenCalledWith(
                 expect.objectContaining({
                     prNumber: 456,
+                    prUrl: 'https://github.com/example/repo/pull/456',
                     useExistingBranch: false,
                 })
             )
