@@ -526,6 +526,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         project_path: &Path,
         query: &str,
         limit: usize,
+        repository: Option<&str>,
     ) -> Result<Vec<GitHubIssueSummary>, GitHubCliError> {
         debug!(
             "[GitHubCli] Searching issues for project={}, query='{}', limit={}",
@@ -562,6 +563,10 @@ impl<R: CommandRunner> GitHubCli<R> {
         for label_filter in label_filters {
             args_vec.push("--label".to_string());
             args_vec.push(label_filter);
+        }
+        if let Some(repo) = repository {
+            args_vec.push("--repo".to_string());
+            args_vec.push(repo.to_string());
         }
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
@@ -626,6 +631,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         &self,
         project_path: &Path,
         number: u64,
+        repository: Option<&str>,
     ) -> Result<GitHubIssueDetails, GitHubCliError> {
         debug!(
             "[GitHubCli] Fetching issue details for project={}, number={}",
@@ -635,13 +641,17 @@ impl<R: CommandRunner> GitHubCli<R> {
         ensure_git_remote_exists(project_path)?;
 
         let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
-        let args_vec = vec![
+        let mut args_vec = vec![
             "issue".to_string(),
             "view".to_string(),
             number.to_string(),
             "--json".to_string(),
             "number,title,body,url,labels,comments".to_string(),
         ];
+        if let Some(repo) = repository {
+            args_vec.push("--repo".to_string());
+            args_vec.push(repo.to_string());
+        }
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
         let output = self
@@ -705,6 +715,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         project_path: &Path,
         query: &str,
         limit: usize,
+        repository: Option<&str>,
     ) -> Result<Vec<GitHubPrSummary>, GitHubCliError> {
         debug!(
             "[GitHubCli] Searching PRs for project={}, query='{}', limit={}",
@@ -735,6 +746,10 @@ impl<R: CommandRunner> GitHubCli<R> {
             args_vec.push(trimmed_query.to_string());
             args_vec.push("--state".to_string());
             args_vec.push("all".to_string());
+        }
+        if let Some(repo) = repository {
+            args_vec.push("--repo".to_string());
+            args_vec.push(repo.to_string());
         }
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
@@ -800,6 +815,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         &self,
         project_path: &Path,
         number: u64,
+        repository: Option<&str>,
     ) -> Result<GitHubPrDetails, GitHubCliError> {
         debug!(
             "[GitHubCli] Fetching PR details for project={}, number={}",
@@ -809,13 +825,17 @@ impl<R: CommandRunner> GitHubCli<R> {
         ensure_git_remote_exists(project_path)?;
 
         let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
-        let args_vec = vec![
+        let mut args_vec = vec![
             "pr".to_string(),
             "view".to_string(),
             number.to_string(),
             "--json".to_string(),
             "number,title,body,url,labels,comments,headRefName,reviewDecision,statusCheckRollup,latestReviews,isCrossRepository".to_string(),
         ];
+        if let Some(repo) = repository {
+            args_vec.push("--repo".to_string());
+            args_vec.push(repo.to_string());
+        }
 
         let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
         let output = self
@@ -904,6 +924,7 @@ impl<R: CommandRunner> GitHubCli<R> {
         &self,
         project_path: &Path,
         pr_number: u64,
+        repository: Option<&str>,
     ) -> Result<Vec<GitHubPrReviewComment>, GitHubCliError> {
         debug!(
             "[GitHubCli] Fetching PR review comments for project={}, pr_number={}",
@@ -912,8 +933,11 @@ impl<R: CommandRunner> GitHubCli<R> {
         );
         ensure_git_remote_exists(project_path)?;
 
-        let repo_info = self.view_repository(project_path)?;
-        let api_path = format!("repos/{}/pulls/{}/comments", repo_info.name_with_owner, pr_number);
+        let repo_name = match repository {
+            Some(repo) => repo.to_string(),
+            None => self.view_repository(project_path)?.name_with_owner,
+        };
+        let api_path = format!("repos/{}/pulls/{}/comments", repo_name, pr_number);
 
         let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
         let args_vec = vec![
@@ -2116,7 +2140,7 @@ mod tests {
             .unwrap();
 
         let results = cli
-            .search_issues(repo_path, "", 50)
+            .search_issues(repo_path, "", 50, Some("example/repo"))
             .expect("issue search results");
 
         assert_eq!(results.len(), 1);
@@ -2144,6 +2168,8 @@ mod tests {
             !args.contains(&"--search".to_string()),
             "Search flag should be omitted when query is empty"
         );
+        assert!(args.contains(&"--repo".to_string()));
+        assert!(args.contains(&"example/repo".to_string()));
     }
 
     #[test]
@@ -2163,7 +2189,7 @@ mod tests {
             .unwrap();
 
         let results = cli
-            .search_issues(repo_path, "  regression fix ", 5)
+            .search_issues(repo_path, "  regression fix ", 5, None)
             .expect("issue search results");
 
         assert_eq!(results.len(), 1);
@@ -2193,7 +2219,7 @@ mod tests {
             .unwrap();
 
         let _ = cli
-            .search_issues(repo_path, "label:\"bug\" critical", 5)
+            .search_issues(repo_path, "label:\"bug\" critical", 5, None)
             .expect("issue search results");
 
         let args = runner.calls()[0].args.clone();
@@ -2224,7 +2250,7 @@ mod tests {
             .unwrap();
 
         let _ = cli
-            .search_issues(repo_path, "label:enhancement", 10)
+            .search_issues(repo_path, "label:enhancement", 10, None)
             .expect("issue search results");
 
         let args = runner.calls()[0].args.clone();
@@ -2262,6 +2288,7 @@ mod tests {
                 repo_path,
                 "label:bug label:\"help wanted\" login failure",
                 25,
+                None,
             )
             .expect("issue search results");
 
@@ -2298,7 +2325,7 @@ mod tests {
             .unwrap();
 
         let results = cli
-            .search_issues(repo_path, "", 20)
+            .search_issues(repo_path, "", 20, None)
             .expect("issue search results");
 
         assert_eq!(results.len(), 2);
@@ -2347,7 +2374,7 @@ mod tests {
             .unwrap();
 
         let details = cli
-            .get_issue_with_comments(repo_path, 101)
+            .get_issue_with_comments(repo_path, 101, None)
             .expect("issue details");
 
         assert_eq!(details.number, 101);
@@ -2400,7 +2427,7 @@ mod tests {
             .unwrap();
 
         let details = cli
-            .get_issue_with_comments(repo_path, 5)
+            .get_issue_with_comments(repo_path, 5, None)
             .expect("issue details");
 
         assert_eq!(details.comments.len(), 1);

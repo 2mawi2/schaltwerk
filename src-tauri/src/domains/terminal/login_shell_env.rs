@@ -435,6 +435,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn capture_login_shell_env_returns_path() {
         let env = capture_login_shell_env().await;
 

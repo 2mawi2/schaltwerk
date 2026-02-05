@@ -647,14 +647,14 @@ async fn github_get_pr_review_comments_impl<R: CommandRunner>(
     cli: &GitHubCli<R>,
     pr_number: u64,
 ) -> Result<Vec<GitHubPrReviewCommentPayload>, String> {
-    let project_path = resolve_project_path(project_manager).await?;
+    let project = resolve_project(project_manager).await?;
 
     if let Err(err) = cli.ensure_installed() {
         return Err(format_cli_error(err));
     }
 
     let comments = cli
-        .get_pr_review_comments(&project_path, pr_number)
+        .get_pr_review_comments(&project.path, pr_number, project.repository.as_deref())
         .map_err(|err| {
             error!("GitHub PR review comments fetch failed: {err}");
             format_cli_error(err)
@@ -720,7 +720,7 @@ async fn github_search_issues_impl<R: CommandRunner>(
     query: Option<String>,
     limit: usize,
 ) -> Result<Vec<GitHubIssueSummaryPayload>, String> {
-    let project_path = resolve_project_path(project_manager).await?;
+    let project = resolve_project(project_manager).await?;
 
     if let Err(err) = cli.ensure_installed() {
         return Err(format_cli_error(err));
@@ -728,7 +728,7 @@ async fn github_search_issues_impl<R: CommandRunner>(
 
     let search_query = query.unwrap_or_default();
     let issues = cli
-        .search_issues(&project_path, search_query.trim(), limit)
+        .search_issues(&project.path, search_query.trim(), limit, project.repository.as_deref())
         .map_err(|err| {
             error!("GitHub issue search failed: {err}");
             format_cli_error(err)
@@ -742,14 +742,14 @@ async fn github_get_issue_details_impl<R: CommandRunner>(
     cli: &GitHubCli<R>,
     number: u64,
 ) -> Result<GitHubIssueDetailsPayload, String> {
-    let project_path = resolve_project_path(project_manager).await?;
+    let project = resolve_project(project_manager).await?;
 
     if let Err(err) = cli.ensure_installed() {
         return Err(format_cli_error(err));
     }
 
     let details = cli
-        .get_issue_with_comments(&project_path, number)
+        .get_issue_with_comments(&project.path, number, project.repository.as_deref())
         .map_err(|err| {
             error!("GitHub issue detail fetch failed: {err}");
             format_cli_error(err)
@@ -764,7 +764,7 @@ async fn github_search_prs_impl<R: CommandRunner>(
     query: Option<String>,
     limit: usize,
 ) -> Result<Vec<GitHubPrSummaryPayload>, String> {
-    let project_path = resolve_project_path(project_manager).await?;
+    let project = resolve_project(project_manager).await?;
 
     if let Err(err) = cli.ensure_installed() {
         return Err(format_cli_error(err));
@@ -772,7 +772,7 @@ async fn github_search_prs_impl<R: CommandRunner>(
 
     let search_query = query.unwrap_or_default();
     let prs = cli
-        .search_prs(&project_path, search_query.trim(), limit)
+        .search_prs(&project.path, search_query.trim(), limit, project.repository.as_deref())
         .map_err(|err| {
             error!("GitHub PR search failed: {err}");
             format_cli_error(err)
@@ -786,14 +786,14 @@ async fn github_get_pr_details_impl<R: CommandRunner>(
     cli: &GitHubCli<R>,
     number: u64,
 ) -> Result<GitHubPrDetailsPayload, String> {
-    let project_path = resolve_project_path(project_manager).await?;
+    let project = resolve_project(project_manager).await?;
 
     if let Err(err) = cli.ensure_installed() {
         return Err(format_cli_error(err));
     }
 
     let details = cli
-        .get_pr_with_comments(&project_path, number)
+        .get_pr_with_comments(&project.path, number, project.repository.as_deref())
         .map_err(|err| {
             error!("GitHub PR detail fetch failed: {err}");
             format_cli_error(err)
@@ -802,26 +802,33 @@ async fn github_get_pr_details_impl<R: CommandRunner>(
     Ok(map_pr_details_payload(details))
 }
 
-async fn resolve_project_path(project_manager: Arc<ProjectManager>) -> Result<PathBuf, String> {
+struct ResolvedProject {
+    path: PathBuf,
+    repository: Option<String>,
+}
+
+async fn resolve_project(project_manager: Arc<ProjectManager>) -> Result<ResolvedProject, String> {
     let project = project_manager
         .current_project()
         .await
         .map_err(|e| format!("No active project: {e}"))?;
 
     let project_path = project.path.clone();
-    let has_repository = {
+    let github_config = {
         let core = project.schaltwerk_core.read().await;
         let db = core.database();
         db.get_project_github_config(&project.path)
             .map_err(|e| format!("Failed to load GitHub project config: {e}"))?
-            .is_some()
     };
 
-    if !has_repository {
+    if github_config.is_none() {
         return Err(repo_not_connected_error());
     }
 
-    Ok(project_path)
+    Ok(ResolvedProject {
+        path: project_path,
+        repository: github_config.map(|cfg| cfg.repository),
+    })
 }
 
 fn map_issue_summary_payload(issue: GitHubIssueSummary) -> GitHubIssueSummaryPayload {
