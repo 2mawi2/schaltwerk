@@ -1300,4 +1300,17 @@ export interface Translations {
     deleteSpec: string
     createPrShortcut: string
   }
+  dashboard: {
+    title: string
+    loading: string
+    error: string
+    retry: string
+    noServices: string
+    noServicesHint: string
+    openInBrowser: string
+    openInPreview: string
+    goToTerminal: string
+    removeService: string
+    refresh: string
+  }
 }

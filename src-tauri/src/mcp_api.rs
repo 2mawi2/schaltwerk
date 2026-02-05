@@ -123,6 +123,17 @@ async fn handle_mcp_request_inner(
         (&Method::GET, "/api/current-spec-mode-session") => {
             get_current_spec_mode_session(app).await
         }
+        // Running services API (for project dashboard)
+        (&Method::GET, "/api/services") => list_services().await,
+        (&Method::POST, "/api/services") => register_service(req).await,
+        (&Method::GET, path) if path.starts_with("/api/services/") => {
+            let id = extract_service_id(path);
+            get_service(&id).await
+        }
+        (&Method::DELETE, path) if path.starts_with("/api/services/") => {
+            let id = extract_service_id(path);
+            unregister_service(&id).await
+        }
         _ => Ok(not_found_response()),
     }
 }
@@ -164,6 +175,14 @@ fn extract_session_name_for_action(path: &str, action: &str) -> String {
     let name = &path[prefix.len()..path.len() - suffix.len()];
     urlencoding::decode(name)
         .unwrap_or(std::borrow::Cow::Borrowed(name))
+        .to_string()
+}
+
+fn extract_service_id(path: &str) -> String {
+    let prefix = "/api/services/";
+    let id = &path[prefix.len()..];
+    urlencoding::decode(id)
+        .unwrap_or(std::borrow::Cow::Borrowed(id))
         .to_string()
 }
 
@@ -1732,4 +1751,104 @@ async fn get_current_spec_mode_session(
     // For now, return not found since we don't have persistent state tracking
     // This could be enhanced later with proper state management
     Ok(error_response(StatusCode::NOT_FOUND, "Spec mode session tracking not yet implemented. Use schaltwerk_draft_update with explicit session name.".to_string()))
+}
+
+// ============================================================================
+// Running Services API (for project dashboard)
+// ============================================================================
+
+use crate::get_services_registry;
+use schaltwerk::domains::services::RegisterServiceRequest;
+
+/// List all registered running services
+async fn list_services() -> Result<Response<String>, hyper::Error> {
+    let registry = get_services_registry().await;
+    let services = registry.list().await;
+    
+    let json = match serde_json::to_string(&serde_json::json!({ "services": services })) {
+        Ok(json) => json,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize services: {e}"),
+            ));
+        }
+    };
+    
+    Ok(json_response(StatusCode::OK, json))
+}
+
+/// Register a new running service
+async fn register_service(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
+    let body = req.into_body();
+    let body_bytes = body.collect().await?.to_bytes();
+    
+    let request: RegisterServiceRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(req) => req,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON body: {e}"),
+            ));
+        }
+    };
+    
+    let registry = get_services_registry().await;
+    let service = registry.register(request).await;
+    
+    let json = match serde_json::to_string(&service) {
+        Ok(json) => json,
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to serialize service: {e}"),
+            ));
+        }
+    };
+    
+    info!("Registered service via MCP API: {} on port {}", service.name, service.port);
+    Ok(json_response(StatusCode::CREATED, json))
+}
+
+/// Get a service by ID
+async fn get_service(id: &str) -> Result<Response<String>, hyper::Error> {
+    let registry = get_services_registry().await;
+    
+    match registry.get(id).await {
+        Some(service) => {
+            let json = match serde_json::to_string(&service) {
+                Ok(json) => json,
+                Err(e) => {
+                    return Ok(json_error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to serialize service: {e}"),
+                    ));
+                }
+            };
+            Ok(json_response(StatusCode::OK, json))
+        }
+        None => Ok(json_error_response(
+            StatusCode::NOT_FOUND,
+            format!("Service '{id}' not found"),
+        )),
+    }
+}
+
+/// Unregister a service by ID
+async fn unregister_service(id: &str) -> Result<Response<String>, hyper::Error> {
+    let registry = get_services_registry().await;
+    
+    match registry.unregister(id).await {
+        Some(service) => {
+            info!("Unregistered service via MCP API: {} (id: {})", service.name, service.id);
+            Ok(json_response(
+                StatusCode::OK,
+                serde_json::json!({ "removed": true, "service": service }).to_string(),
+            ))
+        }
+        None => Ok(json_error_response(
+            StatusCode::NOT_FOUND,
+            format!("Service '{id}' not found"),
+        )),
+    }
 }
