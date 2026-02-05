@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { useTranslation } from '../../common/i18n'
+import { theme } from '../../common/theme'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { promptToSessionName } from '../../utils/promptToSessionName'
@@ -25,8 +26,7 @@ import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import { MarkdownEditor, type MarkdownEditorRef } from '../specs/MarkdownEditor'
 import { ResizableModal } from '../shared/ResizableModal'
-import { GitHubIssuePromptSection } from './GitHubIssuePromptSection'
-import { GitHubPrPromptSection } from './GitHubPrPromptSection'
+import { UnifiedSearchModal } from './UnifiedSearchModal'
 import type { GithubIssueSelectionResult, GithubPrSelectionResult } from '../../types/githubIssues'
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { FALLBACK_CODEX_MODELS, getCodexModelMetadata } from '../../common/codexModels'
@@ -125,6 +125,9 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
     const [githubPrSelection, setGithubPrSelection] = useState<GithubPrSelectionResult | null>(null)
     const [githubIssueLoading, setGithubIssueLoading] = useState(false)
     const [githubPrLoading, setGithubPrLoading] = useState(false)
+    const [unifiedSearchOpen, setUnifiedSearchOpen] = useState(false)
+    const unifiedSearchOpenRef = useRef(false)
+    unifiedSearchOpenRef.current = unifiedSearchOpen
     const nameInputRef = useRef<HTMLInputElement>(null)
     const markdownEditorRef = useRef<MarkdownEditorRef>(null)
     const hasFocusedDuringOpenRef = useRef(false)
@@ -184,42 +187,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
         [onPromptChange]
     )
 
-    const handlePromptSourceChange = useCallback(
-        (next: 'custom' | 'github_issue' | 'github_pull_request') => {
-            if (next === promptSource) {
-                return
-            }
-            if ((next === 'github_issue' || next === 'github_pull_request') && !githubPromptReady) {
-                return
-            }
 
-            if (next === 'github_issue') {
-                setManualPromptDraft(taskContent)
-                setPromptSource('github_issue')
-                if (githubIssueSelection) {
-                    setTaskContent(githubIssueSelection.prompt)
-                } else {
-                    setTaskContent('')
-                }
-            } else if (next === 'github_pull_request') {
-                setManualPromptDraft(taskContent)
-                setPromptSource('github_pull_request')
-                if (githubPrSelection) {
-                    setTaskContent(githubPrSelection.prompt)
-                } else {
-                    setTaskContent('')
-                }
-            } else {
-                setPromptSource('custom')
-                setGithubIssueLoading(false)
-                setGithubPrLoading(false)
-                setTaskContent(manualPromptDraft)
-                onPromptChange?.(manualPromptDraft)
-            }
-            setValidationError('')
-        },
-        [promptSource, githubPromptReady, taskContent, githubIssueSelection, githubPrSelection, manualPromptDraft, onPromptChange]
-    )
 
     const handleVersionSelect = useCallback((key: string) => {
         if (key === 'multi') {
@@ -876,6 +844,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                 setGithubPrSelection(null)
                 setGithubIssueLoading(false)
                 setGithubPrLoading(false)
+                setUnifiedSearchOpen(false)
                 setManualPromptDraft(cachedPrompt)
                 setTaskContent(cachedPrompt)
                 setValidationError('')
@@ -1076,12 +1045,19 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
 
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
+                if (unifiedSearchOpenRef.current) {
+                    return
+                }
                 e.preventDefault()
                 e.stopPropagation()
                 if (typeof e.stopImmediatePropagation === 'function') {
                     e.stopImmediatePropagation()
                 }
                 onClose()
+            } else if (e.key === 'k' && e.metaKey && e.shiftKey) {
+                e.preventDefault()
+                e.stopPropagation()
+                setUnifiedSearchOpen(prev => !prev)
             } else if (e.key === 'Enter' && e.metaKey) {
                 e.preventDefault()
                 e.stopPropagation()
@@ -1309,6 +1285,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             minWidth={600}
             minHeight={500}
             footer={footer}
+            escapeDisabled={unifiedSearchOpen}
 	        >
 	            <div className="flex flex-col h-full p-4 gap-4">
 	                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1399,173 +1376,148 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                             <label className="block text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                                 {createAsDraft ? t.newSessionModal.specContent : t.newSessionModal.initialPrompt}
                             </label>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handlePromptSourceChange('custom')}
-                                    aria-pressed={promptSource === 'custom'}
-                                    className="px-3 py-1 text-xs rounded transition-colors"
+                            <button
+                                type="button"
+                                data-testid="start-from-button"
+                                onClick={() => setUnifiedSearchOpen(true)}
+                                className="px-3 py-1 text-xs rounded transition-colors hover:opacity-90 flex items-center gap-1.5"
+                                style={{
+                                    backgroundColor: 'var(--color-bg-elevated)',
+                                    color: 'var(--color-text-primary)',
+                                    border: '1px solid var(--color-border-subtle)',
+                                }}
+                            >
+                                {t.newSessionModal.startFrom}
+                                <kbd
+                                    className="px-1 rounded"
                                     style={{
-                                        backgroundColor:
-                                            promptSource === 'custom'
-                                                ? 'var(--color-bg-elevated)'
-                                                : 'var(--color-bg-primary)',
-                                        color: 'var(--color-text-primary)',
-                                        border: `1px solid ${
-                                            promptSource === 'custom'
-                                                ? 'var(--color-accent-blue)'
-                                                : 'var(--color-border-subtle)'
-                                        }`,
+                                        fontSize: theme.fontSize.caption,
+                                        lineHeight: '1.3',
+                                        backgroundColor: 'var(--color-bg-primary)',
+                                        color: 'var(--color-text-muted)',
+                                        border: '1px solid var(--color-border-subtle)',
                                     }}
                                 >
-                                    {t.newSessionModal.customPrompt}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (githubPromptReady) {
-                                            handlePromptSourceChange('github_issue')
-                                        }
-                                    }}
-                                    title={
-                                        githubPromptReady
-                                            ? t.newSessionModal.tooltips.useIssuePrompt
-                                            : t.newSessionModal.tooltips.connectGithubIssue
-                                    }
-                                    aria-pressed={promptSource === 'github_issue'}
-                                    disabled={!githubPromptReady}
-                                    className="px-3 py-1 text-xs rounded transition-colors"
-                                    style={{
-                                        backgroundColor:
-                                            promptSource === 'github_issue'
-                                                ? 'var(--color-bg-elevated)'
-                                                : 'var(--color-bg-primary)',
-                                        color: githubPromptReady
-                                            ? 'var(--color-text-primary)'
-                                            : 'var(--color-text-secondary)',
-                                        border: `1px solid ${
-                                            promptSource === 'github_issue'
-                                                ? 'var(--color-accent-blue)'
-                                                : 'var(--color-border-subtle)'
-                                        }`,
-                                        opacity: githubPromptReady ? 1 : 0.6,
-                                        cursor: githubPromptReady ? 'pointer' : 'not-allowed',
-                                    }}
-                                >
-                                    {t.newSessionModal.githubIssue}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (githubPromptReady) {
-                                            handlePromptSourceChange('github_pull_request')
-                                        }
-                                    }}
-                                    title={
-                                        githubPromptReady
-                                            ? t.newSessionModal.tooltips.usePrPrompt
-                                            : t.newSessionModal.tooltips.connectGithubPr
-                                    }
-                                    aria-pressed={promptSource === 'github_pull_request'}
-                                    disabled={!githubPromptReady}
-                                    className="px-3 py-1 text-xs rounded transition-colors"
-                                    style={{
-                                        backgroundColor:
-                                            promptSource === 'github_pull_request'
-                                                ? 'var(--color-bg-elevated)'
-                                                : 'var(--color-bg-primary)',
-                                        color: githubPromptReady
-                                            ? 'var(--color-text-primary)'
-                                            : 'var(--color-text-secondary)',
-                                        border: `1px solid ${
-                                            promptSource === 'github_pull_request'
-                                                ? 'var(--color-accent-blue)'
-                                                : 'var(--color-border-subtle)'
-                                        }`,
-                                        opacity: githubPromptReady ? 1 : 0.6,
-                                        cursor: githubPromptReady ? 'pointer' : 'not-allowed',
-                                    }}
-                                >
-                                    {t.newSessionModal.githubPr}
-                                </button>
-                            </div>
+                                    {'\u2318\u21E7K'}
+                                </kbd>
+                            </button>
                         </div>
-                        <div className="flex-1 min-h-0 overflow-hidden">
-                            {promptSource === 'custom' ? (
-                                <div className="h-full" data-testid="session-task-editor">
-                                    <MarkdownEditor
-                                        ref={markdownEditorRef}
-                                        value={taskContent}
-                                        onChange={value => {
-                                            updateManualPrompt(value)
-                                            if (validationError) {
-                                                setValidationError('')
-                                            }
-                                        }}
-                                        placeholder={
-                                            createAsDraft
-                                                ? t.newSessionModal.enterSpecContent
-                                                : t.newSessionModal.describeAgent
-                                        }
-                                        className="h-full"
-                                        fileReferenceProvider={projectFileIndex}
-                                    />
+
+                        {(promptSource === 'github_issue' && githubIssueSelection) && (
+                            <div
+                                className="flex items-center justify-between gap-3 px-3 py-2 mb-2 rounded"
+                                style={{
+                                    backgroundColor: 'var(--color-accent-blue-bg)',
+                                    border: '1px solid var(--color-accent-blue-border)',
+                                }}
+                                data-testid="github-selection-card"
+                            >
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--color-accent-blue)' }}>
+                                        {t.newSessionModal.unifiedSearch.selectedIssue}
+                                    </span>
+                                    <span className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
+                                        #{githubIssueSelection.details.number} {githubIssueSelection.details.title}
+                                    </span>
                                 </div>
-                            ) : promptSource === 'github_issue' ? (
-                                <GitHubIssuePromptSection
-                                    selection={githubIssueSelection}
-                                    onIssueLoaded={selection => {
-                                        setGithubIssueSelection(selection)
-                                        setTaskContent(selection.prompt)
-                                        onPromptChange?.(selection.prompt)
-                                        if (!wasEditedRef.current) {
-                                            const derivedName = titleToSessionName(
-                                                selection.details.title,
-                                                selection.details.number
-                                            )
-                                            if (derivedName) {
-                                                setName(derivedName)
-                                            }
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setUnifiedSearchOpen(true)}
+                                        className="px-2 py-0.5 text-xs rounded"
+                                        style={{ color: 'var(--color-accent-blue)', backgroundColor: 'transparent' }}
+                                    >
+                                        {t.newSessionModal.unifiedSearch.change}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="clear-selection-button"
+                                        onClick={() => {
+                                            setGithubIssueSelection(null)
+                                            setPromptSource('custom')
+                                            setGithubIssueLoading(false)
+                                            setTaskContent(manualPromptDraft)
+                                            onPromptChange?.(manualPromptDraft)
+                                        }}
+                                        className="px-2 py-0.5 text-xs rounded"
+                                        style={{ color: 'var(--color-text-secondary)', backgroundColor: 'transparent' }}
+                                    >
+                                        {t.newSessionModal.unifiedSearch.clear}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {(promptSource === 'github_pull_request' && githubPrSelection) && (
+                            <div
+                                className="flex items-center justify-between gap-3 px-3 py-2 mb-2 rounded"
+                                style={{
+                                    backgroundColor: 'var(--color-accent-blue-bg)',
+                                    border: '1px solid var(--color-accent-blue-border)',
+                                }}
+                                data-testid="github-selection-card"
+                            >
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--color-accent-blue)' }}>
+                                        {t.newSessionModal.unifiedSearch.selectedPr}
+                                    </span>
+                                    <span className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
+                                        #{githubPrSelection.details.number} {githubPrSelection.details.title}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setUnifiedSearchOpen(true)}
+                                        className="px-2 py-0.5 text-xs rounded"
+                                        style={{ color: 'var(--color-accent-blue)', backgroundColor: 'transparent' }}
+                                    >
+                                        {t.newSessionModal.unifiedSearch.change}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="clear-selection-button"
+                                        onClick={() => {
+                                            setGithubPrSelection(null)
+                                            setPromptSource('custom')
+                                            setGithubPrLoading(false)
+                                            setTaskContent(manualPromptDraft)
+                                            onPromptChange?.(manualPromptDraft)
+                                        }}
+                                        className="px-2 py-0.5 text-xs rounded"
+                                        style={{ color: 'var(--color-text-secondary)', backgroundColor: 'transparent' }}
+                                    >
+                                        {t.newSessionModal.unifiedSearch.clear}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            <div className="h-full" data-testid="session-task-editor">
+                                <MarkdownEditor
+                                    ref={markdownEditorRef}
+                                    value={taskContent}
+                                    onChange={value => {
+                                        if (promptSource === 'custom') {
+                                            updateManualPrompt(value)
+                                        } else {
+                                            setTaskContent(value)
+                                            onPromptChange?.(value)
                                         }
                                         if (validationError) {
                                             setValidationError('')
                                         }
                                     }}
-                                    onClearSelection={() => {
-                                        setGithubIssueSelection(null)
-                                        setTaskContent('')
-                                        onPromptChange?.('')
-                                    }}
-                                    onLoadingChange={setGithubIssueLoading}
+                                    placeholder={
+                                        createAsDraft
+                                            ? t.newSessionModal.enterSpecContent
+                                            : t.newSessionModal.describeAgent
+                                    }
+                                    className="h-full"
+                                    fileReferenceProvider={projectFileIndex}
                                 />
-                            ) : (
-                                <GitHubPrPromptSection
-                                    selection={githubPrSelection}
-                                    onPrLoaded={selection => {
-                                        setGithubPrSelection(selection)
-                                        setTaskContent(selection.prompt)
-                                        onPromptChange?.(selection.prompt)
-                                        if (!wasEditedRef.current) {
-                                            const derivedName = titleToSessionName(
-                                                selection.details.title,
-                                                selection.details.number
-                                            )
-                                            if (derivedName) {
-                                                setName(derivedName)
-                                            }
-                                        }
-                                        if (validationError) {
-                                            setValidationError('')
-                                        }
-                                    }}
-                                    onClearSelection={() => {
-                                        setGithubPrSelection(null)
-                                        setTaskContent('')
-                                        onPromptChange?.('')
-                                    }}
-                                    onLoadingChange={setGithubPrLoading}
-                                />
-                            )}
+                            </div>
                         </div>
                         <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                             {promptSource === 'github_issue'
@@ -1588,6 +1540,61 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                                     : t.newSessionModal.referenceFiles}
                         </p>
                     </div>
+
+                    <UnifiedSearchModal
+                        open={unifiedSearchOpen}
+                        onClose={() => setUnifiedSearchOpen(false)}
+                        githubReady={githubPromptReady}
+                        onSelectBranch={(branch) => {
+                            setBaseBranch(branch)
+                            setUseExistingBranch(true)
+                            setCustomBranch(branch)
+                            setUnifiedSearchOpen(false)
+                        }}
+                        onSelectIssue={(selection) => {
+                            setGithubIssueSelection(selection)
+                            setGithubPrSelection(null)
+                            setManualPromptDraft(taskContent)
+                            setTaskContent(selection.prompt)
+                            setPromptSource('github_issue')
+                            onPromptChange?.(selection.prompt)
+                            if (!wasEditedRef.current) {
+                                const derivedName = titleToSessionName(
+                                    selection.details.title,
+                                    selection.details.number
+                                )
+                                if (derivedName) {
+                                    setName(derivedName)
+                                }
+                            }
+                            if (validationError) {
+                                setValidationError('')
+                            }
+                            setUnifiedSearchOpen(false)
+                        }}
+                        onSelectPr={(selection) => {
+                            setGithubPrSelection(selection)
+                            setGithubIssueSelection(null)
+                            setManualPromptDraft(taskContent)
+                            setTaskContent(selection.prompt)
+                            setPromptSource('github_pull_request')
+                            setBaseBranch(selection.details.headRefName)
+                            onPromptChange?.(selection.prompt)
+                            if (!wasEditedRef.current) {
+                                const derivedName = titleToSessionName(
+                                    selection.details.title,
+                                    selection.details.number
+                                )
+                                if (derivedName) {
+                                    setName(derivedName)
+                                }
+                            }
+                            if (validationError) {
+                                setValidationError('')
+                            }
+                            setUnifiedSearchOpen(false)
+                        }}
+                    />
 
                     {repositoryIsEmpty && !createAsDraft && (
                         <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 flex items-start gap-2">

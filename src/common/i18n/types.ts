@@ -651,10 +651,28 @@ export interface Translations {
     terminalOnlyHint: string
     specSaveHint: string
     referenceFiles: string
+    startFrom: string
     issueSelectHint: string
     prSelectHint: string
     enterSpecContent: string
     describeAgent: string
+    unifiedSearch: {
+      title: string
+      branchesTab: string
+      pullRequestsTab: string
+      issuesTab: string
+      searchPlaceholder: string
+      noBranchesFound: string
+      noPrsFound: string
+      noIssuesFound: string
+      githubNotConnected: string
+      loading: string
+      selectedBranch: string
+      selectedIssue: string
+      selectedPr: string
+      change: string
+      clear: string
+    }
     validation: {
       nameRequired: string
       nameTooLong: string

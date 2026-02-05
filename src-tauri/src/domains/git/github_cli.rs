@@ -937,7 +937,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             Some(repo) => repo.to_string(),
             None => self.view_repository(project_path)?.name_with_owner,
         };
-        let api_path = format!("repos/{}/pulls/{}/comments", repo_name, pr_number);
+        let api_path = format!("repos/{repo_name}/pulls/{pr_number}/comments");
 
         let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
         let args_vec = vec![

@@ -20,6 +20,19 @@ vi.mock('../../hooks/useGithubPrSearch', () => ({
     useGithubPrSearch: () => mockUseGithubPrSearch(),
 }))
 
+const mockBranchSearch = {
+    branches: ['main', 'develop'],
+    filteredBranches: ['main', 'develop'],
+    loading: false,
+    error: null,
+    query: '',
+    setQuery: vi.fn(),
+}
+
+vi.mock('../../hooks/useBranchSearch', () => ({
+    useBranchSearch: () => mockBranchSearch,
+}))
+
 import { NewSessionModal } from './NewSessionModal'
 import { getCodexModelMetadata } from '../../common/codexModels'
 
@@ -293,6 +306,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         }
         windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
         delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockBranchSearch.filteredBranches = ['main', 'develop']
+        mockBranchSearch.loading = false
         mockUseGithubIssueSearch.mockReturnValue({
             results: [],
             loading: false,
@@ -909,6 +924,8 @@ describe('NewSessionModal GitHub issue prompt source', () => {
         }
         windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
         delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockBranchSearch.filteredBranches = ['main', 'develop']
+        mockBranchSearch.loading = false
         mockUseGithubIssueSearch.mockReturnValue({
             results: [],
             loading: false,
@@ -957,7 +974,35 @@ describe('NewSessionModal GitHub issue prompt source', () => {
         delete (window as unknown as Record<string, unknown>).__TAURI__
     })
 
-    test('restores manual prompt when toggling between prompt sources', async () => {
+    test('restores manual prompt when clearing GitHub issue selection', async () => {
+        mockUseGithubIssueSearch.mockReturnValue({
+            results: [
+                {
+                    number: 42,
+                    title: 'Fix login flow',
+                    state: 'OPEN',
+                    updatedAt: '2024-01-01T00:00:00Z',
+                    author: 'octocat',
+                    labels: [],
+                    url: 'https://github.com/example/repo/issues/42',
+                },
+            ],
+            loading: false,
+            error: null,
+            query: '',
+            setQuery: vi.fn(),
+            refresh: vi.fn(),
+            fetchDetails: vi.fn().mockResolvedValue({
+                number: 42,
+                title: 'Fix login flow',
+                url: 'https://github.com/example/repo/issues/42',
+                body: 'Issue body',
+                labels: [],
+                comments: [],
+            } as GithubIssueDetails),
+            clearError: vi.fn(),
+        })
+
         render(
             <TestProviders
                 githubOverrides={{
@@ -992,16 +1037,21 @@ describe('NewSessionModal GitHub issue prompt source', () => {
 
         expect(getTaskEditorContent()).toContain('Manual prompt content')
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('tab-issues')))
 
-        await waitFor(() => {
-            expect(screen.queryByTestId('session-task-editor')).not.toBeInTheDocument()
+        await act(async () => {
+            fireEvent.click(screen.getByTestId('issue-item-0'))
         })
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'Custom prompt' })))
+        await waitFor(() => {
+            expect(screen.getByTestId('github-selection-card')).toBeInTheDocument()
+        })
+
+        await fireAsync(() => fireEvent.click(screen.getByTestId('clear-selection-button')))
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
+            expect(screen.queryByTestId('github-selection-card')).not.toBeInTheDocument()
         })
         expect(getTaskEditorContent()).toContain('Manual prompt content')
     })
@@ -1029,13 +1079,18 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        const githubButton = screen.getByRole('button', { name: 'GitHub issue' })
-        expect(githubButton).toBeDisabled()
+        expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
 
-        await fireAsync(() => fireEvent.click(githubButton))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+
+        const prTab = screen.getByTestId('tab-prs')
+        const issueTab = screen.getByTestId('tab-issues')
+        expect(prTab).toHaveAttribute('aria-disabled', 'true')
+        expect(issueTab).toHaveAttribute('aria-disabled', 'true')
+
+        fireEvent.keyDown(screen.getByTestId('unified-search-modal'), { key: 'Escape' })
 
         expect(screen.getByTestId('session-task-editor')).toBeInTheDocument()
-        expect(screen.queryByPlaceholderText('Search GitHub issues')).not.toBeInTheDocument()
     })
 
     test('selecting a GitHub issue populates preview and submits generated prompt', async () => {
@@ -1097,44 +1152,6 @@ describe('NewSessionModal GitHub issue prompt source', () => {
                     return Promise.resolve({})
                 case TauriCommands.GetAgentCliArgs:
                     return Promise.resolve('')
-                case TauriCommands.GitHubSearchIssues:
-                    return Promise.resolve([
-                        {
-                            number: 42,
-                            title: 'Fix login flow',
-                            state: 'OPEN',
-                            updatedAt: '2024-01-01T00:00:00Z',
-                            author: 'octocat',
-                            labels: [
-                                { name: 'bug', color: 'd73a4a' },
-                                { name: 'frontend', color: '0052cc' },
-                            ],
-                            url: 'https://github.com/example/repo/issues/42',
-                        },
-                    ])
-                case TauriCommands.GitHubGetIssueDetails:
-                    return Promise.resolve({
-                        number: 42,
-                        title: 'Fix login flow',
-                        url: 'https://github.com/example/repo/issues/42',
-                        body: 'Issue body goes here.',
-                        labels: [
-                            { name: 'bug', color: 'd73a4a' },
-                            { name: 'frontend', color: '0052cc' },
-                        ],
-                        comments: [
-                            {
-                                author: 'alice',
-                                createdAt: '2024-01-01T01:00:00Z',
-                                body: 'First comment',
-                            },
-                            {
-                                author: 'bob',
-                                createdAt: '2024-01-01T02:00:00Z',
-                                body: 'Second comment',
-                            },
-                        ],
-                    })
                 default:
                     return Promise.resolve()
             }
@@ -1165,10 +1182,16 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('tab-issues')))
 
-        const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 42/ })
-        await fireAsync(() => fireEvent.click(issueButton))
+        await act(async () => {
+            fireEvent.click(screen.getByTestId('issue-item-0'))
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('github-selection-card')).toBeInTheDocument()
+        })
 
         await waitFor(() => {
             expect(screen.getByText('Start Agent')).not.toBeDisabled()
@@ -1193,7 +1216,7 @@ describe('NewSessionModal GitHub issue prompt source', () => {
         expect(generatedPrompt).toContain('Comment by bob (2024-01-01T02:00:00Z):')
     })
 
-    test('View on GitHub uses shell open when available', async () => {
+    test('selecting an issue shows selection card with issue details', async () => {
         mockUseGithubIssueSearch.mockReturnValue({
             results: [
                 {
@@ -1238,29 +1261,6 @@ describe('NewSessionModal GitHub issue prompt source', () => {
                     return Promise.resolve({})
                 case TauriCommands.GetAgentCliArgs:
                     return Promise.resolve('')
-                case TauriCommands.GitHubSearchIssues:
-                    return Promise.resolve([
-                        {
-                            number: 99,
-                            title: 'Investigate crash',
-                            state: 'OPEN',
-                            updatedAt: '2024-05-05T10:00:00Z',
-                            author: 'octocat',
-                            labels: [],
-                            url: 'https://github.com/example/repo/issues/99',
-                        },
-                    ])
-                case TauriCommands.GitHubGetIssueDetails:
-                    return Promise.resolve({
-                        number: 99,
-                        title: 'Investigate crash',
-                        url: 'https://github.com/example/repo/issues/99',
-                        body: 'Crash details',
-                        labels: [],
-                        comments: [],
-                    })
-                case TauriCommands.OpenExternalUrl:
-                    return Promise.resolve()
                 default:
                     return Promise.resolve()
             }
@@ -1291,20 +1291,21 @@ describe('NewSessionModal GitHub issue prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub issue' })))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('tab-issues')))
 
-        const issueButton = await screen.findByRole('button', { name: /Use GitHub issue 99/ })
-        await fireAsync(() => fireEvent.click(issueButton))
-
-        const viewButton = await screen.findByRole('button', { name: 'View on GitHub' })
-        await fireAsync(() => fireEvent.click(viewButton))
+        await act(async () => {
+            fireEvent.click(screen.getByTestId('issue-item-0'))
+        })
 
         await waitFor(() => {
-            expect(mockInvoke).toHaveBeenCalledWith(
-                TauriCommands.OpenExternalUrl,
-                expect.objectContaining({ url: 'https://github.com/example/repo/issues/99' })
-            )
+            const card = screen.getByTestId('github-selection-card')
+            expect(card).toBeInTheDocument()
+            expect(card).toHaveTextContent('#99')
+            expect(card).toHaveTextContent('Investigate crash')
         })
+
+        expect(screen.getByTestId('clear-selection-button')).toBeInTheDocument()
     })
 })
 
@@ -1316,6 +1317,8 @@ describe('NewSessionModal GitHub PR prompt source', () => {
         }
         windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({} as Window))
         delete (window as unknown as Record<string, unknown>).__TAURI__
+        mockBranchSearch.filteredBranches = ['main', 'develop']
+        mockBranchSearch.loading = false
         mockUseGithubIssueSearch.mockReturnValue({
             results: [],
             loading: false,
@@ -1455,10 +1458,16 @@ describe('NewSessionModal GitHub PR prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub PR' })))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('tab-prs')))
 
-        const prButton = await screen.findByRole('button', { name: /Use GitHub pull request 123/ })
-        await fireAsync(() => fireEvent.click(prButton))
+        await act(async () => {
+            fireEvent.click(screen.getByTestId('pr-item-0'))
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('github-selection-card')).toBeInTheDocument()
+        })
 
         await waitFor(() => {
             expect(screen.getByText('Start Agent')).not.toBeDisabled()
@@ -1570,10 +1579,16 @@ describe('NewSessionModal GitHub PR prompt source', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        await fireAsync(() => fireEvent.click(screen.getByRole('button', { name: 'GitHub PR' })))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('start-from-button')))
+        await fireAsync(() => fireEvent.click(screen.getByTestId('tab-prs')))
 
-        const prButton = await screen.findByRole('button', { name: /Use GitHub pull request 456/ })
-        await fireAsync(() => fireEvent.click(prButton))
+        await act(async () => {
+            fireEvent.click(screen.getByTestId('pr-item-0'))
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('github-selection-card')).toBeInTheDocument()
+        })
 
         await waitFor(() => {
             expect(screen.getByText('Start Agent')).not.toBeDisabled()

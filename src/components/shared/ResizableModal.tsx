@@ -15,6 +15,7 @@ interface ResizableModalProps {
   maxHeight?: number
   footer?: ReactNode
   className?: string
+  escapeDisabled?: boolean
 }
 
 interface ModalSize {
@@ -35,7 +36,8 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
   maxWidth = window.innerWidth * 0.95,
   maxHeight = window.innerHeight * 0.95,
   footer,
-  className = ''
+  className = '',
+  escapeDisabled = false,
 }) => {
   const [size, setSize] = useState<ModalSize>(() => {
     const stored = localStorage.getItem(`modal-size-${storageKey}`)
@@ -64,6 +66,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (escapeDisabled) return
         e.preventDefault()
         e.stopPropagation()
         onClose()
@@ -72,7 +75,7 @@ export const ResizableModal: React.FC<ResizableModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, escapeDisabled])
 
   useEffect(() => {
     localStorage.setItem(`modal-size-${storageKey}`, JSON.stringify(size))
