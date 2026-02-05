@@ -51,7 +51,8 @@ description: 'Complete list of keyboard shortcuts for efficient session manageme
     | `⌘/` | Shell Terminal | Focus bottom terminal |
     | `⌘[` | Previous Tab | Switch to previous tab (agent or shell based on focus) |
     | `⌘]` | Next Tab | Switch to next tab (agent or shell based on focus) |
-    | `⌘⇧A` | Add Agent Tab | Open add agent tab dialog |
+    | `⌘⇧A` | Add Tab | Add agent tab (top focused) or shell tab (bottom focused) |
+    | `⌘W` | Close Tab | Close the active tab in the focused terminal area |
     | `⌘E` | Run Script | Execute configured command |
     | `⌘Enter` | New Line | Insert new line in terminal |
     | `⌘F` | Search | Open terminal search |
@@ -129,3 +130,5 @@ Click **Record** to capture a new key combination, **Reset** to restore defaults
 - Context-aware: Some shortcuts behave differently based on active context:
   - `⌘Enter` and `⌘F` adapt to terminal vs diff viewer
   - `⌘[` and `⌘]` switch agent tabs when focused on top terminal, shell tabs when focused on bottom terminal
+  - `⌘⇧A` adds an agent tab when top terminal is focused, or a shell tab when bottom is focused
+  - `⌘W` closes the active tab in whichever terminal area is focused (the last remaining tab cannot be closed)

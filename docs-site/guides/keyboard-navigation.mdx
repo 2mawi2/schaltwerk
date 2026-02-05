@@ -18,6 +18,8 @@ Schaltwerk is designed for keyboard-first workflows. You can manage multiple age
 | `Cmd+[ ]` | Switch terminal tabs (agent or shell, based on focus) |
 | `Cmd+T` | Focus top terminal (agent) |
 | `Cmd+/` | Focus bottom terminal (shell) |
+| `Cmd+Shift+A` | Add tab in focused pane |
+| `Cmd+W` | Close active tab in focused pane |
 | `Cmd+G` | Open diff viewer |
 
 ## Terminal Focus
@@ -31,8 +33,10 @@ Schaltwerk uses a two-pane terminal layout:
 1. `Cmd+T` focuses the top (agent) terminal
 2. `Cmd+/` focuses the bottom (shell) terminal
 3. `Cmd+[ ]` switches tabs within the focused pane
+4. `Cmd+Shift+A` adds a tab in the focused pane (agent tab on top, shell tab on bottom)
+5. `Cmd+W` closes the active tab in the focused pane
 
-When focused on the top pane, `Cmd+[` and `Cmd+]` cycle through agent tabs. When focused on the bottom pane, they cycle through shell tabs.
+When focused on the top pane, `Cmd+[` and `Cmd+]` cycle through agent tabs. When focused on the bottom pane, they cycle through shell tabs. The same context-aware logic applies to `Cmd+Shift+A` and `Cmd+W`.
 
 ## Multi-Session Workflow
 

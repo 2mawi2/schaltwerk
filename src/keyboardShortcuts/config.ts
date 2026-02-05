@@ -56,6 +56,7 @@ export enum KeyboardShortcutAction {
   AddAgentTab = 'addAgentTab',
   SelectPrevBottomTab = 'selectPrevBottomTab',
   SelectNextBottomTab = 'selectNextBottomTab',
+  CloseTab = 'closeTab',
 }
 
 export type KeyboardShortcutConfig = Record<KeyboardShortcutAction, string[]>
@@ -131,6 +132,7 @@ export const defaultShortcutConfig: KeyboardShortcutConfig = {
   [KeyboardShortcutAction.AddAgentTab]: createNormalizedBindings(['Mod+Shift+A']),
   [KeyboardShortcutAction.SelectPrevBottomTab]: createNormalizedBindings(['Mod+[']),
   [KeyboardShortcutAction.SelectNextBottomTab]: createNormalizedBindings(['Mod+]']),
+  [KeyboardShortcutAction.CloseTab]: createNormalizedBindings(['Mod+W']),
 }
 
 export const mergeShortcutConfig = (

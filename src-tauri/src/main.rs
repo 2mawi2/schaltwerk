@@ -1008,55 +1008,70 @@ use tauri::Manager;
 const MACOS_SELECT_ALL_MENU_ID: &str = "schaltwerk-select-all";
 
 #[cfg(target_os = "macos")]
-fn replace_macos_select_all_menu_item<R: tauri::Runtime>(
+fn build_app_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-    menu: &tauri::menu::Menu<R>,
-) -> Result<(), tauri::Error> {
-    use tauri::menu::{MenuItem, MenuItemKind};
+) -> Result<tauri::menu::Menu<R>, tauri::Error> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
-    let Some(edit_menu) = menu.items()?.into_iter().find_map(|item| match item {
-        MenuItemKind::Submenu(submenu) => match submenu.text() {
-            Ok(text) if text.replace('&', "") == "Edit" => Some(submenu),
-            _ => None,
-        },
-        _ => None,
-    }) else {
-        return Ok(());
-    };
+    let app_menu = Submenu::with_items(
+        app,
+        app.package_info().name.as_str(),
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
 
-    let items = edit_menu.items()?;
-    let mut select_all_index = None;
-    for (idx, item) in items.iter().enumerate() {
-        let label = match item {
-            MenuItemKind::Predefined(menu_item) => menu_item.text().ok(),
-            MenuItemKind::MenuItem(menu_item) => menu_item.text().ok(),
-            _ => None,
-        };
+    let file_menu = Submenu::new(app, "File", true)?;
 
-        if let Some(label) = label
-            && label.replace('&', "") == "Select All"
-        {
-            select_all_index = Some(idx);
-            break;
-        }
-    }
-
-    let Some(select_all_index) = select_all_index else {
-        return Ok(());
-    };
-
-    edit_menu.remove_at(select_all_index)?;
-
-    let replacement = MenuItem::with_id(
+    let select_all = MenuItem::with_id(
         app,
         MACOS_SELECT_ALL_MENU_ID,
         "Select All",
         true,
         Some("CmdOrCtrl+A"),
     )?;
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &select_all,
+        ],
+    )?;
 
-    edit_menu.insert(&replacement, select_all_index)?;
-    Ok(())
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[&PredefinedMenuItem::fullscreen(app, None)?],
+    )?;
+
+    let window_menu = Submenu::with_items(
+        app,
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, None)?,
+            &PredefinedMenuItem::maximize(app, None)?,
+        ],
+    )?;
+
+    Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu])
 }
 
 fn main() {
@@ -1126,11 +1141,7 @@ fn main() {
     #[cfg(target_os = "macos")]
     let builder = builder
         .menu(|app| {
-            let menu = tauri::menu::Menu::default(app)?;
-            if let Err(error) = replace_macos_select_all_menu_item(app, &menu) {
-                log::warn!("[menu] Failed to override macOS Select All: {error}");
-            }
-            Ok(menu)
+            build_app_menu(app)
         })
         .on_menu_event(|app, event| {
             if event.id() != MACOS_SELECT_ALL_MENU_ID {

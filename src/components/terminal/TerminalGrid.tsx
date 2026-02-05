@@ -887,11 +887,36 @@ const TerminalGridComponent = () => {
                 return
             }
 
-            // Add agent tab shortcut
+            // Add tab shortcut - context-aware based on focus
             if (isShortcutForAction(event, KeyboardShortcutAction.AddAgentTab, keyboardShortcutConfig, { platform })) {
                 event.preventDefault()
                 if (selection.kind === 'session' || selection.kind === 'orchestrator') {
-                    setCustomAgentModalOpen(true)
+                    if (focusTarget === 'terminal') {
+                        const fns = terminalTabsRef.current?.getTabFunctions()
+                        if (fns) {
+                            void fns.addTab()
+                        }
+                    } else {
+                        setCustomAgentModalOpen(true)
+                    }
+                }
+                return
+            }
+
+            // Close tab shortcut - closes the active tab in the focused terminal area
+            if (isShortcutForAction(event, KeyboardShortcutAction.CloseTab, keyboardShortcutConfig, { platform })) {
+                event.preventDefault()
+                if (focusTarget === 'terminal') {
+                    const state = terminalTabsRef.current?.getTabsState()
+                    if (state && state.tabs.length > 1) {
+                        const fns = terminalTabsRef.current?.getTabFunctions()
+                        const activeTabInfo = state.tabs.find(t => t.index === state.activeTab) ?? state.tabs[0]
+                        if (fns && activeTabInfo) {
+                            void fns.closeTab(activeTabInfo.index)
+                        }
+                    }
+                } else if (agentTabsState && agentTabsState.tabs.length > 1 && agentTabsState.activeTab !== 0) {
+                    closeAgentTab(agentTabsState.activeTab)
                 }
                 return
             }
@@ -995,6 +1020,7 @@ const TerminalGridComponent = () => {
         platform,
         agentTabsState,
         setActiveAgentTab,
+        closeAgentTab,
         selection.kind,
     ])
 
