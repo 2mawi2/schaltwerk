@@ -16,12 +16,12 @@ rustflags = ["-C", "target-cpu=native"]
 # Linux x86_64 - use mold linker if available (install: apt/brew install mold)
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "target-cpu=native"]
+rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "strip=debuginfo"]
 
 # Linux ARM64
 [target.aarch64-unknown-linux-gnu]
 linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "target-cpu=native"]
+rustflags = ["-C", "link-arg=-fuse-ld=mold", "-C", "strip=debuginfo"]
 
 [net]
 git-fetch-with-cli = true

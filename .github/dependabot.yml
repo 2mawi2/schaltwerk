@@ -35,3 +35,11 @@ updates:
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Keep tauri on 2.9.x until NPM packages catch up to 2.10.x
+      - dependency-name: "tauri"
+        update-types: ["version-update:semver-minor"]
+        versions: [">=2.10.0"]
+      - dependency-name: "tauri-build"
+        update-types: ["version-update:semver-minor"]
+        versions: [">=2.6.0"]

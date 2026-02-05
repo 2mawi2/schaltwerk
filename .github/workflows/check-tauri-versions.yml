@@ -1,0 +1,56 @@
+name: Check Tauri Version Sync
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/Cargo.toml'
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Extract versions
+        id: versions
+        run: |
+          # Get Rust tauri version using cargo tree
+          RUST_VERSION=$(cargo tree --manifest-path src-tauri/Cargo.toml --depth 1 | \
+            grep 'tauri v' | head -1 | sed 's/.*tauri v\([0-9.]*\).*/\1/')
+
+          # Get NPM @tauri-apps/api version from package.json
+          NPM_VERSION=$(jq -r '.dependencies["@tauri-apps/api"]' package.json | sed 's/[\^~]//g')
+
+          echo "rust_version=$RUST_VERSION" >> $GITHUB_OUTPUT
+          echo "npm_version=$NPM_VERSION" >> $GITHUB_OUTPUT
+
+          # Extract major.minor versions
+          RUST_MAJOR_MINOR=$(echo "$RUST_VERSION" | cut -d. -f1-2)
+          NPM_MAJOR_MINOR=$(echo "$NPM_VERSION" | cut -d. -f1-2)
+
+          echo "rust_major_minor=$RUST_MAJOR_MINOR" >> $GITHUB_OUTPUT
+          echo "npm_major_minor=$NPM_MAJOR_MINOR" >> $GITHUB_OUTPUT
+      
+      - name: Check version compatibility
+        run: |
+          echo "Rust tauri version: ${{ steps.versions.outputs.rust_version }}"
+          echo "NPM @tauri-apps/api version: ${{ steps.versions.outputs.npm_version }}"
+          echo "Rust major.minor: ${{ steps.versions.outputs.rust_major_minor }}"
+          echo "NPM major.minor: ${{ steps.versions.outputs.npm_major_minor }}"
+          
+          if [ "${{ steps.versions.outputs.rust_major_minor }}" \!= "${{ steps.versions.outputs.npm_major_minor }}" ]; then
+            echo "❌ ERROR: Tauri version mismatch\!"
+            echo "Rust tauri crate and NPM @tauri-apps/api must be on the same major.minor version"
+            echo "Rust: ${{ steps.versions.outputs.rust_version }}"
+            echo "NPM: ${{ steps.versions.outputs.npm_version }}"
+            exit 1
+          fi
+          
+          echo "✅ Tauri versions are compatible"

@@ -1,5 +1,6 @@
 use super::CreateParams;
 use super::shell_invocation::{build_login_shell_invocation_with_shell, sh_quote_string};
+use crate::shared::terminal_id::is_session_top_terminal_id;
 use portable_pty::CommandBuilder;
 use std::path::PathBuf;
 
@@ -40,7 +41,7 @@ pub async fn build_command_spec(
 
     let (program, args) = if let Some(app) = params.app.as_ref() {
         let (resolved_program, resolved_args, used_login_shell) =
-            resolve_app_program_and_args(app, &params.cwd);
+            resolve_app_program_and_args(app, &params.cwd, &params.id);
 
         if used_login_shell {
             log::info!(
@@ -453,6 +454,7 @@ fn resolve_command_windows(command: &str) -> String {
 fn resolve_app_program_and_args(
     app: &super::ApplicationSpec,
     cwd: &str,
+    terminal_id: &str,
 ) -> (String, Vec<String>, bool) {
     let resolved = resolve_command(&app.command, cwd);
 
@@ -467,9 +469,23 @@ fn resolve_app_program_and_args(
 
     let (shell, base_args) = super::get_effective_shell();
     let mut shell_args = base_args;
+
+    // All wrapped commands need -i for .zshrc/.bashrc sourcing
     ensure_shell_interactive_flag(&shell, &mut shell_args);
 
-    let inner = build_shell_command_string(&shell, &app.command, &app.args);
+    // Agent terminals need special handling:
+    // - Keep -i flag for .zshrc/.bashrc sourcing (provides env vars like NVM, PYENV)
+    // - But disable job control with 'set +m' to prevent conflicts with setRawMode()
+    let is_agent_terminal = is_session_top_terminal_id(terminal_id)
+        || terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top");
+
+    let inner = if is_agent_terminal {
+        // Disable job control before executing agent
+        format!("set +m; {}", build_shell_command_string(&shell, &app.command, &app.args))
+    } else {
+        build_shell_command_string(&shell, &app.command, &app.args)
+    };
+
     let invocation = build_login_shell_invocation_with_shell(&shell, &shell_args, &inner);
 
     (invocation.program, invocation.args, true)
