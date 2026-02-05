@@ -159,7 +159,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-slate-200">{t.settings.mcp.title}</h3>
+          <h3 className="text-sm font-medium text-text-primary">{t.settings.mcp.title}</h3>
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -170,17 +170,17 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                       void removeMCP()
                     }
                   }}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 focus:ring-cyan-400 focus:ring-offset-0"
+              className="w-4 h-4 rounded border-border-strong bg-bg-tertiary focus:ring-accent-blue focus:ring-offset-0"
               style={{
                 color: 'var(--color-accent-blue-dark)',
               }}
             />
-             <span className="text-xs text-slate-400">
+             <span className="text-xs text-text-tertiary">
                {requiresGlobalConfig ? t.settings.mcp.enableMcpGlobal : t.settings.mcp.enableMcp}
              </span>
           </label>
         </div>
-         <p className="text-xs text-slate-400">
+         <p className="text-xs text-text-tertiary">
            {agent === 'claude'
              ? t.settings.mcp.claudeDesc.replace('{agent}', agentLabel)
              : agent === 'codex'
@@ -194,7 +194,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
       </div>
 
        {!mcpEnabled && (
-         <div className="p-3 bg-slate-800/30 border border-slate-700 rounded text-slate-400 text-xs">
+         <div className="p-3 bg-bg-tertiary/30 border border-border-subtle rounded text-text-tertiary text-xs">
            {t.settings.mcp.enableMcpHint.replace('{agent}', agentLabel)}
          </div>
        )}
@@ -208,14 +208,24 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
           )}
 
           {error && (
-            <div className="p-3 bg-red-900/20 border border-red-800 rounded text-red-400 text-xs">
+            <div className="p-3 rounded text-xs"
+                 style={{
+                   backgroundColor: 'var(--color-accent-red-bg)',
+                   border: '1px solid var(--color-accent-red-border)',
+                   color: 'var(--color-accent-red-light)',
+                 }}>
               {error}
             </div>
           )}
 
           {success && (
             <div className="space-y-3">
-              <div className="p-3 bg-green-900/20 border border-green-800 rounded text-green-400 text-xs">
+              <div className="p-3 rounded text-xs"
+                   style={{
+                     backgroundColor: 'var(--color-accent-green-bg)',
+                     border: '1px solid var(--color-accent-green-border)',
+                     color: 'var(--color-accent-green-light)',
+                   }}>
                 {success}
               </div>
               
@@ -246,39 +256,39 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
 
           {status && (
             <>
-              <div className="space-y-2 p-3 bg-slate-800/50 rounded border border-slate-700">
+              <div className="space-y-2 p-3 bg-bg-elevated/50 rounded border border-border-subtle">
                  <div className="flex items-center justify-between text-xs">
-                   <span className="text-slate-400">{t.settings.mcp.cliLabel.replace('{agent}', agentLabel)}</span>
-                   <span className={status.cli_available ? 'text-green-400' : 'text-amber-400'}>
+                   <span className="text-text-tertiary">{t.settings.mcp.cliLabel.replace('{agent}', agentLabel)}</span>
+                   <span style={{ color: status.cli_available ? 'var(--color-accent-green-light)' : 'var(--color-accent-amber-light)' }}>
                      {status.cli_available ? t.settings.mcp.available : t.settings.mcp.notFound}
                    </span>
                  </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">{t.settings.mcp.serverLabel}</span>
-                  <span className="text-slate-300">
+                  <span className="text-text-tertiary">{t.settings.mcp.serverLabel}</span>
+                  <span className="text-text-secondary">
                     {status.is_embedded ? t.settings.mcp.embedded : t.settings.mcp.development}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">{t.settings.mcp.nodeRuntime}</span>
-                  <span className={nodeAvailable ? 'text-green-400' : 'text-amber-400'}>
+                  <span className="text-text-tertiary">{t.settings.mcp.nodeRuntime}</span>
+                  <span style={{ color: nodeAvailable ? 'var(--color-accent-green-light)' : 'var(--color-accent-amber-light)' }}>
                     {nodeAvailable ? t.settings.mcp.available : t.settings.mcp.notFound}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">{t.settings.mcp.configuration}</span>
-                  <span className={status.is_configured ? 'text-green-400' : 'text-amber-400'}>
+                  <span className="text-text-tertiary">{t.settings.mcp.configuration}</span>
+                  <span style={{ color: status.is_configured ? 'var(--color-accent-green-light)' : 'var(--color-accent-amber-light)' }}>
                     {status.is_configured ? t.settings.mcp.configured : t.settings.mcp.notConfigured}
                   </span>
                 </div>
 
                 {status.is_configured && (
-                  <div className="pt-2 border-t border-slate-700">
-                    <div className="text-xs text-slate-500 mb-1">{t.settings.mcp.serverLocation}</div>
-                    <div className="text-xs text-slate-300 font-mono break-all">
+                  <div className="pt-2 border-t border-border-subtle">
+                    <div className="text-xs text-text-muted mb-1">{t.settings.mcp.serverLocation}</div>
+                    <div className="text-xs text-text-secondary font-mono break-all">
                       {status.mcp_server_path}
                     </div>
                   </div>
@@ -291,7 +301,18 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <button
                       onClick={() => { void configureMCP() }}
                        disabled={loading}
-                       className="px-3 py-1 bg-green-800 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed border border-green-700 rounded text-sm transition-colors text-green-200"
+                       className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+                       style={{
+                         backgroundColor: 'var(--color-accent-green-bg)',
+                         border: '1px solid var(--color-accent-green-border)',
+                         color: 'var(--color-accent-green-light)',
+                       }}
+                       onMouseEnter={(e) => {
+                         if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-accent-green-dark)';
+                       }}
+                       onMouseLeave={(e) => {
+                         e.currentTarget.style.backgroundColor = 'var(--color-accent-green-bg)';
+                       }}
                      >
                        {requiresGlobalConfig ? t.settings.mcp.reconfigureMcpGlobal : t.settings.mcp.reconfigureMcp}
                      </button>
@@ -301,15 +322,15 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                        disabled={loading}
                          className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
                          style={{
-                           backgroundColor: 'var(--color-cyan-800)',
-                           borderColor: 'var(--color-accent-blue-border)',
-                           color: 'var(--color-accent-blue-light)',
+                           backgroundColor: 'var(--color-accent-green-bg)',
+                           border: '1px solid var(--color-accent-green-border)',
+                           color: 'var(--color-accent-green-light)',
                          }}
                          onMouseEnter={(e) => {
-                           e.currentTarget.style.backgroundColor = 'var(--color-cyan-700)';
+                           if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-accent-green-dark)';
                          }}
                          onMouseLeave={(e) => {
-                           e.currentTarget.style.backgroundColor = 'var(--color-cyan-800)';
+                           e.currentTarget.style.backgroundColor = 'var(--color-accent-green-bg)';
                          }}
                      >
                        {agent === 'codex' || agent === 'amp' || agent === 'droid' ? t.settings.mcp.enableMcpGlobalBtn : t.settings.mcp.configureMcpProject}
@@ -322,23 +343,23 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            href="https://claude.ai/download"
                            target="_blank"
                            rel="noopener noreferrer"
-                           className="px-3 py-1 border rounded text-sm transition-colors inline-block"
+                           className="px-3 py-1 rounded text-sm transition-colors inline-block"
                            style={{
-                             backgroundColor: 'var(--color-cyan-800)',
-                             borderColor: 'var(--color-accent-blue-border)',
-                             color: 'var(--color-accent-blue-light)',
+                             backgroundColor: 'var(--color-accent-green-bg)',
+                             border: '1px solid var(--color-accent-green-border)',
+                             color: 'var(--color-accent-green-light)',
                            }}
                            onMouseEnter={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-cyan-700)';
+                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-green-dark)';
                            }}
                            onMouseLeave={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-cyan-800)';
+                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-green-bg)';
                            }}
                         >
                          {t.settings.mcp.installClaudeFirst}
                        </a>
                      ) : agent === 'codex' ? (
-                       <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
+                       <div className="px-3 py-1 bg-bg-tertiary border border-border-subtle rounded text-sm text-text-secondary inline-block">
                          {t.settings.mcp.installCodexFirst}
                        </div>
                      ) : agent === 'opencode' ? (
@@ -346,16 +367,27 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                           href="https://opencode.ai"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1 bg-cyan-800 hover:bg-cyan-700 border border-cyan-700 rounded text-sm transition-colors text-cyan-200 inline-block"
+                          className="px-3 py-1 rounded text-sm transition-colors inline-block"
+                          style={{
+                            backgroundColor: 'var(--color-accent-blue-bg)',
+                            border: '1px solid var(--color-accent-blue-border)',
+                            color: 'var(--color-accent-blue-light)',
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-blue-dark)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-blue-bg)';
+                          }}
                        >
                          {t.settings.mcp.installOpencodeFirst}
                        </a>
                      ) : agent === 'amp' ? (
-                       <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
+                       <div className="px-3 py-1 bg-bg-tertiary border border-border-subtle rounded text-sm text-text-secondary inline-block">
                          {t.settings.mcp.installAmpFirst}
                        </div>
                      ) : (
-                       <div className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-sm text-slate-300 inline-block">
+                       <div className="px-3 py-1 bg-bg-tertiary border border-border-subtle rounded text-sm text-text-secondary inline-block">
                          {t.settings.mcp.installDroidFirst}
                        </div>
                      )}
@@ -366,7 +398,18 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   <button
                     onClick={() => { void removeMCP() }}
                     disabled={loading}
-                    className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 rounded text-sm transition-colors text-slate-400"
+                    className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-bg-elevated)',
+                      border: '1px solid var(--color-border-subtle)',
+                      color: 'var(--color-text-tertiary)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
+                    }}
                   >
                     {t.settings.common.remove}
                   </button>
@@ -374,22 +417,33 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                 
                 <button
                   onClick={() => setShowManualSetup(!showManualSetup)}
-                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-sm transition-colors text-slate-400"
+                  className="px-3 py-1 rounded text-sm transition-colors"
+                  style={{
+                    backgroundColor: 'var(--color-bg-elevated)',
+                    border: '1px solid var(--color-border-subtle)',
+                    color: 'var(--color-text-tertiary)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
+                  }}
                 >
                   {showManualSetup ? t.settings.mcp.hide : t.settings.mcp.manualSetup}
                 </button>
               </div>
 
               {showManualSetup && (
-                <div className="p-3 bg-slate-900 border border-slate-700 rounded">
-                   <p className="text-xs text-slate-400 mb-2">
+                <div className="p-3 bg-bg-tertiary border border-border-subtle rounded">
+                   <p className="text-xs text-text-tertiary mb-2">
                      {agent === 'codex' ? 'Add to ~/.codex/config.toml:' : agent === 'opencode' ? 'Add to opencode.json:' : agent === 'amp' ? 'Add to ~/.config/amp/settings.json:' : agent === 'droid' ? 'Add to ~/.factory/mcp.json:' : t.settings.mcp.manualSetupPrefix}
                    </p>
-                  
+
                   <div className="flex gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="p-2 bg-slate-950 border border-slate-800 rounded overflow-x-auto">
-                         <code className="text-xs text-slate-300 whitespace-nowrap block font-mono">
+                      <div className="p-2 bg-bg-primary border border-border-default rounded overflow-x-auto">
+                         <code className="text-xs text-text-secondary whitespace-nowrap block font-mono">
                            {agent === 'codex'
                              ? (<>
                                  [mcp_servers.schaltwerk]
@@ -417,14 +471,25 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     
                     <button
                       onClick={() => { void copyCommand() }}
-                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition-colors text-slate-400 flex-shrink-0 self-start"
+                      className="px-2 py-1 rounded text-xs transition-colors flex-shrink-0 self-start"
+                      style={{
+                        backgroundColor: 'var(--color-bg-elevated)',
+                        border: '1px solid var(--color-border-subtle)',
+                        color: 'var(--color-text-tertiary)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
+                      }}
                       title={t.mcpMessages.copyCommand}
                     >
                       {t.settings.common.copy}
                     </button>
                   </div>
                   
-                   <p className="text-xs text-slate-500 mt-2 italic">
+                   <p className="text-xs text-text-muted mt-2 italic">
                      {agent === 'codex'
                        ? t.settings.mcp.codexConfigNote
                        : agent === 'opencode'

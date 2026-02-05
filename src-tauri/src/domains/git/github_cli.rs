@@ -1065,20 +1065,6 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         ensure_git_remote_exists(opts.repo_path)?;
 
-        // Check for existing PR first
-        if let Ok(Some(existing_url)) =
-            self.view_existing_pr(opts.pr_branch_name, opts.repository, opts.session_worktree_path)
-        {
-            info!(
-                "PR already exists for branch '{}': {existing_url}",
-                opts.pr_branch_name
-            );
-            return Ok(GitHubPrResult {
-                branch: opts.pr_branch_name.to_string(),
-                url: existing_url,
-            });
-        }
-
         // Resolve commit message from options or PR title
         let fallback_title = match &opts.content {
             PrContent::Explicit { title, .. } => title.trim(),
@@ -1113,8 +1099,12 @@ impl<R: CommandRunner> GitHubCli<R> {
                 let add_args = vec!["add".to_string(), "-A".to_string()];
                 run_git(self, opts.session_worktree_path, &add_args, &[])?;
 
-                let commit_args =
-                    vec!["commit".to_string(), "-m".to_string(), commit_msg.to_string()];
+                let commit_args = vec![
+                    "commit".to_string(),
+                    "--no-verify".to_string(),
+                    "-m".to_string(),
+                    commit_msg.to_string(),
+                ];
                 run_git(self, opts.session_worktree_path, &commit_args, &[])?;
             }
             PrCommitMode::Reapply => {
@@ -1133,8 +1123,12 @@ impl<R: CommandRunner> GitHubCli<R> {
                     let add_args = vec!["add".to_string(), "-A".to_string()];
                     run_git(self, opts.session_worktree_path, &add_args, &[])?;
 
-                    let commit_args =
-                        vec!["commit".to_string(), "-m".to_string(), commit_msg.to_string()];
+                    let commit_args = vec![
+                        "commit".to_string(),
+                        "--no-verify".to_string(),
+                        "-m".to_string(),
+                        commit_msg.to_string(),
+                    ];
                     run_git(self, opts.session_worktree_path, &commit_args, &[])?;
                 }
             }
@@ -1191,7 +1185,7 @@ impl<R: CommandRunner> GitHubCli<R> {
 
     fn push_branch(&self, worktree_path: &Path, branch_name: &str) -> Result<(), GitHubCliError> {
         let env = [("GIT_TERMINAL_PROMPT", "0")];
-        let args = ["push"];
+        let args = ["push", "--no-verify"];
 
         let output = self
             .runner
@@ -1205,6 +1199,7 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         let retry_args_vec = vec![
             "push".to_string(),
+            "--no-verify".to_string(),
             "--set-upstream".to_string(),
             "origin".to_string(),
             branch_name.to_string(),
@@ -1457,6 +1452,7 @@ fn push_head_to_remote_branch<R: CommandRunner>(
     let push_refspec = format!("HEAD:refs/heads/{remote_branch}");
     let args = vec![
         "push".to_string(),
+        "--no-verify".to_string(),
         "origin".to_string(),
         push_refspec,
     ];

@@ -569,9 +569,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
             const isPrFromSameRepo = promptSource === 'github_pull_request'
                 && githubPrSelection
                 && !githubPrSelection.details.isFork
-            const isPrFromFork = promptSource === 'github_pull_request'
-                && githubPrSelection
-                && githubPrSelection.details.isFork
+
 
             const effectiveUseExistingBranch = isPrFromSameRepo || useExistingBranch
             const effectiveCustomBranch = isPrFromSameRepo
@@ -580,7 +578,7 @@ export function NewSessionModal({ open, initialIsDraft = false, cachedPrompt = '
                     ? baseBranch
                     : customBranch.trim() || undefined
 
-            const prInfo = isPrFromFork && githubPrSelection
+            const prInfo = promptSource === 'github_pull_request' && githubPrSelection
                 ? { prNumber: githubPrSelection.details.number, prUrl: githubPrSelection.details.url }
                 : {}
 
