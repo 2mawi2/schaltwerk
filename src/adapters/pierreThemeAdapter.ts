@@ -221,6 +221,39 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
     [data-code] {
       overflow-x: auto !important;
     }
+
+    [data-diffs-header] {
+      background-color: var(--color-bg-secondary) !important;
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    [data-diffs-header] [data-title] {
+      color: var(--color-text-primary) !important;
+    }
+
+    [data-diffs-header] [data-metadata] {
+      color: var(--color-text-tertiary) !important;
+    }
+
+    [data-diffs-header] [data-additions-count] {
+      color: var(--color-diff-added-text) !important;
+    }
+
+    [data-diffs-header] [data-deletions-count] {
+      color: var(--color-diff-removed-text) !important;
+    }
+
+    [data-diffs-header] [data-change-icon] {
+      color: var(--color-diff-modified-text) !important;
+    }
+
+    [data-diffs-header] [data-change-icon][data-change-type="new"] {
+      color: var(--color-diff-added-text) !important;
+    }
+
+    [data-diffs-header] [data-change-icon][data-change-type="deleted"] {
+      color: var(--color-diff-removed-text) !important;
+    }
   `
 }
 
