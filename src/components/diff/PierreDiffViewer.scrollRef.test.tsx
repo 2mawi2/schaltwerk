@@ -48,7 +48,7 @@ const baseProps: PierreDiffViewerProps = {
 }
 
 describe('PierreDiffViewer scroll container ref', () => {
-  it('attaches the external scrollContainerRef to the scroll container element', () => {
+  it('does not attach the external scrollContainerRef to the scroll container div', () => {
     const externalRef = createRef<HTMLDivElement>() as RefObject<HTMLDivElement>
 
     render(
@@ -58,8 +58,7 @@ describe('PierreDiffViewer scroll container ref', () => {
       />
     )
 
-    const scrollContainer = screen.getByTestId('diff-scroll-container')
-    expect(externalRef.current).toBe(scrollContainer)
+    expect(externalRef.current).toBeNull()
   })
 
   it('uses internal ref when no external scrollContainerRef is provided', () => {

@@ -1512,8 +1512,12 @@ export function UnifiedDiffView({
         let mutated = false;
         const next = new Set(prev);
         updates.forEach((isVisible, path) => {
-          if (isVisible && !next.has(path)) {
-            next.add(path);
+          if (isVisible) {
+            if (!next.has(path)) {
+              next.add(path);
+              mutated = true;
+            }
+          } else if (!userScrollingRef.current && next.delete(path)) {
             mutated = true;
           }
         });

@@ -641,7 +641,7 @@ export function PierreDiffViewer({
       )}
 
       <div
-        ref={externalScrollRef ?? internalContainerRef}
+        ref={externalScrollRef ? undefined : internalContainerRef}
         className={clsx("flex-1 overflow-auto min-h-0 w-full font-mono text-sm bg-slate-900/30", className)}
         data-testid="diff-scroll-container"
         style={{ contain: 'strict' }}
