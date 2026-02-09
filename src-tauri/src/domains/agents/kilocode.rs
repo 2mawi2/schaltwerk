@@ -752,8 +752,7 @@ pub fn build_kilocode_command_with_config(
         }
     } else if let Some(prompt) = initial_prompt {
         let escaped = escape_prompt_for_shell(prompt);
-        cmd.push(' ');
-        cmd.push('"');
+        cmd.push_str(" --prompt \"");
         cmd.push_str(&escaped);
         cmd.push('"');
     }
@@ -778,7 +777,7 @@ mod tests {
             Some("implement feature X"),
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode \"implement feature X\""));
+        assert!(cmd.ends_with("kilocode --prompt \"implement feature X\""));
     }
 
     #[test]
@@ -806,7 +805,7 @@ mod tests {
             Some("hello"),
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && kilocode \"hello\"");
+        assert_eq!(cmd, "cd /path/to/worktree && kilocode --prompt \"hello\"");
     }
 
     #[test]

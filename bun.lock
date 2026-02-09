@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "schaltwerk",
@@ -68,10 +69,10 @@
     },
   },
   "overrides": {
-    "mdast-util-to-hast": "^13.2.1",
-    "lodash": "^4.17.23",
-    "tar": "^7.5.4",
     "js-yaml": "^4.1.1",
+    "lodash": "^4.17.23",
+    "mdast-util-to-hast": "^13.2.1",
+    "tar": "^7.5.4",
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.4.4", "", {}, "sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg=="],
