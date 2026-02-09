@@ -132,7 +132,6 @@ impl AgentAdapter for KilocodeAdapter {
             ctx.worktree_path,
             ctx.session_id,
             ctx.initial_prompt,
-            ctx.skip_permissions,
             Some(&config),
         );
         AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())

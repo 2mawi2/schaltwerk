@@ -724,7 +724,6 @@ pub fn build_kilocode_command_with_config(
     worktree_path: &Path,
     session_id: Option<&str>,
     initial_prompt: Option<&str>,
-    skip_permissions: bool,
     config: Option<&KilocodeConfig>,
 ) -> String {
     let binary_name = if let Some(cfg) = config {
@@ -744,10 +743,6 @@ pub fn build_kilocode_command_with_config(
     let binary_invocation = format_binary_invocation(binary_name);
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
-
-    if skip_permissions {
-        cmd.push_str(" --yolo");
-    }
 
     if let Some(session) = session_id {
         let trimmed = session.trim();
@@ -781,10 +776,9 @@ mod tests {
             Path::new("/path/to/worktree"),
             None,
             Some("implement feature X"),
-            true,
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode --yolo \"implement feature X\""));
+        assert!(cmd.ends_with("kilocode \"implement feature X\""));
     }
 
     #[test]
@@ -796,7 +790,6 @@ mod tests {
             Path::new("/path/with spaces"),
             None,
             None,
-            false,
             Some(&config),
         );
         assert!(cmd.starts_with(r#"cd "/path/with spaces" && "#));
@@ -811,7 +804,6 @@ mod tests {
             Path::new("/path/to/worktree"),
             None,
             Some("hello"),
-            false,
             Some(&config),
         );
         assert_eq!(cmd, "cd /path/to/worktree && kilocode \"hello\"");
@@ -826,7 +818,6 @@ mod tests {
             Path::new("/path/to/worktree"),
             Some("abc-123-session"),
             Some("ignored prompt"),
-            false,
             Some(&config),
         );
         assert_eq!(
@@ -836,7 +827,7 @@ mod tests {
     }
 
     #[test]
-    fn test_resume_with_yolo_mode() {
+    fn test_resume_session() {
         let config = KilocodeConfig {
             binary_path: Some("kilocode".to_string()),
         };
@@ -844,12 +835,11 @@ mod tests {
             Path::new("/path/to/worktree"),
             Some("session-xyz"),
             None,
-            true,
             Some(&config),
         );
         assert_eq!(
             cmd,
-            "cd /path/to/worktree && kilocode --yolo --session session-xyz"
+            "cd /path/to/worktree && kilocode --session session-xyz"
         );
     }
 

@@ -28,7 +28,7 @@ export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     droid: true,
     qwen: true,
     amp: true,
-    kilocode: true,
+    kilocode: false,
     terminal: false
 }
 
