@@ -436,6 +436,7 @@ jobs:
 
           echo "Signing updater archive"
           printf '%s' "$TAURI_SIGNING_PRIVATE_KEY" > updater-private.key
+          unset TAURI_SIGNING_PRIVATE_KEY
           SIGN_ARGS=(signer sign "$ARCHIVE_NAME" --private-key-path updater-private.key)
           if [ -n "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]; then
             SIGN_ARGS+=(--password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
@@ -612,6 +613,7 @@ jobs:
           }
 
           $env:TAURI_SIGNING_PRIVATE_KEY | Out-File -FilePath "updater-private.key" -Encoding utf8 -NoNewline
+          $env:TAURI_SIGNING_PRIVATE_KEY = $null
 
           $signArgs = @("signer", "sign", $ZIP_NAME, "--private-key-path", "updater-private.key")
           if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
