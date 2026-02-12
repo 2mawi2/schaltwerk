@@ -53,7 +53,7 @@ urlencoding = "2.1"
 url = "2.5"
 getrandom = "0.4"
 shell-words = "1.1"
-toml = "0.9"
+toml = "1.0"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
 notify = "8"
