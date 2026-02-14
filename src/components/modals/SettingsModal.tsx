@@ -2164,38 +2164,19 @@ fi`}
                                             />
                                             <button
                                                 onClick={() => handleShortcutRecord(item.action)}
-                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
-                                                style={isRecording ? {
-                                                    backgroundColor: 'var(--color-accent-blue-bg)',
-                                                    borderColor: 'var(--color-accent-blue)',
-                                                    color: 'var(--color-accent-blue)',
-                                                } : {
-                                                    backgroundColor: 'var(--color-bg-elevated)',
-                                                    borderColor: 'var(--color-border-subtle)',
-                                                    color: 'var(--color-text-primary)',
-                                                }}
+                                                className={`px-2.5 py-1.5 text-caption rounded-lg ${isRecording ? 'settings-btn-recording' : 'settings-btn'}`}
                                             >
                                                 {isRecording ? 'Listening…' : 'Record'}
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutReset(item.action)}
-                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
-                                                style={{
-                                                    backgroundColor: 'var(--color-bg-elevated)',
-                                                    borderColor: 'var(--color-border-subtle)',
-                                                    color: 'var(--color-text-secondary)',
-                                                }}
+                                                className="px-2.5 py-1.5 text-caption rounded-lg settings-btn"
                                             >
                                                 Reset
                                             </button>
                                             <button
                                                 onClick={() => handleShortcutClear(item.action)}
-                                                className="px-2.5 py-1.5 text-caption rounded-lg border transition-colors"
-                                                style={{
-                                                    backgroundColor: 'var(--color-bg-elevated)',
-                                                    borderColor: 'var(--color-border-subtle)',
-                                                    color: 'var(--color-text-tertiary)',
-                                                }}
+                                                className="px-2.5 py-1.5 text-caption rounded-lg settings-btn-danger"
                                             >
                                                 Clear
                                             </button>
@@ -2218,12 +2199,7 @@ fi`}
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleResetAllShortcuts}
-                        className="px-3 py-1.5 text-caption rounded-lg border transition-colors"
-                        style={{
-                            backgroundColor: 'var(--color-bg-elevated)',
-                            borderColor: 'var(--color-border-subtle)',
-                            color: 'var(--color-text-secondary)',
-                        }}
+                        className="px-3 py-1.5 text-caption rounded-lg settings-btn"
                     >
                         Reset All
                     </button>

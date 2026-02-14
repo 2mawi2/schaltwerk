@@ -519,6 +519,13 @@ code {
   background-color: var(--color-bg-active);
 }
 
+.settings-btn-recording {
+  background-color: var(--color-accent-blue-bg);
+  border: 1px solid var(--color-accent-blue);
+  color: var(--color-accent-blue);
+  cursor: pointer;
+}
+
 .settings-btn-danger {
   background-color: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
