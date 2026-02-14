@@ -161,4 +161,19 @@ describe('MergeSessionModal', () => {
     const input = await screen.findByLabelText('Commit message')
     expect(document.activeElement).toBe(input)
   })
+
+  it('defaults to squash mode without prefillMode', () => {
+    renderModal()
+    expect(screen.getByLabelText('Commit message')).toBeInTheDocument()
+  })
+
+  it('selects reapply mode when prefillMode is reapply', () => {
+    renderModal({ prefillMode: 'reapply' })
+    expect(screen.queryByLabelText('Commit message')).toBeNull()
+  })
+
+  it('selects squash mode when prefillMode is squash', () => {
+    renderModal({ prefillMode: 'squash' })
+    expect(screen.getByLabelText('Commit message')).toBeInTheDocument()
+  })
 })

@@ -1145,6 +1145,7 @@
     "prCreated": "Pull request created",
     "prCreatedBranch": "Branch: {branch}",
     "prModalFailed": "Failed to open PR modal",
+    "mergeModalFailed": "Failed to open merge modal",
     "noComments": "No comments",
     "noCommentsDesc": "This PR has no review comments",
     "fetchCommentsFailed": "Failed to fetch comments",

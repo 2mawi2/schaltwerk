@@ -42,6 +42,7 @@ export interface MergeDialogState {
     sessionName: string | null
     preview: MergePreviewResponse | null
     error?: string | null
+    prefillMode?: 'squash' | 'reapply'
 }
 
 type ShortcutMergeResultBase = {
@@ -1753,13 +1754,17 @@ export function __resetSessionsTestingState() {
 
 export const openMergeDialogActionAtom = atom(
     null,
-    async (_get, set, sessionId: string) => {
+    async (_get, set, input: string | { sessionId: string; prefillMode?: 'squash' | 'reapply' }) => {
+        const sessionId = typeof input === 'string' ? input : input.sessionId
+        const prefillMode = typeof input === 'string' ? undefined : input.prefillMode
+
         set(mergeDialogStateAtom, {
             isOpen: true,
             status: 'loading',
             sessionName: sessionId,
             preview: null,
             error: null,
+            prefillMode,
         })
 
         try {
@@ -1770,6 +1775,7 @@ export const openMergeDialogActionAtom = atom(
                 sessionName: sessionId,
                 preview,
                 error: null,
+                prefillMode,
             })
 
             mergePreviewCache.set(sessionId, preview)
@@ -1789,6 +1795,7 @@ export const openMergeDialogActionAtom = atom(
                 sessionName: sessionId,
                 preview: null,
                 error: error instanceof Error ? error.message : 'Unknown error',
+                prefillMode,
             })
         }
     },

@@ -34,6 +34,7 @@ pub enum SchaltEvent {
     OrchestratorLaunchFailed,
     ProjectValidationError,
     OpenPrModal,
+    OpenMergeModal,
     SelectAllRequested,
 }
 
@@ -73,6 +74,7 @@ impl SchaltEvent {
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
             SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
+            SchaltEvent::OpenMergeModal => "schaltwerk:open-merge-modal",
             SchaltEvent::SelectAllRequested => "schaltwerk:select-all-requested",
         }
     }

@@ -508,7 +508,18 @@ export const toolOutputSchemas = {
     },
     required: ['epics'],
     additionalProperties: false,
-  }
+  },
+
+  schaltwerk_prepare_merge: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      session: { type: 'string' },
+      modal_triggered: { type: 'boolean' },
+    },
+    required: ['session', 'modal_triggered'],
+    additionalProperties: false,
+  },
 } as const
 
 export type ToolOutputName = keyof typeof toolOutputSchemas

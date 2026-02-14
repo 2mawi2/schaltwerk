@@ -36,6 +36,7 @@ pub enum SchaltEvent {
     DiffBaseBranchChanged,
     ProjectValidationError,
     OpenPrModal,
+    OpenMergeModal,
     SelectAllRequested,
 }
 
@@ -77,6 +78,7 @@ impl SchaltEvent {
             SchaltEvent::DiffBaseBranchChanged => "schaltwerk:diff-base-branch-changed",
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
             SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
+            SchaltEvent::OpenMergeModal => "schaltwerk:open-merge-modal",
             SchaltEvent::SelectAllRequested => "schaltwerk:select-all-requested",
         }
     }

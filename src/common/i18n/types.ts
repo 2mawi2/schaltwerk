@@ -1154,6 +1154,7 @@ export interface Translations {
     prCreated: string
     prCreatedBranch: string
     prModalFailed: string
+    mergeModalFailed: string
     // PR comments (usePrComments)
     noComments: string
     noCommentsDesc: string

@@ -109,6 +109,12 @@ async fn handle_mcp_request_inner(
             let name = extract_session_name_for_action(path, "/prepare-pr");
             prepare_pull_request(req, &name, app).await
         }
+        (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/prepare-merge") =>
+        {
+            let name = extract_session_name_for_action(path, "/prepare-merge");
+            prepare_merge(req, &name, app).await
+        }
         (&Method::DELETE, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
             delete_session(&name, app).await
@@ -1599,6 +1605,108 @@ async fn prepare_pull_request(
 
     let json = serde_json::to_string(&response).unwrap_or_else(|e| {
         error!("Failed to serialize prepare PR response for '{name}': {e}");
+        "{}".to_string()
+    });
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PrepareMergeRequest {
+    #[serde(default)]
+    mode: Option<MergeMode>,
+    commit_message: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenMergeModalPayload {
+    session_name: String,
+    mode: Option<String>,
+    commit_message: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PrepareMergeResponse {
+    session_name: String,
+    modal_triggered: bool,
+}
+
+async fn prepare_merge(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    match get_core_read().await {
+        Ok(core) => {
+            let manager = core.session_manager();
+            match manager.get_session(name) {
+                Ok(session) => {
+                    if session.session_state == SessionState::Spec {
+                        return Ok(error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "Session '{name}' is a spec. Start the spec before merging."
+                            ),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session '{name}' not found: {e}"),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to acquire session manager for prepare merge: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: PrepareMergeRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON payload: {e}"),
+            ));
+        }
+    };
+
+    let mode_str = payload.mode.map(|m| match m {
+        MergeMode::Squash => "squash".to_string(),
+        MergeMode::Reapply => "reapply".to_string(),
+    });
+
+    let event_payload = OpenMergeModalPayload {
+        session_name: name.to_string(),
+        mode: mode_str,
+        commit_message: payload.commit_message,
+    };
+
+    if let Err(e) = emit_event(&app, SchaltEvent::OpenMergeModal, &event_payload) {
+        error!("Failed to emit OpenMergeModal event: {e}");
+        return Ok(error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to trigger merge modal: {e}"),
+        ));
+    }
+
+    info!("Triggered merge modal for session '{name}'");
+
+    let response = PrepareMergeResponse {
+        session_name: name.to_string(),
+        modal_triggered: true,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+        error!("Failed to serialize prepare merge response for '{name}': {e}");
         "{}".to_string()
     });
 

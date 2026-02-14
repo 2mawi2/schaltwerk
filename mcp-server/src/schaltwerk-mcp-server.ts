@@ -108,6 +108,12 @@ interface SchaltwerkCreatePrArgs {
   cancel_after_pr?: boolean
 }
 
+interface SchaltwerkPrepareMergeArgs {
+  session_name: string
+  commit_message?: string | null
+  mode?: 'squash' | 'reapply'
+}
+
 interface SchaltwerkSetSetupScriptArgs {
   setup_script: string
 }
@@ -771,6 +777,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           additionalProperties: false
         },
         outputSchema: toolOutputSchemas.schaltwerk_list_epics
+      },
+      {
+        name: "schaltwerk_prepare_merge",
+        description: `Open a merge modal in the Schaltwerk UI for user review and confirmation. The modal is pre-filled with the provided commit message and merge mode. The user can review, edit, and confirm to merge. This tool does NOT merge directly - it requires user confirmation via the UI. Works for running and reviewed sessions. Spec sessions are not eligible for merging.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_name: {
+              type: "string",
+              description: "Running or reviewed session to open the merge modal for."
+            },
+            commit_message: {
+              type: "string",
+              description: "Suggested commit message for squash merge mode (user can edit before confirming)."
+            },
+            mode: {
+              type: "string",
+              enum: ["squash", "reapply"],
+              description: "Suggested merge strategy: 'squash' creates a single commit; 'reapply' preserves individual commits. Defaults to 'squash'."
+            }
+          },
+          required: ["session_name"]
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_prepare_merge
       },
       {
         name: "schaltwerk_get_current_tasks",
@@ -1529,6 +1559,31 @@ ${cancelLine}`
           summaryText: summary,
           jsonFirst: true
         })
+        break
+      }
+
+      case "schaltwerk_prepare_merge": {
+        const mergeArgs = args as unknown as SchaltwerkPrepareMergeArgs
+
+        if (!mergeArgs.session_name || typeof mergeArgs.session_name !== 'string') {
+          throw new Error('session_name is required when invoking schaltwerk_prepare_merge.')
+        }
+
+        const mergeResult = await bridge.prepareMerge(mergeArgs.session_name, {
+          mode: mergeArgs.mode,
+          commitMessage: mergeArgs.commit_message ?? undefined,
+        })
+
+        const structured = {
+          session: mergeArgs.session_name,
+          modal_triggered: mergeResult.modalTriggered,
+        }
+
+        const summary = mergeResult.modalTriggered
+          ? `Merge modal opened for '${mergeArgs.session_name}'. The user will review and confirm the merge in the Schaltwerk UI.`
+          : `Failed to open merge modal for '${mergeArgs.session_name}'.`
+
+        response = buildStructuredResponse(structured, { summaryText: summary })
         break
       }
 

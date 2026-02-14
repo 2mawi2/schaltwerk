@@ -29,6 +29,7 @@ interface MergeSessionModalProps {
   onCommitMessageChange?: (value: string) => void
   autoCancelEnabled: boolean
   onToggleAutoCancel: (next: boolean) => void
+  prefillMode?: MergeModeOption
 }
 
 const modalBackdropStyle: React.CSSProperties = {
@@ -58,6 +59,7 @@ export function MergeSessionModal({
   onCommitMessageChange,
   autoCancelEnabled,
   onToggleAutoCancel,
+  prefillMode,
 }: MergeSessionModalProps) {
   const { t } = useTranslation()
   const { registerModal, unregisterModal } = useModal()
@@ -93,6 +95,11 @@ export function MergeSessionModal({
 
     focusCommitMessage()
   }, [open, mode, focusCommitMessage])
+
+  useLayoutEffect(() => {
+    if (!open || !prefillMode) return
+    setMode(prefillMode)
+  }, [open, prefillMode])
 
   useLayoutEffect(() => {
     if (!open) {

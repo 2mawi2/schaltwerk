@@ -227,7 +227,11 @@ const sampleStructuredOutputs: Record<string, any> = {
     exit_code: 0,
     stdout: 'Server started on port 3000',
     stderr: '',
-  }
+  },
+  schaltwerk_prepare_merge: {
+    session: 'alpha',
+    modal_triggered: true,
+  },
 }
 
 describe('MCP output schemas', () => {

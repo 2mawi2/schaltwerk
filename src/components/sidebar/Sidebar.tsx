@@ -2,14 +2,14 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useEffectEve
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useSetAtom } from 'jotai'
 import { useTranslation } from '../../common/i18n/useTranslation'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { EventPayloadMap, GitOperationPayload, OpenPrModalPayload } from '../../common/events'
+import { EventPayloadMap, GitOperationPayload, OpenMergeModalPayload, OpenPrModalPayload } from '../../common/events'
 import { useSelection } from '../../hooks/useSelection'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { useSessions } from '../../hooks/useSessions'
@@ -46,6 +46,7 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { ORCHESTRATOR_SESSION_NAME } from '../../constants/sessions'
 import { projectPathAtom } from '../../store/atoms/project'
 import { useSessionMergeShortcut } from '../../hooks/useSessionMergeShortcut'
+import { openMergeDialogActionAtom } from '../../store/atoms/sessions'
 import { useUpdateSessionFromParent } from '../../hooks/useUpdateSessionFromParent'
 import { DEFAULT_AGENT } from '../../constants/agents'
 import { extractPrNumberFromUrl } from '../../utils/githubUrls'
@@ -253,6 +254,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         getCommitDraftForSession,
     })
     const { updateSessionFromParent } = useUpdateSessionFromParent()
+    const openMergeDialogWithPrefill = useSetAtom(openMergeDialogActionAtom)
 
     const [prDialogState, setPrDialogState] = useState<{
         isOpen: boolean
@@ -594,6 +596,47 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }
         }
     }, [createSafeUnlistener, handleOpenPrModal, pushToast])
+
+    useEffect(() => {
+        let unlistenOpenMergeModal: UnlistenFn | null = null
+
+        const attach = async () => {
+            try {
+                const unlisten = await listenEvent(SchaltEvent.OpenMergeModal, async (payload: OpenMergeModalPayload) => {
+                    try {
+                        if (payload.commitMessage) {
+                            setMergeCommitDrafts(prev => ({
+                                ...prev,
+                                [payload.sessionName]: payload.commitMessage!,
+                            }))
+                        }
+                        await openMergeDialogWithPrefill({
+                            sessionId: payload.sessionName,
+                            prefillMode: payload.mode,
+                        })
+                    } catch (error) {
+                        logger.error('Failed to open merge modal for MCP request:', error)
+                        pushToast({
+                            tone: 'error',
+                            title: t.toasts.mergeModalFailed,
+                            description: error instanceof Error ? error.message : String(error),
+                        })
+                    }
+                })
+                unlistenOpenMergeModal = createSafeUnlistener(unlisten)
+            } catch (error) {
+                logger.warn('Failed to listen for OpenMergeModal events:', error)
+            }
+        }
+
+        void attach()
+
+        return () => {
+            if (unlistenOpenMergeModal) {
+                unlistenOpenMergeModal()
+            }
+        }
+    }, [createSafeUnlistener, openMergeDialogWithPrefill, pushToast])
 
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
@@ -1974,6 +2017,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 }}
                 autoCancelEnabled={autoCancelAfterMerge}
                 onToggleAutoCancel={(next) => { void updateAutoCancelAfterMerge(next) }}
+                prefillMode={mergeDialogState.prefillMode}
             />
             <PrSessionModal
                 open={prDialogState.isOpen}

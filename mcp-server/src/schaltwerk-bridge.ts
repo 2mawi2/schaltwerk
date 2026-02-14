@@ -96,6 +96,11 @@ export interface PullRequestResult {
   modalTriggered?: boolean
 }
 
+export interface PrepareMergeResult {
+  sessionName: string
+  modalTriggered: boolean
+}
+
 export interface DiffSummaryOptions {
   session?: string
   cursor?: string
@@ -1353,6 +1358,39 @@ export class SchaltwerkBridge {
       cancelRequested: false,
       cancelQueued: false,
       cancelError: undefined,
+      modalTriggered: payload.modal_triggered,
+    }
+  }
+
+  async prepareMerge(
+    sessionName: string,
+    options: {
+      mode?: MergeModeOption
+      commitMessage?: string
+    }
+  ): Promise<PrepareMergeResult> {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/prepare-merge`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({
+        mode: options.mode,
+        commit_message: options.commitMessage,
+      })
+    })
+
+    const responseBody = await response.text()
+    if (!response.ok) {
+      const reason = responseBody ? ` - ${responseBody}` : ''
+      throw new Error(`Failed to prepare merge for session '${sessionName}': ${response.status} ${response.statusText}${reason}`)
+    }
+
+    const payload = JSON.parse(responseBody) as { session_name: string; modal_triggered: boolean }
+
+    return {
+      sessionName: payload.session_name,
       modalTriggered: payload.modal_triggered,
     }
   }

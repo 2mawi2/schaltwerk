@@ -1145,6 +1145,7 @@
     "prCreated": "拉取请求已创建",
     "prCreatedBranch": "分支：{branch}",
     "prModalFailed": "无法打开 PR 对话框",
+    "mergeModalFailed": "无法打开合并对话框",
     "noComments": "无评论",
     "noCommentsDesc": "此 PR 没有审查评论",
     "fetchCommentsFailed": "获取评论失败",

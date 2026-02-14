@@ -34,6 +34,7 @@ export enum SchaltEvent {
   DiffBaseBranchChanged = 'schaltwerk:diff-base-branch-changed',
   ProjectValidationError = 'schaltwerk:project-validation-error',
   OpenPrModal = 'schaltwerk:open-pr-modal',
+  OpenMergeModal = 'schaltwerk:open-merge-modal',
   SelectAllRequested = 'schaltwerk:select-all-requested',
 }
 
@@ -187,6 +188,12 @@ export interface OpenPrModalPayload {
   mode?: 'squash' | 'reapply'
 }
 
+export interface OpenMergeModalPayload {
+  sessionName: string
+  mode?: 'squash' | 'reapply'
+  commitMessage?: string
+}
+
 import { type EnrichedSession, type Epic } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -251,5 +258,6 @@ export type EventPayloadMap = {
   [SchaltEvent.DiffBaseBranchChanged]: DiffBaseBranchChangedPayload
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
   [SchaltEvent.OpenPrModal]: OpenPrModalPayload
+  [SchaltEvent.OpenMergeModal]: OpenMergeModalPayload
   [SchaltEvent.SelectAllRequested]: null
 }
