@@ -117,10 +117,17 @@ pub struct KilocodeAdapter;
 
 impl AgentAdapter for KilocodeAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
-        super::kilocode::find_kilocode_session(path)
+        super::kilocode::find_kilocode_session(path).map(|info| info.id)
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let session_info =
+            ctx.session_id
+                .map(|id| super::kilocode::KilocodeSessionInfo {
+                    id: id.to_string(),
+                    has_history: true,
+                });
+
         let config = super::kilocode::KilocodeConfig {
             binary_path: Some(
                 ctx.binary_override
@@ -130,7 +137,7 @@ impl AgentAdapter for KilocodeAdapter {
         };
         let command = super::kilocode::build_kilocode_command_with_config(
             ctx.worktree_path,
-            ctx.session_id,
+            session_info.as_ref(),
             ctx.initial_prompt,
             Some(&config),
         );

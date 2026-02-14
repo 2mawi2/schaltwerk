@@ -16,6 +16,11 @@ pub struct KilocodeConfig {
     pub binary_path: Option<String>,
 }
 
+pub struct KilocodeSessionInfo {
+    pub id: String,
+    pub has_history: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 struct DirSignature {
     root_millis: Option<u128>,
@@ -161,7 +166,7 @@ impl IndexSignature {
 /// Cached index state
 #[derive(Default)]
 struct IndexState {
-    index: Option<HashMap<String, String>>,
+    index: Option<HashMap<String, KilocodeIndexEntry>>,
     signature: Option<IndexSignature>,
     task_cache: HashMap<PathBuf, CachedTaskEntry>,
     disk_cache_loaded: bool,
@@ -178,7 +183,7 @@ impl KilocodeIndex {
         }
     }
 
-    fn get_or_rebuild(&self, tasks_dir: &Path, workspaces_dir: &Path) -> HashMap<String, String> {
+    fn get_or_rebuild(&self, tasks_dir: &Path, workspaces_dir: &Path) -> HashMap<String, KilocodeIndexEntry> {
         if *DISABLE_INDEXING {
             debug!(
                 "KiloCode session indexing disabled via SCHALTWERK_DISABLE_KILOCODE_INDEX, skipping lookup"
@@ -268,6 +273,24 @@ impl KilocodeIndex {
             state.task_cache.clear();
             state.disk_cache_loaded = false;
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct KilocodeIndexEntry {
+    session_id: String,
+    has_history: bool,
+}
+
+fn count_messages_in_task_history(task_history_file: &Path) -> usize {
+    let content = match fs::read_to_string(task_history_file) {
+        Ok(c) => c,
+        Err(_) => return 0,
+    };
+    let messages: Result<Vec<serde_json::Value>, _> = serde_json::from_str(&content);
+    match messages {
+        Ok(m) => m.len(),
+        Err(_) => 0,
     }
 }
 
@@ -375,53 +398,245 @@ fn extract_cwd_from_task_history_fast(task_history_file: &Path) -> Option<String
     None
 }
 
-/// Get or create the session index with cache invalidation
-#[cfg(not(test))]
-static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
+// --- New Kilo CLI storage format (OpenCode-compatible, ~/.local/share/kilo/storage/) ---
 
-/// Find a Kilocode session by matching worktree path
-fn find_kilocode_session_with_index(
-    worktree_path: &Path,
-    index_cache: &KilocodeIndex,
-) -> Option<String> {
-    debug!("find_kilocode_session: looking for worktree_path={worktree_path:?}");
+#[derive(Debug, Deserialize)]
+struct KiloStoredProjectRecord {
+    id: String,
+    #[serde(default)]
+    worktree: String,
+}
 
-    let home = dirs::home_dir()?;
-    let kilocode_tasks_dir = home.join(".kilocode/cli/global/tasks");
-    let kilocode_workspaces_dir = home.join(".kilocode/cli/workspaces");
+#[derive(Debug, Default, Deserialize)]
+struct KiloStoredSessionTime {
+    #[serde(default)]
+    updated: Option<i64>,
+}
 
-    if !kilocode_tasks_dir.exists() {
-        debug!("find_kilocode_session: tasks dir does not exist: {kilocode_tasks_dir:?}");
-        return None;
+#[derive(Debug, Deserialize)]
+struct KiloStoredSessionRecord {
+    id: String,
+    directory: String,
+    #[serde(default)]
+    time: KiloStoredSessionTime,
+}
+
+fn extract_repo_root(path: &Path) -> Option<PathBuf> {
+    let mut current = path;
+    while let Some(parent) = current.parent() {
+        if parent
+            .file_name()
+            .map(|name| name == "worktrees")
+            .unwrap_or(false)
+            && let Some(grand) = parent.parent()
+            && grand
+                .file_name()
+                .map(|name| name == ".schaltwerk")
+                .unwrap_or(false)
+        {
+            return grand.parent().map(|p| p.to_path_buf());
+        }
+        current = parent;
     }
+    None
+}
 
-    if !kilocode_workspaces_dir.exists() {
+fn find_kilo_session_in_new_storage(path: &Path, home: &Path) -> Option<KilocodeSessionInfo> {
+    let repo_root = extract_repo_root(path).unwrap_or_else(|| path.to_path_buf());
+    let repo_root_str = repo_root.to_string_lossy().to_string();
+
+    let storage_dir = home.join(".local").join("share").join("kilo").join("storage");
+
+    let project_records_dir = storage_dir.join("project");
+    if !project_records_dir.exists() {
         debug!(
-            "find_kilocode_session: workspaces dir does not exist: {kilocode_workspaces_dir:?}"
+            "Kilo new storage: project records directory missing (path='{}')",
+            project_records_dir.display()
         );
         return None;
     }
 
-    let normalized_worktree = normalize_path(worktree_path);
-    debug!("find_kilocode_session: normalized_worktree={normalized_worktree:?}");
+    let mut matched_project_id: Option<String> = None;
+    if let Ok(entries) = fs::read_dir(&project_records_dir) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(contents) = fs::read_to_string(&entry_path) {
+                match serde_json::from_str::<KiloStoredProjectRecord>(&contents) {
+                    Ok(record) => {
+                        if record.worktree == repo_root_str {
+                            log::info!(
+                                "Kilo new storage: matched project id '{}' for root '{repo_root_str}'",
+                                record.id
+                            );
+                            matched_project_id = Some(record.id);
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        debug!(
+                            "Kilo new storage: unable to parse project record at '{}'",
+                            entry_path.display()
+                        );
+                    }
+                }
+            }
+        }
+    }
 
-    let normalized_worktree = normalized_worktree?;
+    let project_id = match matched_project_id {
+        Some(id) => id,
+        None => {
+            log::info!(
+                "Kilo new storage: no project record matched repo root '{repo_root_str}'"
+            );
+            return None;
+        }
+    };
 
+    let session_dir = storage_dir.join("session").join(&project_id);
+    if !session_dir.exists() {
+        log::info!(
+            "Kilo new storage: session directory missing for project '{project_id}'"
+        );
+        return None;
+    }
+
+    let mut sessions: Vec<KiloStoredSessionRecord> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&session_dir) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(contents) = fs::read_to_string(&entry_path) {
+                match serde_json::from_str::<KiloStoredSessionRecord>(&contents) {
+                    Ok(record) => sessions.push(record),
+                    Err(_) => {
+                        debug!(
+                            "Kilo new storage: unable to parse session record at '{}'",
+                            entry_path.display()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let worktree_str = path.to_string_lossy().to_string();
+    sessions.retain(|record| record.directory == worktree_str);
+
+    if sessions.is_empty() {
+        log::info!(
+            "Kilo new storage: no session records found for worktree '{}'",
+            path.display()
+        );
+        return None;
+    }
+
+    sessions.sort_by_key(|record| record.time.updated.unwrap_or_default());
+    sessions.reverse();
+
+    for record in &sessions {
+        let message_dir = storage_dir.join("message").join(&record.id);
+        let message_count = fs::read_dir(&message_dir)
+            .ok()
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| {
+                        e.path()
+                            .extension()
+                            .map(|ext| ext == "json")
+                            .unwrap_or(false)
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+
+        if message_count > 2 {
+            log::info!(
+                "Kilo new storage: resume candidate found: session '{}' with {message_count} messages",
+                record.id
+            );
+            return Some(KilocodeSessionInfo {
+                id: record.id.clone(),
+                has_history: true,
+            });
+        }
+
+        log::info!(
+            "Kilo new storage: session '{}' only has {message_count} message file(s)",
+            record.id
+        );
+    }
+
+    let latest = sessions.first()?;
+    Some(KilocodeSessionInfo {
+        id: latest.id.clone(),
+        has_history: false,
+    })
+}
+
+// --- Legacy Kilo CLI storage format (~/.kilocode/cli/) ---
+
+/// Get or create the session index with cache invalidation
+#[cfg(not(test))]
+static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
+
+fn find_kilocode_session_in_legacy_storage(
+    worktree_path: &Path,
+    index_cache: &KilocodeIndex,
+) -> Option<KilocodeSessionInfo> {
+    let home = dirs::home_dir()?;
+    let kilocode_tasks_dir = home.join(".kilocode/cli/global/tasks");
+    let kilocode_workspaces_dir = home.join(".kilocode/cli/workspaces");
+
+    if !kilocode_tasks_dir.exists() || !kilocode_workspaces_dir.exists() {
+        debug!("find_kilocode_session: legacy storage dirs do not exist");
+        return None;
+    }
+
+    let normalized_worktree = normalize_path(worktree_path)?;
     let index = index_cache.get_or_rebuild(&kilocode_tasks_dir, &kilocode_workspaces_dir);
 
-    let result = index.get(&normalized_worktree).cloned();
-    debug!("find_kilocode_session: lookup result for {normalized_worktree:?} = {result:?}");
-    result
+    let entry = index.get(&normalized_worktree);
+    debug!("find_kilocode_session: legacy lookup result for {normalized_worktree:?} = {entry:?}");
+
+    entry.map(|e| KilocodeSessionInfo {
+        id: e.session_id.clone(),
+        has_history: e.has_history,
+    })
+}
+
+/// Find a Kilocode session by matching worktree path.
+/// Tries the new OpenCode-compatible storage format first (~/.local/share/kilo/storage/),
+/// then falls back to the legacy format (~/.kilocode/cli/).
+fn find_kilocode_session_with_index(
+    worktree_path: &Path,
+    index_cache: &KilocodeIndex,
+) -> Option<KilocodeSessionInfo> {
+    debug!("find_kilocode_session: looking for worktree_path={worktree_path:?}");
+
+    let home = dirs::home_dir()?;
+
+    if let Some(info) = find_kilo_session_in_new_storage(worktree_path, &home) {
+        return Some(info);
+    }
+
+    find_kilocode_session_in_legacy_storage(worktree_path, index_cache)
 }
 
 #[cfg(not(test))]
-pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
+pub fn find_kilocode_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
     let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
     find_kilocode_session_with_index(worktree_path, index_cache)
 }
 
 #[cfg(test)]
-pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
+pub fn find_kilocode_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
     let index_cache = KilocodeIndex::new();
     find_kilocode_session_with_index(worktree_path, &index_cache)
 }
@@ -430,6 +645,7 @@ pub fn find_kilocode_session(worktree_path: &Path) -> Option<String> {
 struct CachedTaskEntry {
     modified_millis: Option<u128>,
     cwd: Option<String>,
+    message_count: Option<usize>,
 }
 
 #[derive(Default)]
@@ -445,6 +661,8 @@ struct DiskTaskRecord {
     path: String,
     modified_millis: Option<u128>,
     cwd: Option<String>,
+    #[serde(default)]
+    message_count: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -486,6 +704,7 @@ fn load_disk_cache(tasks_dir: &Path) -> HashMap<PathBuf, CachedTaskEntry> {
                     CachedTaskEntry {
                         modified_millis: entry.modified_millis,
                         cwd: entry.cwd,
+                        message_count: entry.message_count,
                     },
                 );
             }
@@ -534,6 +753,7 @@ fn persist_disk_cache(tasks_dir: &Path, cache: &HashMap<PathBuf, CachedTaskEntry
             path: path_buf.to_string_lossy().into_owned(),
             modified_millis: entry.modified_millis,
             cwd: entry.cwd.clone(),
+            message_count: entry.message_count,
         })
         .collect();
 
@@ -584,12 +804,13 @@ fn persist_disk_cache(tasks_dir: &Path, cache: &HashMap<PathBuf, CachedTaskEntry
 }
 
 /// Build the session index by scanning KiloCode workspaces + tasks.
-/// Maps normalized CWD paths to the workspace's lastSession.sessionId.
+/// Maps normalized CWD paths to the workspace's lastSession.sessionId
+/// along with whether the matched task has meaningful conversation history.
 fn build_kilocode_session_index(
     tasks_dir: &Path,
     workspaces_dir: &Path,
     previous_cache: &HashMap<PathBuf, CachedTaskEntry>,
-) -> (HashMap<String, String>, HashMap<PathBuf, CachedTaskEntry>, CacheStats) {
+) -> (HashMap<String, KilocodeIndexEntry>, HashMap<PathBuf, CachedTaskEntry>, CacheStats) {
     let mut index = HashMap::new();
     let mut next_cache: HashMap<PathBuf, CachedTaskEntry> = HashMap::new();
     let mut stats = CacheStats::default();
@@ -622,17 +843,21 @@ fn build_kilocode_session_index(
                     .map(|dur| dur.as_millis());
 
                 let cached = previous_cache.get(&task_history);
-                let cwd = if let Some(cached) = cached {
+                let (cwd, message_count) = if let Some(cached) = cached {
                     if cached.modified_millis == modified_millis {
                         stats.cached_hits += 1;
-                        cached.cwd.clone()
+                        (cached.cwd.clone(), cached.message_count)
                     } else {
                         stats.cache_misses += 1;
-                        extract_cwd_from_task_history(&task_history)
+                        let cwd = extract_cwd_from_task_history(&task_history);
+                        let count = count_messages_in_task_history(&task_history);
+                        (cwd, Some(count))
                     }
                 } else {
                     stats.cache_misses += 1;
-                    extract_cwd_from_task_history(&task_history)
+                    let cwd = extract_cwd_from_task_history(&task_history);
+                    let count = count_messages_in_task_history(&task_history);
+                    (cwd, Some(count))
                 };
 
                 if cwd.is_none() {
@@ -644,6 +869,7 @@ fn build_kilocode_session_index(
                     CachedTaskEntry {
                         modified_millis,
                         cwd: cwd.clone(),
+                        message_count,
                     },
                 );
 
@@ -651,7 +877,11 @@ fn build_kilocode_session_index(
                     .as_deref()
                     .and_then(|cwd| normalize_path(Path::new(cwd)))
                 {
-                    index.insert(normalized, last_session_id.clone());
+                    let has_history = message_count.unwrap_or(0) > 2;
+                    index.insert(normalized, KilocodeIndexEntry {
+                        session_id: last_session_id.clone(),
+                        has_history,
+                    });
                 }
             }
         }
@@ -725,7 +955,7 @@ fn escape_single_quotes(s: &str) -> String {
 
 pub fn build_kilocode_command_with_config(
     worktree_path: &Path,
-    session_id: Option<&str>,
+    session_info: Option<&KilocodeSessionInfo>,
     initial_prompt: Option<&str>,
     config: Option<&KilocodeConfig>,
 ) -> String {
@@ -747,17 +977,37 @@ pub fn build_kilocode_command_with_config(
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
     let mut cmd = format!("cd {cwd_quoted} && {binary_invocation}");
 
-    if let Some(session) = session_id {
-        let trimmed = session.trim();
-        if !trimmed.is_empty() {
-            cmd.push_str(" --session ");
-            cmd.push_str(trimmed);
+    match session_info {
+        Some(info) if info.has_history => {
+            log::debug!(
+                "Continuing Kilo session {} with history",
+                info.id
+            );
+            cmd.push_str(&format!(" --session {}", info.id));
         }
-    } else if let Some(prompt) = initial_prompt {
-        let escaped = escape_single_quotes(prompt);
-        cmd.push_str(" --prompt '");
-        cmd.push_str(&escaped);
-        cmd.push('\'');
+        Some(info) => {
+            log::debug!(
+                "Kilo session {} exists but has no real user interaction",
+                info.id
+            );
+            if let Some(prompt) = initial_prompt {
+                let escaped = escape_single_quotes(prompt);
+                cmd.push_str(" --prompt '");
+                cmd.push_str(&escaped);
+                cmd.push('\'');
+            }
+        }
+        None => {
+            if let Some(prompt) = initial_prompt {
+                log::debug!("Starting new Kilo session with prompt");
+                let escaped = escape_single_quotes(prompt);
+                cmd.push_str(" --prompt '");
+                cmd.push_str(&escaped);
+                cmd.push('\'');
+            } else {
+                log::debug!("Starting new Kilo session without prompt");
+            }
+        }
     }
 
     cmd
@@ -812,13 +1062,17 @@ mod tests {
     }
 
     #[test]
-    fn test_resume_by_session_id() {
+    fn test_resume_by_session_id_with_history() {
         let config = KilocodeConfig {
             binary_path: Some("kilocode".to_string()),
         };
+        let session_info = KilocodeSessionInfo {
+            id: "abc-123-session".to_string(),
+            has_history: true,
+        };
         let cmd = build_kilocode_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("abc-123-session"),
+            Some(&session_info),
             Some("ignored prompt"),
             Some(&config),
         );
@@ -829,19 +1083,62 @@ mod tests {
     }
 
     #[test]
-    fn test_resume_session() {
+    fn test_resume_session_with_history() {
         let config = KilocodeConfig {
             binary_path: Some("kilocode".to_string()),
         };
+        let session_info = KilocodeSessionInfo {
+            id: "session-xyz".to_string(),
+            has_history: true,
+        };
         let cmd = build_kilocode_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("session-xyz"),
+            Some(&session_info),
             None,
             Some(&config),
         );
         assert_eq!(
             cmd,
             "cd /path/to/worktree && kilocode --session session-xyz"
+        );
+    }
+
+    #[test]
+    fn test_session_without_history_starts_fresh() {
+        let config = KilocodeConfig {
+            binary_path: Some("kilocode".to_string()),
+        };
+        let session_info = KilocodeSessionInfo {
+            id: "stale-session".to_string(),
+            has_history: false,
+        };
+        let cmd = build_kilocode_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some(&session_info),
+            None,
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && kilocode");
+    }
+
+    #[test]
+    fn test_session_without_history_uses_prompt() {
+        let config = KilocodeConfig {
+            binary_path: Some("kilocode".to_string()),
+        };
+        let session_info = KilocodeSessionInfo {
+            id: "stale-session".to_string(),
+            has_history: false,
+        };
+        let cmd = build_kilocode_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some(&session_info),
+            Some("implement feature Y"),
+            Some(&config),
+        );
+        assert_eq!(
+            cmd,
+            "cd /path/to/worktree && kilocode --prompt 'implement feature Y'"
         );
     }
 
@@ -957,7 +1254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_kilocode_session_index_with_mapping() {
+    fn test_build_kilocode_session_index_with_mapping_no_history() {
         let temp_dir = TempDir::new().unwrap();
         let tasks_dir = temp_dir.path().join("tasks");
         let workspaces_dir = temp_dir.path().join("workspaces");
@@ -988,21 +1285,55 @@ mod tests {
 
         let (index, _cache, _stats) =
             build_kilocode_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
-        assert_eq!(
-            index.get(&normalize_path(&project_dir).unwrap()),
-            Some(&"last-sess-123".to_string())
-        );
+        let entry = index.get(&normalize_path(&project_dir).unwrap()).unwrap();
+        assert_eq!(entry.session_id, "last-sess-123");
+        assert!(!entry.has_history);
+    }
+
+    #[test]
+    fn test_build_kilocode_session_index_with_history() {
+        let temp_dir = TempDir::new().unwrap();
+        let tasks_dir = temp_dir.path().join("tasks");
+        let workspaces_dir = temp_dir.path().join("workspaces");
+        fs::create_dir_all(&tasks_dir).unwrap();
+        fs::create_dir_all(&workspaces_dir).unwrap();
+
+        let workspace_dir = workspaces_dir.join("ws-1");
+        fs::create_dir_all(&workspace_dir).unwrap();
+        fs::write(
+            workspace_dir.join("session.json"),
+            "{\"lastSession\":{\"sessionId\":\"sess-with-history\"},\"taskSessionMap\":{\"task-1\":\"session-1\"}}",
+        )
+        .unwrap();
+
+        let task_dir = tasks_dir.join("task-1");
+        fs::create_dir_all(&task_dir).unwrap();
+
+        let project_dir = temp_dir.path().join("project");
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            task_dir.join("api_conversation_history.json"),
+            format!(
+                "[{{\"role\":\"user\",\"content\":[{{\"text\":\"# Current Workspace Directory ({})\"}}]}},{{\"role\":\"assistant\",\"content\":[{{\"text\":\"Hello\"}}]}},{{\"role\":\"user\",\"content\":[{{\"text\":\"Do something\"}}]}}]",
+                project_dir.display()
+            ),
+        )
+        .unwrap();
+
+        let (index, _cache, _stats) =
+            build_kilocode_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
+        let entry = index.get(&normalize_path(&project_dir).unwrap()).unwrap();
+        assert_eq!(entry.session_id, "sess-with-history");
+        assert!(entry.has_history);
     }
 
     #[test]
     fn test_find_kilocode_session_graceful_degradation() {
-        // Test that find_kilocode_session returns None for invalid paths
         let temp_dir = TempDir::new().unwrap();
         let nonexistent = temp_dir.path().join("nonexistent");
 
         let result = find_kilocode_session(&nonexistent);
-        // Should return None for invalid worktree paths that can't be canonicalized
-        assert_eq!(result, None);
+        assert!(result.is_none());
     }
 
     #[test]
@@ -1038,20 +1369,161 @@ mod tests {
         reset_task_history_reads();
         let indexer = KilocodeIndex::new();
         let index1 = indexer.get_or_rebuild(&tasks_dir, &workspaces_dir);
-        assert_eq!(
-            index1.get(&normalize_path(&worktree_dir).unwrap()),
-            Some(&"last-sess-123".to_string())
-        );
+        let entry1 = index1.get(&normalize_path(&worktree_dir).unwrap()).unwrap();
+        assert_eq!(entry1.session_id, "last-sess-123");
         assert_eq!(task_history_reads(), 1);
 
         // New indexer simulates a new process: should load persisted cache and skip parsing.
         reset_task_history_reads();
         let indexer2 = KilocodeIndex::new();
         let index2 = indexer2.get_or_rebuild(&tasks_dir, &workspaces_dir);
-        assert_eq!(
-            index2.get(&normalize_path(&worktree_dir).unwrap()),
-            Some(&"last-sess-123".to_string())
-        );
+        let entry2 = index2.get(&normalize_path(&worktree_dir).unwrap()).unwrap();
+        assert_eq!(entry2.session_id, "last-sess-123");
         assert_eq!(task_history_reads(), 0);
+    }
+
+    // --- New storage format tests ---
+
+    fn setup_new_storage(
+        home: &Path,
+        repo_root: &str,
+        worktree_path: &str,
+        session_id: &str,
+        message_count: usize,
+    ) {
+        let storage = home.join(".local/share/kilo/storage");
+        let project_dir = storage.join("project");
+        let session_dir_base = storage.join("session");
+        let message_dir_base = storage.join("message");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let project_id = "proj_test_hash";
+        let project_record = serde_json::json!({
+            "id": project_id,
+            "worktree": repo_root,
+            "vcs": "git",
+            "sandboxes": [],
+            "time": { "created": 100, "updated": 200 }
+        });
+        fs::write(
+            project_dir.join(format!("{project_id}.json")),
+            project_record.to_string(),
+        )
+        .unwrap();
+
+        let session_dir = session_dir_base.join(project_id);
+        fs::create_dir_all(&session_dir).unwrap();
+        let session_record = serde_json::json!({
+            "id": session_id,
+            "directory": worktree_path,
+            "time": { "created": 100, "updated": 200 }
+        });
+        fs::write(
+            session_dir.join(format!("{session_id}.json")),
+            session_record.to_string(),
+        )
+        .unwrap();
+
+        let message_dir = message_dir_base.join(session_id);
+        fs::create_dir_all(&message_dir).unwrap();
+        for idx in 0..message_count {
+            fs::write(message_dir.join(format!("msg_{idx}.json")), "{}").unwrap();
+        }
+    }
+
+    #[test]
+    fn test_new_storage_with_history() {
+        let temp_home = TempDir::new().unwrap();
+        let repo_root = temp_home.path().join("repo");
+        let worktree = repo_root
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join("test_session");
+        fs::create_dir_all(&worktree).unwrap();
+
+        setup_new_storage(
+            temp_home.path(),
+            &repo_root.to_string_lossy(),
+            &worktree.to_string_lossy(),
+            "ses_test_with_history",
+            5,
+        );
+
+        let result = find_kilo_session_in_new_storage(&worktree, temp_home.path());
+        let info = result.expect("expected session info");
+        assert_eq!(info.id, "ses_test_with_history");
+        assert!(info.has_history);
+    }
+
+    #[test]
+    fn test_new_storage_without_history() {
+        let temp_home = TempDir::new().unwrap();
+        let repo_root = temp_home.path().join("repo");
+        let worktree = repo_root
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join("empty_session");
+        fs::create_dir_all(&worktree).unwrap();
+
+        setup_new_storage(
+            temp_home.path(),
+            &repo_root.to_string_lossy(),
+            &worktree.to_string_lossy(),
+            "ses_no_history",
+            2,
+        );
+
+        let result = find_kilo_session_in_new_storage(&worktree, temp_home.path());
+        let info = result.expect("expected session info");
+        assert_eq!(info.id, "ses_no_history");
+        assert!(!info.has_history);
+    }
+
+    #[test]
+    fn test_new_storage_no_project() {
+        let temp_home = TempDir::new().unwrap();
+        let storage = temp_home
+            .path()
+            .join(".local/share/kilo/storage/project");
+        fs::create_dir_all(&storage).unwrap();
+
+        let worktree = temp_home.path().join("nonexistent");
+        fs::create_dir_all(&worktree).unwrap();
+
+        let result = find_kilo_session_in_new_storage(&worktree, temp_home.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_new_storage_no_matching_session() {
+        let temp_home = TempDir::new().unwrap();
+        let repo_root = temp_home.path().join("repo");
+        let worktree = repo_root
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join("my_session");
+        fs::create_dir_all(&worktree).unwrap();
+
+        setup_new_storage(
+            temp_home.path(),
+            &repo_root.to_string_lossy(),
+            "/some/other/path",
+            "ses_other",
+            5,
+        );
+
+        let result = find_kilo_session_in_new_storage(&worktree, temp_home.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_repo_root() {
+        let path = Path::new("/Users/me/project/.schaltwerk/worktrees/my_session");
+        let root = extract_repo_root(path);
+        assert_eq!(root, Some(PathBuf::from("/Users/me/project")));
+
+        let path_no_worktree = Path::new("/Users/me/project");
+        let root = extract_repo_root(path_no_worktree);
+        assert!(root.is_none());
     }
 }
