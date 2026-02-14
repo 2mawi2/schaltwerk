@@ -2483,12 +2483,7 @@ fi`}
                                     <button
                                         type="button"
                                         onClick={() => { void requestDockBounce() }}
-                                        className="mt-2 px-3 py-1.5 rounded-lg border text-body transition-colors"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-elevated)',
-                                            borderColor: 'var(--color-border-subtle)',
-                                            color: 'var(--color-text-secondary)',
-                                        }}
+                                        className="settings-btn mt-2 px-3 py-1.5 rounded-lg text-body"
                                     >
                                         {t.settings.sessions.testNotification}
                                     </button>
@@ -2562,12 +2557,7 @@ fi`}
                                     type="button"
                                     onClick={() => { void handleManualUpdateCheck() }}
                                     disabled={checkingUpdate}
-                                    className="px-4 py-2 rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-elevated)',
-                                        borderColor: 'var(--color-border-subtle)',
-                                        color: 'var(--color-text-secondary)',
-                                    }}
+                                    className="settings-btn px-4 py-2 rounded-lg text-body disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {checkingUpdate ? t.settings.version.checking : t.settings.version.checkForUpdates}
                                 </button>
