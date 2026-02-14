@@ -383,7 +383,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                         return (
                             <kbd
                                 key={`${segment}-${index}`}
-                                className="px-2 py-1 bg-bg-elevated/70 border border-border-subtle/60 rounded text-caption text-text-primary"
+                                className="px-2 py-1 rounded text-caption" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-subtle)' }}
                             >
                                 {label}
                             </kbd>
@@ -402,7 +402,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                         return (
                             <React.Fragment key={`${segment}-${index}`}>
                                 <kbd
-                                    className="px-2 py-1 bg-bg-elevated/70 border border-border-subtle/60 rounded text-caption text-text-primary"
+                                    className="px-2 py-1 rounded text-caption" style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border-subtle)' }}
                                 >
                                     {label}
                                 </kbd>

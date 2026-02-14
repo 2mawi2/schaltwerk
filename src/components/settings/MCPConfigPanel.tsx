@@ -256,7 +256,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
 
           {status && (
             <>
-              <div className="space-y-2 p-3 bg-bg-elevated/50 rounded border border-border-subtle">
+              <div className="space-y-2 p-3 rounded border" style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
                  <div className="flex items-center justify-between text-xs">
                    <span className="text-text-tertiary">{t.settings.mcp.cliLabel.replace('{agent}', agentLabel)}</span>
                    <span style={{ color: status.cli_available ? 'var(--color-accent-green-light)' : 'var(--color-accent-amber-light)' }}>
@@ -321,18 +321,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                            href="https://claude.ai/download"
                            target="_blank"
                            rel="noopener noreferrer"
-                           className="px-3 py-1 rounded text-sm transition-colors inline-block"
-                           style={{
-                             backgroundColor: 'var(--color-accent-green-bg)',
-                             border: '1px solid var(--color-accent-green-border)',
-                             color: 'var(--color-accent-green-light)',
-                           }}
-                           onMouseEnter={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-green-dark)';
-                           }}
-                           onMouseLeave={(e) => {
-                             (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-green-bg)';
-                           }}
+                           className="settings-btn-success px-3 py-1 rounded text-sm inline-block"
                         >
                          {t.settings.mcp.installClaudeFirst}
                        </a>
@@ -345,18 +334,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                           href="https://opencode.ai"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-3 py-1 rounded text-sm transition-colors inline-block"
-                          style={{
-                            backgroundColor: 'var(--color-accent-blue-bg)',
-                            border: '1px solid var(--color-accent-blue-border)',
-                            color: 'var(--color-accent-blue-light)',
-                          }}
-                          onMouseEnter={(e) => {
-                            (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-blue-dark)';
-                          }}
-                          onMouseLeave={(e) => {
-                            (e.target as HTMLElement).style.backgroundColor = 'var(--color-accent-blue-bg)';
-                          }}
+                          className="settings-btn px-3 py-1 rounded text-sm inline-block"
                        >
                          {t.settings.mcp.installOpencodeFirst}
                        </a>
