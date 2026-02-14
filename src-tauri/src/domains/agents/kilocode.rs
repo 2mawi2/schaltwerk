@@ -1,4 +1,3 @@
-use super::escape_prompt_for_shell;
 use super::format_binary_invocation;
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -720,6 +719,10 @@ fn task_history_reads() -> usize {
 #[cfg(not(test))]
 fn bump_task_history_reads() {}
 
+fn escape_single_quotes(s: &str) -> String {
+    s.replace('\'', "'\"'\"'")
+}
+
 pub fn build_kilocode_command_with_config(
     worktree_path: &Path,
     session_id: Option<&str>,
@@ -751,10 +754,10 @@ pub fn build_kilocode_command_with_config(
             cmd.push_str(trimmed);
         }
     } else if let Some(prompt) = initial_prompt {
-        let escaped = escape_prompt_for_shell(prompt);
-        cmd.push_str(" --prompt \"");
+        let escaped = escape_single_quotes(prompt);
+        cmd.push_str(" --prompt '");
         cmd.push_str(&escaped);
-        cmd.push('"');
+        cmd.push('\'');
     }
 
     cmd
@@ -777,7 +780,7 @@ mod tests {
             Some("implement feature X"),
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode --prompt \"implement feature X\""));
+        assert!(cmd.ends_with("kilocode --prompt 'implement feature X'"));
     }
 
     #[test]
@@ -805,7 +808,7 @@ mod tests {
             Some("hello"),
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && kilocode --prompt \"hello\"");
+        assert_eq!(cmd, "cd /path/to/worktree && kilocode --prompt 'hello'");
     }
 
     #[test]
