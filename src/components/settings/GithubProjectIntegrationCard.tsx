@@ -204,7 +204,7 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
           <button
             onClick={() => { void handleAuthenticate() }}
             disabled={!installed || github.isAuthenticating}
-            className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed bg-accent-blue-bg border border-accent-blue text-accent-blue hover:bg-accent-blue-dark"
+            className="settings-btn px-3 py-2 text-xs font-medium rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {authenticateLabel}
           </button>

@@ -2588,11 +2588,10 @@ fi`}
                                             <button
                                                 key={category.id}
                                                 onClick={() => setActiveCategory(category.id)}
-                                                className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
-                                                    activeCategory === category.id
-                                                        ? 'font-medium bg-bg-selected text-text-primary'
-                                                        : 'text-text-tertiary hover:text-text-secondary'
-                                                }`}
+                                                className="w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors"
+                                                style={activeCategory === category.id
+                                                    ? { backgroundColor: 'var(--color-bg-selected)', color: 'var(--color-text-primary)', fontWeight: 500 }
+                                                    : { color: 'var(--color-text-tertiary)' }}
                                             >
                                                 {category.icon}
                                                 <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
@@ -2614,11 +2613,10 @@ fi`}
                                     <button
                                         key={category.id}
                                         onClick={() => setActiveCategory(category.id)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
-                                            activeCategory === category.id
-                                                ? 'font-medium bg-bg-selected text-text-primary'
-                                                : 'text-text-tertiary hover:text-text-secondary'
-                                        }`}
+                                        className="w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors"
+                                        style={activeCategory === category.id
+                                            ? { backgroundColor: 'var(--color-bg-selected)', color: 'var(--color-text-primary)', fontWeight: 500 }
+                                            : { color: 'var(--color-text-tertiary)' }}
                                     >
                                         {category.icon}
                                         <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
