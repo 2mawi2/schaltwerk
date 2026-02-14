@@ -475,7 +475,19 @@ export const toolOutputSchemas = {
     required: ['session', 'branch', 'cancel_requested', 'cancel_queued'],
     additionalProperties: false,
   },
-
+  schaltwerk_run_script: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      success: { type: 'boolean' },
+      command: { type: 'string' },
+      exit_code: { type: 'number' },
+      stdout: { type: 'string' },
+      stderr: { type: 'string' },
+    },
+    required: ['success', 'command', 'exit_code', 'stdout', 'stderr'],
+    additionalProperties: false,
+  },
   schaltwerk_create_epic: {
     $schema: draft2020,
     type: 'object',
@@ -485,7 +497,6 @@ export const toolOutputSchemas = {
     required: ['epic'],
     additionalProperties: false,
   },
-
   schaltwerk_list_epics: {
     $schema: draft2020,
     type: 'object',
@@ -497,7 +508,7 @@ export const toolOutputSchemas = {
     },
     required: ['epics'],
     additionalProperties: false,
-  },
+  }
 } as const
 
 export type ToolOutputName = keyof typeof toolOutputSchemas

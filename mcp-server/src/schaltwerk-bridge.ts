@@ -158,6 +158,20 @@ type SetupScriptPayload = {
   has_setup_script?: boolean
 }
 
+export type RunScriptPayload = {
+  has_run_script: boolean
+  command?: string
+  working_directory?: string
+}
+
+export type RunScriptExecutionResult = {
+  success: boolean
+  command: string
+  exit_code: number
+  stdout: string
+  stderr: string
+}
+
 interface ProjectContext {
   path: string
   canonicalPath: string
@@ -659,6 +673,40 @@ export class SchaltwerkBridge {
       setup_script: payload.setup_script ?? '',
       has_setup_script: payload.has_setup_script ?? (payload.setup_script?.trim().length ?? 0) > 0
     }
+  }
+
+  async getProjectRunScript(): Promise<RunScriptPayload> {
+    const response = await this.fetchWithAutoPort('/api/project/run-script', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    const payload = await this.parseJsonResponse<RunScriptPayload>(response, 'project run script')
+    if (!payload) {
+      throw new Error('Project run script payload missing')
+    }
+
+    return payload
+  }
+
+  async executeProjectRunScript(): Promise<RunScriptExecutionResult> {
+    const response = await this.fetchWithAutoPort('/api/project/run-script/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    const payload = await this.parseJsonResponse<RunScriptExecutionResult>(response, 'execute project run script')
+    if (!payload) {
+      throw new Error('Run script execution result missing')
+    }
+
+    return payload
   }
 
   async sendFollowUpMessage(sessionName: string, message: string): Promise<void> {

@@ -221,6 +221,13 @@ const sampleStructuredOutputs: Record<string, any> = {
       },
     ],
   },
+  schaltwerk_run_script: {
+    success: true,
+    command: 'bun run dev',
+    exit_code: 0,
+    stdout: 'Server started on port 3000',
+    stderr: '',
+  }
 }
 
 describe('MCP output schemas', () => {

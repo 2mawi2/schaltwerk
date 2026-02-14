@@ -802,6 +802,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           additionalProperties: false
         },
         outputSchema: toolOutputSchemas.schaltwerk_get_current_tasks
+      },
+      {
+        name: "schaltwerk_run_script",
+        description: `Execute the project's configured run script (the command triggered by Cmd+E in the UI). Returns the command output. Fails if no run script is configured for the project.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_run_script
       }
   ]
 
@@ -1507,6 +1517,18 @@ ${cancelLine}`
           ? 'No epics found'
           : `Epics (${epics.length}): ${epics.map(e => e.name).join(', ')}`
         response = buildStructuredResponse(structured, { summaryText: summary, jsonFirst: true })
+        break
+      }
+
+      case "schaltwerk_run_script": {
+        const result = await bridge.executeProjectRunScript()
+        const summary = result.success
+          ? `Run script completed successfully (exit code ${result.exit_code}):\n${result.stdout}`
+          : `Run script failed (exit code ${result.exit_code}):\n${result.stderr}`
+        response = buildStructuredResponse(result, {
+          summaryText: summary,
+          jsonFirst: true
+        })
         break
       }
 

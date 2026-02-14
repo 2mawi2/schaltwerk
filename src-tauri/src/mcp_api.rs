@@ -20,6 +20,7 @@ use crate::commands::schaltwerk_core::{
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
 use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write, SETTINGS_MANAGER};
+use schaltwerk::infrastructure::database::db_project_config::ProjectConfigMethods;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::shared::terminal_id::terminal_id_for_orchestrator_top;
 use crate::commands::schaltwerk_core::agent_launcher;
@@ -130,6 +131,8 @@ async fn handle_mcp_request_inner(
         }
         (&Method::GET, "/api/project/setup-script") => get_project_setup_script(app).await,
         (&Method::PUT, "/api/project/setup-script") => set_project_setup_script(req, app).await,
+        (&Method::GET, "/api/project/run-script") => get_project_run_script_api().await,
+        (&Method::POST, "/api/project/run-script/execute") => execute_project_run_script().await,
         (&Method::GET, "/api/epics") => list_epics().await,
         (&Method::POST, "/api/epics") => create_epic(req, app).await,
         (&Method::GET, "/api/current-spec-mode-session") => {
@@ -1784,6 +1787,130 @@ async fn set_project_setup_script(
 
     let response_payload = setup_script_payload(&setup_script);
     Ok(json_response(StatusCode::ACCEPTED, response_payload.to_string()))
+}
+
+async fn get_project_run_script_api() -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_read().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for run script: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+
+    match db.get_project_run_script(&repo_path) {
+        Ok(Some(run_script)) => {
+            let payload = serde_json::json!({
+                "has_run_script": true,
+                "command": run_script.command,
+                "working_directory": run_script.working_directory,
+            });
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Ok(None) => {
+            let payload = serde_json::json!({ "has_run_script": false });
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Err(e) => {
+            error!("Failed to get project run script: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get project run script: {e}"),
+            ))
+        }
+    }
+}
+
+async fn execute_project_run_script() -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_read().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for run script execution: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+
+    let run_script = match db.get_project_run_script(&repo_path) {
+        Ok(Some(rs)) => rs,
+        Ok(None) => {
+            return Ok(json_error_response(
+                StatusCode::BAD_REQUEST,
+                "No run script configured for this project".to_string(),
+            ));
+        }
+        Err(e) => {
+            error!("Failed to get project run script: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get project run script: {e}"),
+            ));
+        }
+    };
+
+    let cwd = run_script
+        .working_directory
+        .as_deref()
+        .map(std::path::Path::new)
+        .unwrap_or(repo_path.as_path());
+
+    let invocation = schaltwerk::domains::terminal::build_login_shell_invocation(&run_script.command);
+
+    let mut cmd = tokio::process::Command::new(&invocation.program);
+    cmd.args(&invocation.args)
+        .current_dir(cwd)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    for (key, value) in &run_script.environment_variables {
+        cmd.env(key, value);
+    }
+
+    let output = match cmd.output().await {
+        Ok(output) => output,
+        Err(e) => {
+            error!("Failed to execute run script: {e}");
+            let payload = serde_json::json!({
+                "success": false,
+                "command": run_script.command,
+                "exit_code": -1,
+                "stdout": "",
+                "stderr": format!("Failed to execute: {e}"),
+            });
+            return Ok(json_response(StatusCode::OK, payload.to_string()));
+        }
+    };
+
+    let exit_code = output.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    info!(
+        "Run script executed: command={}, exit_code={exit_code}",
+        run_script.command
+    );
+
+    let payload = serde_json::json!({
+        "success": output.status.success(),
+        "command": run_script.command,
+        "exit_code": exit_code,
+        "stdout": stdout,
+        "stderr": stderr,
+    });
+
+    Ok(json_response(StatusCode::OK, payload.to_string()))
 }
 
 async fn list_epics() -> Result<Response<String>, hyper::Error> {
