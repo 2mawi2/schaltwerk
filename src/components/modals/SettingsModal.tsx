@@ -1234,12 +1234,7 @@ fi`}
                                             />
                                             <button
                                                 onClick={() => handleRemoveRunEnvVar(index)}
-                                                className="px-3 py-2 rounded-lg border transition-colors"
-                                                style={{
-                                                    backgroundColor: 'var(--color-bg-elevated)',
-                                                    borderColor: 'var(--color-border-subtle)',
-                                                    color: 'var(--color-text-tertiary)',
-                                                }}
+                                                className="settings-btn-danger px-3 py-2 rounded-lg"
                                             >
                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1249,12 +1244,7 @@ fi`}
                             ))}
                             <button
                                 onClick={handleAddRunEnvVar}
-                                className="w-full mt-1 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2"
-                                style={{
-                                    backgroundColor: 'var(--color-bg-elevated)',
-                                    borderColor: 'var(--color-border-subtle)',
-                                    color: 'var(--color-text-secondary)',
-                                }}
+                                className="settings-btn w-full mt-1 px-4 py-2 rounded-lg flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1310,12 +1300,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => handleRemoveProjectEnvVar(index)}
-                                        className="px-3 py-2 rounded-lg border transition-colors"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-elevated)',
-                                            borderColor: 'var(--color-border-subtle)',
-                                            color: 'var(--color-text-tertiary)',
-                                        }}
+                                        className="settings-btn-danger px-3 py-2 rounded-lg"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1326,12 +1311,7 @@ fi`}
 
                             <button
                                 onClick={handleAddProjectEnvVar}
-                                className="w-full mt-2 px-4 py-2 rounded-lg border transition-colors flex items-center justify-center gap-2"
-                                style={{
-                                    backgroundColor: 'var(--color-bg-elevated)',
-                                    borderColor: 'var(--color-border-subtle)',
-                                    color: 'var(--color-text-secondary)',
-                                }}
+                                className="settings-btn w-full mt-2 px-4 py-2 rounded-lg flex items-center justify-center gap-2"
                             >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
