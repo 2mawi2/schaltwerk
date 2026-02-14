@@ -29,6 +29,12 @@ export interface Session {
   was_auto_generated: boolean
 }
 
+export interface Epic {
+  id: string
+  name: string
+  color?: string | null
+}
+
 export interface SpecSummary {
   session_id: string
   display_name?: string
@@ -473,7 +479,37 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createSession(name: string, prompt?: string, baseBranch?: string, useExistingBranch?: boolean, agentType?: string, skipPermissions?: boolean): Promise<Session> {
+  async listEpics(): Promise<Epic[]> {
+    const response = await this.fetchWithAutoPort('/api/epics', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    const epics = await this.parseJsonResponse<Epic[]>(response, 'epics')
+    return epics ?? []
+  }
+
+  async createEpic(name: string, color?: string): Promise<Epic> {
+    const response = await this.fetchWithAutoPort('/api/epics', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({ name, color })
+    })
+
+    const epic = await this.parseJsonResponse<Epic>(response, 'create epic')
+    if (!epic) {
+      throw new Error('Create epic response payload missing')
+    }
+    return epic
+  }
+
+  async createSession(name: string, prompt?: string, baseBranch?: string, useExistingBranch?: boolean, agentType?: string, skipPermissions?: boolean, epicId?: string): Promise<Session> {
     try {
       const response = await this.fetchWithAutoPort('/api/sessions', {
         method: 'POST',
@@ -489,7 +525,8 @@ export class SchaltwerkBridge {
           use_existing_branch: useExistingBranch,
           agent_type: agentType,
           skip_permissions: skipPermissions,
-          user_edited_name: false
+          user_edited_name: false,
+          epic_id: epicId
         })
       })
 
@@ -904,18 +941,19 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createSpecSession(name: string, content?: string, baseBranch?: string): Promise<Session> {
+  async createSpecSession(name: string, content?: string, baseBranch?: string, epicId?: string): Promise<Session> {
     try {
       const response = await this.fetchWithAutoPort('/api/specs', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...this.getProjectHeaders()
         },
         body: JSON.stringify({
           name,
           content: content || '',
-          parent_branch: baseBranch
+          parent_branch: baseBranch,
+          epic_id: epicId
         })
       })
       

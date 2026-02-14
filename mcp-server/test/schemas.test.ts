@@ -200,6 +200,27 @@ const sampleStructuredOutputs: Record<string, any> = {
     cancel_queued: false,
     cancel_error: null,
   },
+  schaltwerk_create_epic: {
+    epic: {
+      id: 'abc-123',
+      name: 'auth-rewrite',
+      color: '#FF5733',
+    },
+  },
+  schaltwerk_list_epics: {
+    epics: [
+      {
+        id: 'abc-123',
+        name: 'auth-rewrite',
+        color: '#FF5733',
+      },
+      {
+        id: 'def-456',
+        name: 'perf-improvements',
+        color: null,
+      },
+    ],
+  },
 }
 
 describe('MCP output schemas', () => {

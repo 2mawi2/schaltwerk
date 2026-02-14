@@ -130,6 +130,8 @@ async fn handle_mcp_request_inner(
         }
         (&Method::GET, "/api/project/setup-script") => get_project_setup_script(app).await,
         (&Method::PUT, "/api/project/setup-script") => set_project_setup_script(req, app).await,
+        (&Method::GET, "/api/epics") => list_epics().await,
+        (&Method::POST, "/api/epics") => create_epic(req, app).await,
         (&Method::GET, "/api/current-spec-mode-session") => {
             get_current_spec_mode_session(app).await
         }
@@ -189,6 +191,7 @@ fn create_spec_session_with_notifications<F>(
     content: &str,
     agent_type: Option<&str>,
     skip_permissions: Option<bool>,
+    epic_id: Option<&str>,
     emit_sessions: F,
 ) -> anyhow::Result<Spec>
 where
@@ -200,7 +203,7 @@ where
         content,
         agent_type,
         None,
-        None,
+        epic_id,
     )?;
     if let Err(e) = emit_sessions() {
         warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");
@@ -541,6 +544,7 @@ mod tests {
             "Initial spec content",
             None,
             None,
+            None,
             move || {
                 let mut flag = emitted_clone.lock().expect("lock");
                 *flag = true;
@@ -734,6 +738,7 @@ async fn create_draft(
     let content = payload["content"].as_str().unwrap_or("");
     let agent_type = payload["agent_type"].as_str();
     let skip_permissions = payload["skip_permissions"].as_bool();
+    let epic_id = payload["epic_id"].as_str();
 
     let manager = match get_core_write().await {
         Ok(core) => core.session_manager(),
@@ -751,6 +756,7 @@ async fn create_draft(
         content,
         agent_type,
         skip_permissions,
+        epic_id,
         move || {
             request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
             Ok(())
@@ -1124,6 +1130,7 @@ async fn create_session(
     let user_edited_name = payload["user_edited_name"].as_bool();
     let agent_type = payload["agent_type"].as_str().map(|s| s.to_string());
     let skip_permissions = payload["skip_permissions"].as_bool();
+    let epic_id = payload["epic_id"].as_str().map(|s| s.to_string());
 
     let manager = match get_core_write().await {
         Ok(core) => core.session_manager(),
@@ -1152,7 +1159,7 @@ async fn create_session(
         was_auto_generated,
         version_group_id: None,
         version_number: None,
-        epic_id: None,
+        epic_id: epic_id.as_deref(),
         agent_type: agent_type.as_deref(),
         skip_permissions,
         pr_number: None,
@@ -1777,6 +1784,95 @@ async fn set_project_setup_script(
 
     let response_payload = setup_script_payload(&setup_script);
     Ok(json_response(StatusCode::ACCEPTED, response_payload.to_string()))
+}
+
+async fn list_epics() -> Result<Response<String>, hyper::Error> {
+    let manager = match get_core_read().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get core for listing epics: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    match manager.list_epics() {
+        Ok(epics) => {
+            let json = serde_json::to_string(&epics).unwrap_or_else(|e| {
+                error!("Failed to serialize epics: {e}");
+                "[]".to_string()
+            });
+            Ok(json_response(StatusCode::OK, json))
+        }
+        Err(e) => {
+            error!("Failed to list epics: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to list epics: {e}"),
+            ))
+        }
+    }
+}
+
+async fn create_epic(
+    req: Request<Incoming>,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body = req.into_body();
+    let body_bytes = body.collect().await?.to_bytes();
+    let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Failed to parse epic creation request: {e}");
+            return Ok(json_error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON: {e}"),
+            ));
+        }
+    };
+
+    let name = match payload["name"].as_str() {
+        Some(n) if !n.trim().is_empty() => n,
+        _ => {
+            return Ok(json_error_response(
+                StatusCode::BAD_REQUEST,
+                "Missing or empty 'name' field".to_string(),
+            ));
+        }
+    };
+    let color = payload["color"].as_str();
+
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get core for creating epic: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    match manager.create_epic(name, color) {
+        Ok(epic) => {
+            info!("Created epic via API: {name}");
+            request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+            let json = serde_json::to_string(&epic).unwrap_or_else(|e| {
+                error!("Failed to serialize epic: {e}");
+                "{}".to_string()
+            });
+            Ok(json_response(StatusCode::CREATED, json))
+        }
+        Err(e) => {
+            error!("Failed to create epic: {e}");
+            Ok(json_error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create epic: {e}"),
+            ))
+        }
+    }
 }
 
 async fn get_current_spec_mode_session(

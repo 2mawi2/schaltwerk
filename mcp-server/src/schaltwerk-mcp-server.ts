@@ -25,6 +25,7 @@ interface SchaltwerkStartArgs {
   skip_permissions?: boolean
   is_draft?: boolean
   draft_content?: string
+  epic_id?: string
 }
 
 interface SchaltwerkCancelArgs {
@@ -46,6 +47,12 @@ interface SchaltwerkSpecCreateArgs {
   name?: string
   content?: string
   base_branch?: string
+  epic_id?: string
+}
+
+interface SchaltwerkCreateEpicArgs {
+  name: string
+  color?: string
 }
 
 interface SchaltwerkDraftUpdateArgs {
@@ -307,6 +314,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             skip_permissions: {
               type: "boolean",
               description: "Skip permission warnings for autonomous operation (use with caution)"
+            },
+            epic_id: {
+              type: "string",
+              description: "Optional epic ID to assign the session to"
             }
           },
           required: ["name", "prompt"]
@@ -417,6 +428,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             base_branch: {
               type: "string",
               description: "Base branch for future worktree (default: main/master)"
+            },
+            epic_id: {
+              type: "string",
+              description: "Optional epic ID to assign the spec to"
             }
           },
           additionalProperties: false
@@ -728,6 +743,36 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         outputSchema: toolOutputSchemas.schaltwerk_create_pr
       },
       {
+        name: "schaltwerk_create_epic",
+        description: `Create a named epic to group related sessions and specs. Provide a unique name and optional color. Epics help organize work into logical units.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "Epic name (alphanumeric, hyphens, underscores)"
+            },
+            color: {
+              type: "string",
+              description: "Optional color for the epic (e.g. '#FF5733')"
+            }
+          },
+          required: ["name"],
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_create_epic
+      },
+      {
+        name: "schaltwerk_list_epics",
+        description: `List all epics in the current project. Returns each epic's id, name, and optional color.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_list_epics
+      },
+      {
         name: "schaltwerk_get_current_tasks",
         description: `Return the active Schaltwerk agents with controllable verbosity. Use fields to request only the properties you need (defaults to a minimal set), status_filter to limit by session state, and content_preview_length to trim large text when including draft_content or initial_prompt. Helpful for keeping responses lightweight while still exposing full session metadata on demand.`,
         inputSchema: {
@@ -880,7 +925,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
           const session = await bridge.createSpecSession(
             createArgs.name || `draft_${Date.now()}`,
             createArgs.draft_content || createArgs.prompt,
-            createArgs.base_branch
+            createArgs.base_branch,
+            createArgs.epic_id
           )
 
           const contentLength = session.draft_content?.length || session.spec_content?.length || 0
@@ -911,7 +957,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
             createArgs.base_branch,
             createArgs.use_existing_branch,
             createArgs.agent_type,
-            createArgs.skip_permissions
+            createArgs.skip_permissions,
+            createArgs.epic_id
           )
 
           const structured = {
@@ -1067,7 +1114,8 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         const session = await bridge.createSpecSession(
           specCreateArgs.name || `spec_${Date.now()}`,
           specCreateArgs.content,
-          specCreateArgs.base_branch
+          specCreateArgs.base_branch,
+          specCreateArgs.epic_id
         )
 
         const contentLength = session.spec_content?.length || session.draft_content?.length || 0
@@ -1436,6 +1484,29 @@ ${cancelLine}`
           : `Failed to open pull request modal for '${prArgs.session_name}'.`
 
         response = buildStructuredResponse(structured, { summaryText: summary })
+        break
+      }
+
+      case "schaltwerk_create_epic": {
+        const epicArgs = args as unknown as SchaltwerkCreateEpicArgs
+        if (!epicArgs.name || epicArgs.name.trim().length === 0) {
+          throw new McpError(ErrorCode.InvalidParams, "'name' is required when invoking schaltwerk_create_epic.")
+        }
+
+        const epic = await bridge.createEpic(epicArgs.name, epicArgs.color)
+        const structured = { epic: { id: epic.id, name: epic.name, color: epic.color ?? null } }
+        const summary = `Epic '${epic.name}' created (id: ${epic.id})`
+        response = buildStructuredResponse(structured, { summaryText: summary })
+        break
+      }
+
+      case "schaltwerk_list_epics": {
+        const epics = await bridge.listEpics()
+        const structured = { epics: epics.map(e => ({ id: e.id, name: e.name, color: e.color ?? null })) }
+        const summary = epics.length === 0
+          ? 'No epics found'
+          : `Epics (${epics.length}): ${epics.map(e => e.name).join(', ')}`
+        response = buildStructuredResponse(structured, { summaryText: summary, jsonFirst: true })
         break
       }
 

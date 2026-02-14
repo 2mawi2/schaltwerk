@@ -6,6 +6,17 @@ const nullableString = { type: ['string', 'null'] } as const
 const nullableBoolean = { type: ['boolean', 'null'] } as const
 const nullableNumber = { type: ['number', 'null'] } as const
 
+const epicSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    color: nullableString,
+  },
+  required: ['id', 'name'],
+  additionalProperties: false,
+} as const
+
 const sessionSummarySchema = {
   type: 'object',
   properties: {
@@ -462,6 +473,29 @@ export const toolOutputSchemas = {
       modal_triggered: { type: 'boolean' },
     },
     required: ['session', 'branch', 'cancel_requested', 'cancel_queued'],
+    additionalProperties: false,
+  },
+
+  schaltwerk_create_epic: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      epic: epicSchema,
+    },
+    required: ['epic'],
+    additionalProperties: false,
+  },
+
+  schaltwerk_list_epics: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      epics: {
+        type: 'array',
+        items: epicSchema,
+      },
+    },
+    required: ['epics'],
     additionalProperties: false,
   },
 } as const
