@@ -537,6 +537,16 @@ code {
   background-color: var(--color-bg-active);
 }
 
+.settings-btn-success {
+  background-color: var(--color-accent-green-bg);
+  border: 1px solid var(--color-accent-green-border);
+  color: var(--color-accent-green-light);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+.settings-btn-success:hover { background-color: var(--color-accent-green-dark); }
+.settings-btn-success:active { background-color: var(--color-bg-active); }
+
 .settings-btn-text {
   color: var(--color-text-secondary);
   transition: color 150ms ease;

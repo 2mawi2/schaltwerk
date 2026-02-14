@@ -204,35 +204,20 @@ export function GithubProjectIntegrationCard({ projectPath, onNotify }: GithubPr
           <button
             onClick={() => { void handleAuthenticate() }}
             disabled={!installed || github.isAuthenticating}
-            className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'var(--color-accent-blue-bg)',
-              border: '1px solid var(--color-accent-blue-border)',
-              color: 'var(--color-accent-blue-light)',
-            }}
+            className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed bg-accent-blue-bg border border-accent-blue text-accent-blue hover:bg-accent-blue-dark"
           >
             {authenticateLabel}
           </button>
           <button
             onClick={() => { void handleConnect() }}
             disabled={!canConnectProject || github.isConnecting}
-            className="px-3 py-2 text-xs font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'var(--color-bg-hover)',
-              border: '1px solid var(--color-border-subtle)',
-              color: 'var(--color-text-primary)',
-            }}
+            className="settings-btn px-3 py-2 text-xs font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {connectLabel}
           </button>
           <button
             onClick={() => { void handleRefresh() }}
-            className="px-3 py-2 text-xs font-medium rounded-md flex items-center gap-1 transition-colors"
-            style={{
-              backgroundColor: 'var(--color-bg-hover)',
-              border: '1px solid var(--color-border-subtle)',
-              color: 'var(--color-text-primary)',
-            }}
+            className="settings-btn px-3 py-2 text-xs font-medium rounded-md flex items-center gap-1"
           >
             <VscRefresh className="text-[13px]" />
             <span>{t.settings.common.refresh}</span>

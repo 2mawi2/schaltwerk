@@ -301,18 +301,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <button
                       onClick={() => { void configureMCP() }}
                        disabled={loading}
-                       className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
-                       style={{
-                         backgroundColor: 'var(--color-accent-green-bg)',
-                         border: '1px solid var(--color-accent-green-border)',
-                         color: 'var(--color-accent-green-light)',
-                       }}
-                       onMouseEnter={(e) => {
-                         if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-accent-green-dark)';
-                       }}
-                       onMouseLeave={(e) => {
-                         e.currentTarget.style.backgroundColor = 'var(--color-accent-green-bg)';
-                       }}
+                       className="settings-btn-success px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm"
                      >
                        {requiresGlobalConfig ? t.settings.mcp.reconfigureMcpGlobal : t.settings.mcp.reconfigureMcp}
                      </button>
@@ -320,18 +309,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     <button
                       onClick={() => { void configureMCP() }}
                        disabled={loading}
-                         className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
-                         style={{
-                           backgroundColor: 'var(--color-accent-green-bg)',
-                           border: '1px solid var(--color-accent-green-border)',
-                           color: 'var(--color-accent-green-light)',
-                         }}
-                         onMouseEnter={(e) => {
-                           if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-accent-green-dark)';
-                         }}
-                         onMouseLeave={(e) => {
-                           e.currentTarget.style.backgroundColor = 'var(--color-accent-green-bg)';
-                         }}
+                         className="settings-btn-success px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm"
                      >
                        {agent === 'codex' || agent === 'amp' || agent === 'droid' ? t.settings.mcp.enableMcpGlobalBtn : t.settings.mcp.configureMcpProject}
                      </button>
@@ -398,18 +376,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   <button
                     onClick={() => { void removeMCP() }}
                     disabled={loading}
-                    className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
-                    style={{
-                      backgroundColor: 'var(--color-bg-elevated)',
-                      border: '1px solid var(--color-border-subtle)',
-                      color: 'var(--color-text-tertiary)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!loading) e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
-                    }}
+                    className="settings-btn px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm"
                   >
                     {t.settings.common.remove}
                   </button>
@@ -417,18 +384,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                 
                 <button
                   onClick={() => setShowManualSetup(!showManualSetup)}
-                  className="px-3 py-1 rounded text-sm transition-colors"
-                  style={{
-                    backgroundColor: 'var(--color-bg-elevated)',
-                    border: '1px solid var(--color-border-subtle)',
-                    color: 'var(--color-text-tertiary)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
-                  }}
+                  className="settings-btn px-3 py-1 rounded text-sm"
                 >
                   {showManualSetup ? t.settings.mcp.hide : t.settings.mcp.manualSetup}
                 </button>
@@ -471,18 +427,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                     
                     <button
                       onClick={() => { void copyCommand() }}
-                      className="px-2 py-1 rounded text-xs transition-colors flex-shrink-0 self-start"
-                      style={{
-                        backgroundColor: 'var(--color-bg-elevated)',
-                        border: '1px solid var(--color-border-subtle)',
-                        color: 'var(--color-text-tertiary)',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-elevated)';
-                      }}
+                      className="settings-btn px-2 py-1 rounded text-xs flex-shrink-0 self-start"
                       title={t.mcpMessages.copyCommand}
                     >
                       {t.settings.common.copy}
