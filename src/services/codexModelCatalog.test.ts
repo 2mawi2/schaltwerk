@@ -19,24 +19,24 @@ describe('codexModelCatalog', () => {
         mockInvoke.mockResolvedValue({
             models: [
                 {
-                    id: 'gpt-5.2-codex',
-                    label: 'GPT-5.2 Codex',
+                    id: 'gpt-5.3-codex',
+                    label: 'GPT-5.3 Codex',
                     description: 'General purpose',
-                    defaultReasoning: 'medium',
+                    defaultReasoning: 'high',
                     reasoningOptions: [
                         { id: 'low', label: 'Low', description: 'Low effort' }
                     ]
                 }
             ],
-            defaultModelId: 'gpt-5.2-codex'
+            defaultModelId: 'gpt-5.3-codex'
         })
 
         const catalog = await loadCodexModelCatalog()
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
-        expect(catalog.defaultModelId).toBe('gpt-5.2-codex')
+        expect(catalog.defaultModelId).toBe('gpt-5.3-codex')
         expect(catalog.models).toHaveLength(1)
-        expect(catalog.models[0].id).toBe('gpt-5.2-codex')
+        expect(catalog.models[0].id).toBe('gpt-5.3-codex')
         expect(catalog.models[0].reasoningOptions[0].id).toBe('low')
     })
 
@@ -47,7 +47,7 @@ describe('codexModelCatalog', () => {
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
         expect(catalog.models.length).toBeGreaterThan(0)
-        expect(catalog.models[0]?.id).toBe('gpt-5.2-codex')
+        expect(catalog.models[0]?.id).toBe('gpt-5.3-codex')
         expect(catalog.defaultModelId).toBe(catalog.models[0]?.id ?? '')
     })
 

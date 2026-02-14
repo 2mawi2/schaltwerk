@@ -239,9 +239,10 @@ function buildCodexModelSuggestions(): AgentPreferenceMetadataOption[] {
 }
 
 const CODEX_MODEL_SUGGESTIONS = buildCodexModelSuggestions()
-const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.2-codex medium'
+const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.3-codex high'
 
 const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
+    { value: 'none', label: 'None' },
     { value: 'minimal', label: 'Minimal' },
     { value: 'low', label: 'Low' },
     { value: 'medium', label: 'Medium' },

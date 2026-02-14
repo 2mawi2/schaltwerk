@@ -522,12 +522,12 @@ mod tests {
     #[test]
     fn builtin_catalog_prefers_latest_models() {
         let catalog = builtin_codex_model_catalog();
-        assert_eq!(catalog.models[0].id, "gpt-5.2-codex");
+        assert_eq!(catalog.models[0].id, "gpt-5.3-codex");
         assert!(
             catalog
                 .models
                 .iter()
-                .any(|model| model.id == "gpt-5.1-codex-mini")
+                .any(|model| model.id == "gpt-5.3-codex-spark")
         );
     }
 

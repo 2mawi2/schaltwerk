@@ -1,13 +1,91 @@
 {
   "latest": {
-    "defaultModelId": "gpt-5.2-codex",
+    "defaultModelId": "gpt-5.3-codex",
     "models": [
+      {
+        "id": "gpt-5.3-codex",
+        "label": "GPT-5.3 Codex",
+        "description": "Most capable Codex model for complex coding workflows.",
+        "defaultReasoning": "high",
+        "isDefault": true,
+        "reasoningOptions": [
+          {
+            "id": "none",
+            "label": "None",
+            "description": "Bypasses deliberate reasoning for the fastest lightweight turns"
+          },
+          {
+            "id": "minimal",
+            "label": "Minimal",
+            "description": "Very fast responses with minimal deliberate reasoning"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced speed and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Deep reasoning for complex coding tasks"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the hardest problems"
+          }
+        ]
+      },
+      {
+        "id": "gpt-5.3-codex-spark",
+        "label": "GPT-5.3 Codex Spark",
+        "description": "Lightweight Codex model tuned for fast, iterative edits.",
+        "defaultReasoning": "low",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "none",
+            "label": "None",
+            "description": "Bypasses deliberate reasoning for the fastest lightweight turns"
+          },
+          {
+            "id": "minimal",
+            "label": "Minimal",
+            "description": "Very fast responses with minimal deliberate reasoning"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced speed and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Deep reasoning for complex coding tasks"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the hardest problems"
+          }
+        ]
+      },
       {
         "id": "gpt-5.2-codex",
         "label": "GPT-5.2 Codex",
-        "description": "Latest frontier agentic coding model.",
+        "description": "Frontier agentic coding model with strong tool use.",
         "defaultReasoning": "medium",
-        "isDefault": true,
+        "isDefault": false,
         "reasoningOptions": [
           {
             "id": "low",
