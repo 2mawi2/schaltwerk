@@ -76,6 +76,7 @@ import {
   type SidebarScrollSnapshot,
 } from "./sidebarScroll";
 import type { BranchInfo } from "../../common/events";
+import { diffPreloader } from "../../domains/diff/preloader";
 
 interface UnifiedDiffViewProps {
   filePath: string | null;
@@ -883,9 +884,10 @@ export function UnifiedDiffView({
     }
 
     try {
-      const changedFiles = isCommanderView()
+      const preloadedFiles = sessionName ? diffPreloader.getChangedFiles(sessionName) : null;
+      const changedFiles = preloadedFiles ?? (isCommanderView()
         ? await fetchOrchestratorChangedFiles()
-        : await fetchSessionChangedFiles();
+        : await fetchSessionChangedFiles());
       setFiles(changedFiles);
 
       const findIndexForPath = (path: string | null | undefined) =>
@@ -934,7 +936,8 @@ export function UnifiedDiffView({
         const targetFile = changedFiles[nextSelectedIndex];
         if (targetFile) {
           try {
-            const primary = await loadFileDiff(
+            const preloadedDiff = sessionName ? diffPreloader.getFileDiff(sessionName, targetFile.path) : null;
+            const primary = preloadedDiff ?? await loadFileDiff(
               sessionName,
               targetFile,
               diffLayout,
@@ -1148,7 +1151,8 @@ export function UnifiedDiffView({
                 historyLoadedRef.current.add(path);
               }
             } else {
-              diff = await loadFileDiff(sessionName, file, diffLayout);
+              const preloadedDiff = sessionName ? diffPreloader.getFileDiff(sessionName, path) : null;
+              diff = preloadedDiff ?? await loadFileDiff(sessionName, file, diffLayout);
             }
 
             if (diff) {
@@ -1758,7 +1762,8 @@ export function UnifiedDiffView({
             return { path, diff };
           }
 
-          const diff = await loadFileDiff(sessionName, file, diffLayout);
+          const preloadedDiff = sessionName ? diffPreloader.getFileDiff(sessionName, path) : null;
+          const diff = preloadedDiff ?? await loadFileDiff(sessionName, file, diffLayout);
           return { path, diff };
         } catch (e) {
           logger.error(`Failed to load diff for ${path}:`, e);

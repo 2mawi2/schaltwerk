@@ -68,6 +68,7 @@ import { useSessionPrefill } from './hooks/useSessionPrefill'
 // useRightPanelPersistence removed
 import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { useAgentBinarySnapshot } from './hooks/useAgentBinarySnapshot'
+import { useDiffPreloader } from './hooks/useDiffPreloader'
 import { theme } from './common/theme'
 import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
@@ -147,6 +148,7 @@ function AppContent() {
   const [showCliMissingModal, setShowCliMissingModal] = useState(false)
   const [cliModalEverShown, setCliModalEverShown] = useState(false)
   usePreviewPanelEvents()
+  useDiffPreloader()
   const {
     loading: agentDetectLoading,
     allMissing: agentAllMissing,
