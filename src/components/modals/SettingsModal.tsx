@@ -1173,8 +1173,8 @@ fi`}
                             />
                         </div>
 
-                        <div className="mt-4 p-3 border rounded bg-accent-blue/10 border-accent-blue/50">
-                            <div className="text-caption mb-2 text-accent-blue">
+                        <div className="mt-4 p-3 border rounded" style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
+                            <div className="text-caption mb-2 text-text-secondary">
                                 <strong>{t.settings.projectRun.exampleUseCases}</strong>
                             </div>
                             <ul className="text-caption text-text-tertiary space-y-1 list-disc list-inside">
@@ -1348,10 +1348,10 @@ fi`}
                         </p>
                     </div>
 
-                    <div className="border rounded p-3 bg-accent-blue/10 border-accent-blue/50">
-                        <div className="text-caption text-accent-blue">
+                    <div className="border rounded p-3" style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border-subtle)' }}>
+                        <div className="text-caption text-text-secondary">
                             <strong>{t.settings.projectActions.howItWorks}</strong>
-                            <ul className="mt-2 space-y-1 list-disc list-inside text-accent-blue">
+                            <ul className="mt-2 space-y-1 list-disc list-inside text-text-tertiary">
                                 <li>{t.settings.projectActions.howItWorksItems.click}</li>
                                 <li>{t.settings.projectActions.howItWorksItems.keyboard}</li>
                                 <li>{t.settings.projectActions.howItWorksItems.buttons}</li>
