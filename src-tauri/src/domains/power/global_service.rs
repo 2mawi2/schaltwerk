@@ -414,6 +414,8 @@ impl GlobalInhibitorService {
             guard.running_sessions.len(),
             guard.active_sessions.len()
         );
+        let previous_running = guard.running_sessions.clone();
+
         guard
             .running_by_project
             .insert(project_path.clone(), running_sessions);
@@ -426,6 +428,14 @@ impl GlobalInhibitorService {
             .collect();
         guard.running_sessions.clear();
         guard.running_sessions.extend(union);
+
+        let newly_started: Vec<String> = guard
+            .running_sessions
+            .iter()
+            .filter(|id| !previous_running.contains(*id))
+            .cloned()
+            .collect();
+        guard.active_sessions.extend(newly_started);
 
         let running_snapshot = guard.running_sessions.clone();
         guard
@@ -971,5 +981,67 @@ mod tests {
         assert_eq!(state, GlobalState::AutoPaused);
         assert_eq!(inspector.term_calls(), 1);
         assert_eq!(service.get_state().await, GlobalState::AutoPaused);
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_treats_newly_started_sessions_as_active() {
+        let tmp = TempDir::new().unwrap();
+        let inspector = Arc::new(FakeInspector::new("caffeinate -d # schaltwerk-keep-awake"));
+        let platform = Arc::new(FakePlatform::new(inspector.clone()));
+        let service = build_service(&tmp, inspector.clone(), platform.clone());
+
+        service.enable_global().await.unwrap();
+
+        let mut sessions = HashSet::new();
+        sessions.insert("s1".to_string());
+        sessions.insert("s2".to_string());
+
+        let state = service
+            .sync_running_sessions("project-a".to_string(), sessions)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            state,
+            GlobalState::Active,
+            "newly synced running sessions should be considered active"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn sync_does_not_reactivate_idle_sessions() {
+        let tmp = TempDir::new().unwrap();
+        let inspector = Arc::new(FakeInspector::new("caffeinate -d # schaltwerk-keep-awake"));
+        let platform = Arc::new(FakePlatform::new(inspector.clone()));
+        let service = build_service(&tmp, inspector.clone(), platform.clone());
+
+        service.enable_global().await.unwrap();
+
+        let mut sessions = HashSet::new();
+        sessions.insert("s1".to_string());
+        let state = service
+            .sync_running_sessions("project-a".to_string(), sessions)
+            .await
+            .unwrap();
+        assert_eq!(state, GlobalState::Active);
+
+        service
+            .handle_session_activity("s1".to_string(), true)
+            .await
+            .unwrap();
+
+        let mut sessions_again = HashSet::new();
+        sessions_again.insert("s1".to_string());
+        let state = service
+            .sync_running_sessions("project-a".to_string(), sessions_again)
+            .await
+            .unwrap();
+        assert_eq!(
+            state,
+            GlobalState::AutoPaused,
+            "re-syncing should not reactivate sessions that went idle"
+        );
     }
 }
