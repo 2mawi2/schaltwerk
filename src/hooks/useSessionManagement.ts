@@ -5,6 +5,7 @@ import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
 import { markTerminalStarting, clearTerminalStartState } from '../common/terminalStartState'
 import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
+import { AGENT_SUPPORTS_SKIP_PERMISSIONS, AgentType } from '../types/session'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -257,7 +258,8 @@ export function useSessionManagement(): SessionManagementHookReturn {
         currentAgentType?: string,
         prompt?: string
     ): Promise<void> => {
-        await setSkipPermissionsForSelection(selection, skipPermissions)
+        const effectiveSkipPermissions = !AGENT_SUPPORTS_SKIP_PERMISSIONS[agentType as AgentType] ? false : skipPermissions
+        await setSkipPermissionsForSelection(selection, effectiveSkipPermissions)
         await updateAgentType(selection, agentType)
 
         const claudeTerminalId = terminals.top

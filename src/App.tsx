@@ -93,7 +93,7 @@ import { AGENT_START_TIMEOUT_MESSAGE } from './common/agentSpawn'
 import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 import { useOptionalToast } from './common/toast/ToastProvider'
 import { AppUpdateResultPayload } from './common/events'
-import { RawSession } from './types/session'
+import { RawSession, AGENT_SUPPORTS_SKIP_PERMISSIONS, AgentType } from './types/session'
 import {
   refreshKeepAwakeStateActionAtom,
   registerKeepAwakeEventListenerActionAtom,
@@ -1492,11 +1492,14 @@ function AppContent() {
       await preserveSelection(async () => {
         if (data.isSpec) {
           // Create spec session
+          const specSkipPermissions = data.agentType && !AGENT_SUPPORTS_SKIP_PERMISSIONS[data.agentType as AgentType]
+            ? false
+            : data.skipPermissions
           await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, {
             name: data.name,
             specContent: data.draftContent || '',
             agentType: data.agentType,
-            skipPermissions: data.skipPermissions,
+            skipPermissions: specSkipPermissions,
             epicId: data.epicId ?? null,
           })
           setNewSessionOpen(false)
@@ -1549,6 +1552,9 @@ function AppContent() {
 
             // For single sessions, use userEditedName flag as provided
             // For multiple versions, don't mark as user-edited so they can be renamed as a group
+            const versionSkipPermissions = agentTypeForVersion && !AGENT_SUPPORTS_SKIP_PERMISSIONS[agentTypeForVersion as AgentType]
+              ? false
+              : data.skipPermissions
             const createdSession = await invoke<RawSession | null>(TauriCommands.SchaltwerkCoreCreateSession, {
               name: versionName,
               prompt: data.prompt || null,
@@ -1561,7 +1567,7 @@ function AppContent() {
               versionNumber: i,
               epicId: data.epicId ?? null,
               agentType: agentTypeForVersion,
-              skipPermissions: data.skipPermissions,
+              skipPermissions: versionSkipPermissions,
               prNumber: data.prNumber || null,
             })
 
