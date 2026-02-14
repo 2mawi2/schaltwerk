@@ -924,7 +924,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleMarkSelectedSessionReady = useCallback(async () => {
         if (selection.kind !== 'session') return
 
-        const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
+        const selectedSession = allSessions.find(s => s.info.session_id === selection.payload)
         if (!selectedSession) return
 
         const sessionInfo = selectedSession.info
@@ -956,7 +956,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         await triggerMarkReady(sessionInfo.session_id)
     }, [
         selection,
-        sessions,
+        allSessions,
         triggerMarkReady,
         reloadSessionsAndRefreshIdle,
         engageMarkReadyCooldown,
@@ -1234,7 +1234,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         return () => {
             unsubscribe?.()
         }
-    }, [selection, sessions, handleMarkSelectedSessionReady])
+    }, [selection, allSessions, handleMarkSelectedSessionReady])
 
     // Selection is now restored by the selection state atoms
 
