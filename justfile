@@ -253,6 +253,12 @@ run:
     echo "Starting Schaltwerk on port $port (branch: $branch)"
     echo "Using dev profile (opt-level=0) for fastest compilation"
 
+    if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
+        export CARGO_TARGET_DIR="$(git rev-parse --git-common-dir)/schaltwerk-target"
+    fi
+    export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
+    mkdir -p "$CARGO_TARGET_DIR"
+
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
         if sccache rustc -vV >/dev/null 2>&1; then
@@ -314,8 +320,7 @@ run-frontend:
 # Run only the backend (Tauri/Rust)
 run-backend:
     #!/usr/bin/env bash
-    cd src-tauri
-    cargo run
+    scripts/cargo-worktree.sh run
 
 # Run frontend and backend separately in parallel
 run-split:
@@ -334,8 +339,7 @@ run-split:
 
     # Start backend
     echo "Starting Rust backend..."
-    cd src-tauri
-    FRONTEND_URL="http://localhost:$port" cargo run &
+    FRONTEND_URL="http://localhost:$port" scripts/cargo-worktree.sh run &
     backend_pid=$!
 
     # Handle cleanup on exit
@@ -404,6 +408,12 @@ run-port-dev port:
 
     echo "Starting Schaltwerk on port {{port}} (WITH hot-reload - dev mode)"
     echo "Using standard dev profile (opt-level=0) for fast compilation"
+
+    if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
+        export CARGO_TARGET_DIR="$(git rev-parse --git-common-dir)/schaltwerk-target"
+    fi
+    export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
+    mkdir -p "$CARGO_TARGET_DIR"
 
     # Create temporary config override
     temp_config=$(mktemp)
@@ -501,8 +511,7 @@ test-frontend:
 test-rust *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd src-tauri
-    RUSTFLAGS="${RUSTFLAGS:-} -Awarnings" cargo nextest run --cargo-quiet --status-level leak {{ARGS}}
+    RUSTFLAGS="${RUSTFLAGS:-} -Awarnings" scripts/cargo-worktree.sh nextest run --cargo-quiet --status-level leak {{ARGS}}
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:

@@ -47,7 +47,8 @@ jobs:
       SCHALTWERK_PM: bun
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
-    
+      CARGO_INCREMENTAL: "0"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -135,6 +136,7 @@ jobs:
       SCHALTWERK_PM: bun
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
+      CARGO_INCREMENTAL: "0"
 
     steps:
       - name: Checkout code
@@ -263,7 +265,8 @@ jobs:
       SCHALTWERK_PM: bun
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
-    
+      CARGO_INCREMENTAL: "0"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -527,6 +530,7 @@ jobs:
       SCHALTWERK_PM: bun
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
+      CARGO_INCREMENTAL: "0"
 
     steps:
       - name: Checkout code

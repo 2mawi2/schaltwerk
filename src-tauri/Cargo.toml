@@ -114,7 +114,6 @@ lto = "thin"
 codegen-units = 16
 
 # Standard dev profile - optimized for fast compilation
-# NOTE: incremental is disabled globally in .cargo/config.toml for sccache compatibility
 [profile.dev]
 opt-level = 0
 debug = 0

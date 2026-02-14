@@ -1,9 +1,7 @@
 [build]
 jobs = 8
-# sccache caches compiled crates across worktrees (install: brew install sccache / apt install sccache)
-# Enable it via `RUSTC_WRAPPER=sccache` (CI does this automatically)
-# NOTE: incremental=false is required for sccache to work effectively
-incremental = false
+# Keep incremental enabled for faster local edit/compile cycles.
+# CI can still disable it explicitly via CARGO_INCREMENTAL=0 when needed.
 
 # macOS Intel
 [target.x86_64-apple-darwin]
