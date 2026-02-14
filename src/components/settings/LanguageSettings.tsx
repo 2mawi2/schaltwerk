@@ -36,14 +36,8 @@ export function LanguageSettings() {
               type="button"
               onClick={() => { void setLanguage(option.id) }}
               aria-pressed={isSelected}
-              className="flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors"
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 ${isSelected ? 'settings-binary-item-selected' : 'settings-binary-item'}`}
               style={{
-                backgroundColor: isSelected
-                  ? 'var(--color-accent-blue-bg)'
-                  : 'var(--color-bg-elevated)',
-                borderColor: isSelected
-                  ? 'var(--color-accent-blue)'
-                  : 'var(--color-border-subtle)',
                 color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                 fontSize: theme.fontSize.body,
               }}

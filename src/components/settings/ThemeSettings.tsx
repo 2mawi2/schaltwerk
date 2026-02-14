@@ -156,18 +156,8 @@ function ThemePreviewCard({
       type="button"
       onClick={onClick}
       aria-pressed={isSelected}
-      className="flex flex-col rounded-lg border transition-all"
-      style={{
-        width: '140px',
-        backgroundColor: isSelected
-          ? 'var(--color-accent-blue-bg)'
-          : 'var(--color-bg-elevated)',
-        borderColor: isSelected
-          ? 'var(--color-accent-blue)'
-          : 'var(--color-border-subtle)',
-        borderWidth: isSelected ? '2px' : '1px',
-        overflow: 'hidden',
-      }}
+      className={`flex flex-col rounded-lg transition-all overflow-hidden ${isSelected ? 'settings-binary-item-selected border-2' : 'settings-binary-item hover:bg-bg-hover'}`}
+      style={{ width: '140px' }}
     >
       <div
         style={{

@@ -2040,12 +2040,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setTerminalFontSize(13)}
-                                        className="px-3 py-1 text-caption rounded-lg border transition-colors"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-elevated)',
-                                            borderColor: 'var(--color-border-subtle)',
-                                            color: 'var(--color-text-secondary)',
-                                        }}
+                                        className="settings-btn px-3 py-1 text-caption rounded-lg"
                                     >
                                         {t.settings.common.reset}
                                     </button>
@@ -2071,12 +2066,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setUiFontSize(12)}
-                                        className="px-3 py-1 text-caption rounded-lg border transition-colors"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-elevated)',
-                                            borderColor: 'var(--color-border-subtle)',
-                                            color: 'var(--color-text-secondary)',
-                                        }}
+                                        className="settings-btn px-3 py-1 text-caption rounded-lg"
                                     >
                                         {t.settings.common.reset}
                                     </button>
@@ -2096,12 +2086,7 @@ fi`}
                             <div className="mt-2">
                                 <button
                                     onClick={() => setShowFontPicker(v => !v)}
-                                    className="px-3 py-1.5 text-caption rounded-lg border transition-colors"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-elevated)',
-                                        borderColor: 'var(--color-border-subtle)',
-                                        color: 'var(--color-text-secondary)',
-                                    }}
+                                    className="settings-btn px-3 py-1.5 text-caption rounded-lg"
                                 >{t.settings.appearance.browseFonts}</button>
                             </div>
                             {showFontPicker && (
