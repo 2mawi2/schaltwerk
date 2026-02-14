@@ -2554,7 +2554,8 @@ fi`}
             )}
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
                 <div
-                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border rounded-xl shadow-xl overflow-hidden flex flex-col bg-bg-tertiary border-border-subtle"
+                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border rounded-xl shadow-xl overflow-hidden flex flex-col"
+                    style={{ backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-subtle)' }}
                 >
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
@@ -2576,7 +2577,7 @@ fi`}
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
                         {/* Sidebar */}
-                        <div className="w-56 border-r py-4 bg-bg-secondary border-border-default">
+                        <div className="w-56 border-r py-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-default)' }}>
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
