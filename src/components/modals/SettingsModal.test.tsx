@@ -373,7 +373,7 @@ describe('SettingsModal initial tab handling', () => {
 
     const runButton = await screen.findByRole('button', { name: 'Run & Environment' })
     await waitFor(() => {
-      expect(runButton).toHaveClass('font-medium')
+      expect(runButton).toHaveStyle({ fontWeight: 500 })
     })
   })
 
@@ -387,7 +387,7 @@ describe('SettingsModal initial tab handling', () => {
 
     const projectSettingsButton = await screen.findByRole('button', { name: 'Project Settings' })
     await waitFor(() => {
-      expect(projectSettingsButton).toHaveClass('font-medium')
+      expect(projectSettingsButton).toHaveStyle({ fontWeight: 500 })
     })
   })
 
@@ -402,7 +402,7 @@ describe('SettingsModal initial tab handling', () => {
 
     await waitFor(() => {
       const appearanceButton = screen.getByRole('button', { name: 'Appearance' })
-      expect(appearanceButton).toHaveClass('font-medium')
+      expect(appearanceButton).toHaveStyle({ fontWeight: 500 })
     })
 
     rerender(
@@ -418,8 +418,8 @@ describe('SettingsModal initial tab handling', () => {
     await waitFor(() => {
       const runButton = screen.getByRole('button', { name: 'Run & Environment' })
       const appearanceButtonAfter = screen.getByRole('button', { name: 'Appearance' })
-      expect(runButton).toHaveClass('font-medium')
-      expect(appearanceButtonAfter).not.toHaveClass('font-medium')
+      expect(runButton).toHaveStyle({ fontWeight: 500 })
+      expect(appearanceButtonAfter).not.toHaveStyle({ fontWeight: 500 })
     })
   })
 
