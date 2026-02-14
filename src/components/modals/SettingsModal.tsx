@@ -2554,18 +2554,14 @@ fi`}
             )}
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
                 <div
-                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border rounded-xl shadow-xl overflow-hidden flex flex-col"
-                    style={{ backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-subtle)' }}
+                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border rounded-xl shadow-xl overflow-hidden flex flex-col bg-bg-tertiary border-border-subtle"
                 >
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
                     <span>{t.settings.title}</span>
                     <button
                         onClick={onClose}
-                        className="transition-colors"
-                        style={{
-                            color: 'var(--color-text-tertiary)',
-                        }}
+                        className="text-text-tertiary hover:text-text-primary cursor-pointer transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2580,7 +2576,7 @@ fi`}
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
                         {/* Sidebar */}
-                        <div className="w-56 border-r py-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-default)' }}>
+                        <div className="w-56 border-r py-4 bg-bg-secondary border-border-default">
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
@@ -2593,15 +2589,9 @@ fi`}
                                                 onClick={() => setActiveCategory(category.id)}
                                                 className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                                     activeCategory === category.id
-                                                        ? 'font-medium'
-                                                        : ''
+                                                        ? 'font-medium bg-bg-selected text-text-primary'
+                                                        : 'text-text-tertiary hover:text-text-secondary'
                                                 }`}
-                                                style={activeCategory === category.id ? {
-                                                    backgroundColor: 'var(--color-bg-selected)',
-                                                    color: 'var(--color-text-primary)',
-                                                } : {
-                                                    color: 'var(--color-text-tertiary)',
-                                                }}
                                             >
                                                 {category.icon}
                                                 <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
@@ -2625,15 +2615,9 @@ fi`}
                                         onClick={() => setActiveCategory(category.id)}
                                         className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                             activeCategory === category.id
-                                                ? 'font-medium'
-                                                : ''
+                                                ? 'font-medium bg-bg-selected text-text-primary'
+                                                : 'text-text-tertiary hover:text-text-secondary'
                                         }`}
-                                        style={activeCategory === category.id ? {
-                                            backgroundColor: 'var(--color-bg-selected)',
-                                            color: 'var(--color-text-primary)',
-                                        } : {
-                                            color: 'var(--color-text-tertiary)',
-                                        }}
                                     >
                                         {category.icon}
                                         <span>{t.settings.categories[category.id as keyof typeof t.settings.categories] ?? category.label}</span>
@@ -2659,12 +2643,7 @@ fi`}
                                         onOpenTutorial()
                                         onClose()
                                     }}
-                                    className="px-4 py-2 rounded-lg border transition-colors flex items-center gap-2"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-elevated)',
-                                        borderColor: 'var(--color-border-subtle)',
-                                        color: 'var(--color-text-secondary)',
-                                    }}
+                                    className="settings-btn px-4 py-2 rounded-lg flex items-center gap-2"
                                     title="Open interactive tutorial"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2677,39 +2656,14 @@ fi`}
                         <div className="flex gap-2">
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 rounded-lg border transition-colors"
-                                style={{
-                                    backgroundColor: 'var(--color-bg-elevated)',
-                                    borderColor: 'var(--color-border-subtle)',
-                                    color: 'var(--color-text-secondary)',
-                                }}
+                                className="settings-btn px-4 py-2 rounded-lg"
                             >
                                 {t.settings.common.cancel}
                             </button>
                             <button
                                 onClick={() => { void handleSave() }}
                                 disabled={saving}
-                                className="px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{
-                                    backgroundColor: 'var(--color-accent-blue)',
-                                    border: '1px solid var(--color-accent-blue-border)',
-                                    color: 'var(--color-text-inverse)',
-                                }}
-                                onMouseEnter={event => {
-                                    if (saving) return
-                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue-dark)'
-                                }}
-                                onMouseLeave={event => {
-                                    event.currentTarget.style.backgroundColor = 'var(--color-accent-blue)'
-                                }}
-                                onFocus={event => {
-                                    event.currentTarget.style.outline = '2px solid var(--color-border-focus)'
-                                    event.currentTarget.style.outlineOffset = '2px'
-                                }}
-                                onBlur={event => {
-                                    event.currentTarget.style.outline = 'none'
-                                    event.currentTarget.style.outlineOffset = '0'
-                                }}
+                                className="settings-btn-primary px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {saving ? (
                                     <span className="text-button text-white/80">Saving...</span>

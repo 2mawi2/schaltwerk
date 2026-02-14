@@ -572,6 +572,17 @@ code {
 }
 .settings-btn-dashed:hover { border-color: var(--color-border-strong); color: var(--color-text-secondary); }
 
+.settings-btn-primary {
+  background-color: var(--color-accent-blue);
+  border: 1px solid var(--color-accent-blue-border);
+  color: var(--color-text-inverse);
+  transition: background-color 150ms ease, border-color 150ms ease;
+  cursor: pointer;
+}
+.settings-btn-primary:hover { background-color: var(--color-accent-blue-dark); }
+.settings-btn-primary:focus { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+.settings-btn-primary:active { background-color: var(--color-accent-blue); }
+
 .settings-binary-item {
   background-color: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
