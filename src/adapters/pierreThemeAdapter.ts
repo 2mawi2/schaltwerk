@@ -62,8 +62,6 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
     }
 
     [data-diffs] {
-      content-visibility: auto;
-
       --diffs-bg: var(--color-bg-primary);
       --diffs-fg: var(--color-text-primary);
       --diffs-fg-number: var(--color-text-tertiary);
