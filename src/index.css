@@ -499,3 +499,68 @@ code {
   animation: filterGlow 0.4s ease-out;
   position: relative;
 }
+
+/* Settings action buttons */
+.settings-btn {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.settings-btn:active {
+  background-color: var(--color-bg-active);
+}
+
+.settings-btn-danger {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+
+.settings-btn-danger:hover {
+  background-color: var(--color-accent-red-bg);
+  border-color: var(--color-accent-red-border);
+  color: var(--color-accent-red);
+}
+
+.settings-btn-danger:active {
+  background-color: var(--color-bg-active);
+}
+
+.settings-btn-text {
+  color: var(--color-text-secondary);
+  transition: color 150ms ease;
+  cursor: pointer;
+}
+
+.settings-btn-text:hover {
+  color: var(--color-text-primary);
+}
+
+.settings-binary-item {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  transition: background-color 150ms ease, border-color 150ms ease;
+  cursor: pointer;
+}
+
+.settings-binary-item:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+}
+
+.settings-binary-item-selected {
+  background-color: var(--color-accent-blue-bg);
+  border: 1px solid var(--color-accent-blue-border);
+  cursor: pointer;
+}

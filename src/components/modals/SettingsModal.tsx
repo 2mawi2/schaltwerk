@@ -1582,17 +1582,11 @@ fi`}
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
-                            className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
+                            className={`px-6 py-3 text-body font-medium transition-colors duration-150 capitalize cursor-pointer ${
                                 activeAgentTab === agent
-                                    ? 'border-b-2'
-                                    : ''
+                                    ? 'border-b-2 text-text-primary border-border-focus'
+                                    : 'text-text-tertiary hover:text-text-secondary'
                             }`}
-                            style={activeAgentTab === agent ? {
-                                color: 'var(--color-text-primary)',
-                                borderColor: 'var(--color-border-focus)',
-                            } : {
-                                color: 'var(--color-text-tertiary)',
-                            }}
                         >
                             {displayNameForAgent(agent)}
                         </button>
@@ -1627,12 +1621,7 @@ fi`}
                                 <span className="text-caption text-text-tertiary">{t.settings.environment.currentBinary}</span>
                                 <button
                                     onClick={() => { void handleRefreshBinaryDetection(activeAgentTab) }}
-                                    className="flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-elevated)',
-                                        borderColor: 'var(--color-border-subtle)',
-                                        color: 'var(--color-text-secondary)',
-                                    }}
+                                    className="settings-btn flex items-center gap-2 rounded-lg px-3 py-2"
                                     title={t.settings.common.refresh}
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1650,10 +1639,7 @@ fi`}
                                     <div className="text-caption text-text-muted">{t.settings.environment.customPath}</div>
                                     <button
                                         onClick={() => { void handleBinaryPathChange(activeAgentTab, null) }}
-                                        className="text-caption transition-colors"
-                                        style={{
-                                            color: 'var(--color-text-secondary)',
-                                        }}
+                                        className="settings-btn-text text-caption"
                                     >
                                         {t.settings.environment.resetToAutoDetect}
                                     </button>
@@ -1705,12 +1691,7 @@ fi`}
                                 />
                                 <button
                                     onClick={() => { void openFilePicker(activeAgentTab) }}
-                                    className="rounded-lg border px-3 py-2 transition-colors"
-                                    style={{
-                                        backgroundColor: 'var(--color-bg-elevated)',
-                                        borderColor: 'var(--color-border-subtle)',
-                                        color: 'var(--color-text-secondary)',
-                                    }}
+                                    className="settings-btn rounded-lg px-3 py-2"
                                     title={t.settings.common.browse}
                                 >
                                     {t.settings.common.browse}
@@ -1722,14 +1703,19 @@ fi`}
                                 <div className="mt-4">
                                     <h4 className="text-caption font-medium text-text-secondary mb-2">{t.settings.environment.detectedBinaries}</h4>
                                     <div className="space-y-1 max-h-32 overflow-y-auto">
-                                        {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
+                                        {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => {
+                                            const customPath = binaryConfigs[activeAgentTab].custom_path
+                                            const isSelected = customPath
+                                                ? binary.path === customPath
+                                                : binary.is_recommended
+                                            return (
                                             <div
                                                 key={index}
-                                                className="flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer"
-                                                style={{
-                                                    backgroundColor: 'var(--color-bg-elevated)',
-                                                    borderColor: 'var(--color-border-subtle)',
-                                                }}
+                                                className={`flex items-center justify-between p-2 rounded-lg ${
+                                                    isSelected
+                                                        ? 'settings-binary-item-selected'
+                                                        : 'settings-binary-item'
+                                                }`}
                                                 onClick={() => { void handleBinaryPathChange(activeAgentTab, binary.path) }}
                                             >
                                                 <div className="flex-1 min-w-0">
@@ -1756,7 +1742,8 @@ fi`}
                                                     </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 </div>
                     )}
@@ -1909,12 +1896,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
-                                        className="px-3 py-2 rounded-lg border transition-colors"
-                                        style={{
-                                            backgroundColor: 'var(--color-bg-elevated)',
-                                            borderColor: 'var(--color-border-subtle)',
-                                            color: 'var(--color-text-tertiary)',
-                                        }}
+                                        className="settings-btn-danger px-3 py-2 rounded-lg"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1926,12 +1908,7 @@ fi`}
 
                         <button
                             onClick={() => handleAddEnvVar(activeAgentTab)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors"
-                            style={{
-                                backgroundColor: 'var(--color-bg-elevated)',
-                                borderColor: 'var(--color-border-subtle)',
-                                color: 'var(--color-text-secondary)',
-                            }}
+                            className="settings-btn flex items-center gap-2 px-4 py-2 rounded-lg"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
