@@ -557,6 +557,14 @@ code {
   color: var(--color-text-primary);
 }
 
+.settings-btn-dashed {
+  border: 2px dashed var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  transition: border-color 150ms ease, color 150ms ease;
+  cursor: pointer;
+}
+.settings-btn-dashed:hover { border-color: var(--color-border-strong); color: var(--color-text-secondary); }
+
 .settings-binary-item {
   background-color: var(--color-bg-elevated);
   border: 1px solid var(--color-border-subtle);
