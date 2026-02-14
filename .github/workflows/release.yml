@@ -668,6 +668,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Download macOS artifacts
         uses: actions/download-artifact@v7
@@ -698,13 +700,114 @@ jobs:
           echo "Checksums:"
           cat artifacts/checksums.txt
 
+      - name: Generate release notes
+        id: release_notes
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CURRENT_TAG="${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', github.event.inputs.version) }}"
+          LAST_RELEASE=$(gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName' || echo "")
+
+          if [ -z "$LAST_RELEASE" ] || [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "notes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          COMMITS=$(git log "${LAST_RELEASE}..${CURRENT_TAG}" --oneline || echo "")
+
+          if [ -z "$COMMITS" ]; then
+            echo "notes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          PROMPT="You are a release notes writer for Schaltwerk, a Tauri desktop app for managing AI coding sessions with git worktrees. Analyze the following git commit log and generate release notes.
+
+          Format (follow this exactly):
+          ## What's New in ${CURRENT_TAG}
+
+          ### Features
+          - **Feature name** - Brief description
+
+          ### Improvements
+          - Description of user-visible enhancement
+
+          ### Fixes
+          - Fixed [specific issue description]
+
+          ### Maintenance
+          - Dependency updates (summarize Dependabot PRs as one line, e.g. 'Dependency updates via Dependabot')
+
+          Style rules:
+          - Omit sections that have no items entirely (do not include empty sections)
+          - Features: use **bold name** followed by a dash and brief description
+          - Fixes: always start each line with 'Fixed'
+          - Improvements: describe what improved from the user's perspective
+          - Keep descriptions concise, user-facing, and free of developer jargon
+          - Group related commits (e.g. multiple style fixes) into a single line
+          - Omit version bump commits (chore: bump version) and merge commits
+          - Omit CI/workflow-only changes unless they affect users
+          - Do not wrap the output in markdown code fences
+          - Output only the release notes, no preamble or commentary
+
+          Example of a good release note:
+          ## What's New in v0.12.11
+
+          ### Improvements
+          - Improved contrast in diff viewer for better readability
+
+          ### Fixes
+          - Fixed log screen display when cloning repositories
+          - Fixed settings save issue when on home screen
+
+          ### Maintenance
+          - Dependency updates
+
+          Commit log:
+          ${COMMITS}"
+
+          PAYLOAD=$(jq -n \
+            --arg prompt "$PROMPT" \
+            '{
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 1024,
+              messages: [{ role: "user", content: $prompt }]
+            }')
+
+          RESPONSE=$(curl -s --fail-with-body https://api.anthropic.com/v1/messages \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PAYLOAD") || {
+            echo "API call failed, falling back to empty notes"
+            echo "notes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          NOTES=$(echo "$RESPONSE" | jq -r '.content[0].text // empty')
+
+          if [ -z "$NOTES" ]; then
+            echo "notes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "notes<<RELEASE_NOTES_EOF"
+            echo "$NOTES"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', github.event.inputs.version) }}
           name: Schaltwerk ${{ github.event.inputs.version || github.ref_name }}
-          draft: true
+          draft: false
           prerelease: false
+          body: ${{ steps.release_notes.outputs.notes }}
+          generate_release_notes: ${{ steps.release_notes.outputs.notes == '' }}
           files: |
             artifacts/macos/*.dmg
             artifacts/macos/*.app.tar.gz
