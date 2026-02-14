@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App'
@@ -15,6 +15,8 @@ import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
+  const rootRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     // Remove initial HTML loader if it exists
     const initialLoader = document.getElementById('initial-loader')
@@ -24,6 +26,8 @@ const AppLoader: React.FC = () => {
         initialLoader.remove()
       }, 300)
     }
+
+    rootRef.current?.focus()
   }, [])
 
   return (
@@ -37,7 +41,7 @@ const AppLoader: React.FC = () => {
                   <FocusProvider>
                     <ReviewProvider>
                       <RunProvider>
-                        <div className="h-screen w-screen">
+                        <div ref={rootRef} tabIndex={-1} className="h-screen w-screen outline-none">
                           <App />
                         </div>
                       </RunProvider>
