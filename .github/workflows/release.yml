@@ -512,7 +512,7 @@ jobs:
           cat checksums.txt
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: macos-universal
           path: |
@@ -643,7 +643,7 @@ jobs:
           "$HASH  $EXE_NAME" | Out-File -FilePath "windows-checksums.txt" -Encoding utf8
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows-installer
           path: |
