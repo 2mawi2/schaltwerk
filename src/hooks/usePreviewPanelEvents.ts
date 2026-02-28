@@ -3,11 +3,13 @@ import { listenUiEvent, UiEvent } from '../common/uiEvents'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { rightPanelCollapsedAtom, rightPanelLastExpandedSizeAtom, rightPanelSizesAtom } from '../store/atoms/layout'
 import { rightPanelTabAtom } from '../store/atoms/rightPanelTab'
+import { setPreviewUrlActionAtom } from '../store/atoms/preview'
 import { validatePanelPercentage } from '../utils/panel'
 
 export function usePreviewPanelEvents() {
   const setCollapsed = useSetAtom(rightPanelCollapsedAtom)
   const setTab = useSetAtom(rightPanelTabAtom)
+  const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
   const [rightSizes, setRightSizes] = useAtom(rightPanelSizesAtom)
   const lastExpanded = useAtomValue(rightPanelLastExpandedSizeAtom)
 
@@ -21,14 +23,17 @@ export function usePreviewPanelEvents() {
   }, [expandedPercent, rightSizes, setRightSizes])
 
   useEffect(() => {
-    const cleanup = listenUiEvent(UiEvent.OpenPreviewPanel, () => {
+    const cleanup = listenUiEvent(UiEvent.OpenPreviewPanel, (detail) => {
       ensureExpandedSizes()
       void setCollapsed(false)
       void setTab('preview')
+      if (detail.url && detail.previewKey) {
+        setPreviewUrl({ key: detail.previewKey, url: detail.url })
+      }
     })
 
     return () => {
       cleanup()
     }
-  }, [ensureExpandedSizes, setCollapsed, setTab])
+  }, [ensureExpandedSizes, setCollapsed, setTab, setPreviewUrl])
 }
