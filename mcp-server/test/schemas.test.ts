@@ -232,6 +232,12 @@ const sampleStructuredOutputs: Record<string, any> = {
     session: 'alpha',
     modal_triggered: true,
   },
+  schaltwerk_link_pr: {
+    session: 'alpha',
+    pr_number: 142,
+    pr_url: 'https://github.com/owner/repo/pull/142',
+    linked: true,
+  },
 }
 
 describe('MCP output schemas', () => {

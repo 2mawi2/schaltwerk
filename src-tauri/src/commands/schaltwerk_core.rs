@@ -2543,12 +2543,8 @@ pub async fn schaltwerk_core_link_session_to_pr(
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
-    let session = manager
-        .get_session(&name)
-        .map_err(|e| format!("Session not found: {e}"))?;
-
-    core.db
-        .update_session_pr_info(&session.id, Some(pr_number), Some(&pr_url))
+    manager
+        .link_session_to_pr(&name, pr_number, &pr_url)
         .map_err(|e| format!("Failed to link session to PR: {e}"))?;
 
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
@@ -2566,12 +2562,8 @@ pub async fn schaltwerk_core_unlink_session_from_pr(
     let core = get_core_write().await?;
     let manager = core.session_manager();
 
-    let session = manager
-        .get_session(&name)
-        .map_err(|e| format!("Session not found: {e}"))?;
-
-    core.db
-        .update_session_pr_info(&session.id, None, None)
+    manager
+        .unlink_session_from_pr(&name)
         .map_err(|e| format!("Failed to unlink PR from session: {e}"))?;
 
     events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);

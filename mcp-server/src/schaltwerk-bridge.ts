@@ -1395,6 +1395,41 @@ export class SchaltwerkBridge {
     }
   }
 
+  async linkSessionToPr(sessionName: string, prNumber: number, prUrl: string): Promise<{ session: string; pr_number: number; pr_url: string; linked: boolean }> {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/link-pr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({ pr_number: prNumber, pr_url: prUrl })
+    })
+
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(`Failed to link session to PR: ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`)
+    }
+
+    return await response.json() as { session: string; pr_number: number; pr_url: string; linked: boolean }
+  }
+
+  async unlinkSessionFromPr(sessionName: string): Promise<{ session: string; linked: boolean }> {
+    const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/link-pr`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(`Failed to unlink PR from session: ${response.status} ${response.statusText}${body ? ` - ${body}` : ''}`)
+    }
+
+    return await response.json() as { session: string; linked: boolean }
+  }
+
   async convertToSpec(sessionName: string): Promise<void> {
     try {
       const response = await this.fetchWithAutoPort(`/api/sessions/${encodeURIComponent(sessionName)}/convert-to-spec`, {

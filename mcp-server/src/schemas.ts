@@ -520,6 +520,19 @@ export const toolOutputSchemas = {
     required: ['session', 'modal_triggered'],
     additionalProperties: false,
   },
+
+  schaltwerk_link_pr: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      session: { type: 'string' },
+      pr_number: nullableNumber,
+      pr_url: nullableString,
+      linked: { type: 'boolean' },
+    },
+    required: ['session', 'linked'],
+    additionalProperties: false,
+  },
 } as const
 
 export type ToolOutputName = keyof typeof toolOutputSchemas

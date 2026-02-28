@@ -115,6 +115,12 @@ async fn handle_mcp_request_inner(
             let name = extract_session_name_for_action(path, "/prepare-merge");
             prepare_merge(req, &name, app).await
         }
+        (&Method::DELETE, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/link-pr") =>
+        {
+            let name = extract_session_name_for_action(path, "/link-pr");
+            unlink_session_pr(&name, app).await
+        }
         (&Method::DELETE, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
             delete_session(&name, app).await
@@ -130,6 +136,12 @@ async fn handle_mcp_request_inner(
         {
             let name = extract_session_name_for_action(path, "/convert-to-spec");
             convert_session_to_spec(&name, app).await
+        }
+        (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/link-pr") =>
+        {
+            let name = extract_session_name_for_action(path, "/link-pr");
+            link_session_pr(req, &name, app).await
         }
         (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/reset") => {
             let name = extract_session_name_for_action(path, "/reset");
@@ -1816,6 +1828,117 @@ async fn convert_session_to_spec(
             Ok(error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to convert session '{name}' to spec: {e}"),
+            ))
+        }
+    }
+}
+
+async fn link_session_pr(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Failed to parse link-pr request: {e}");
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON: {e}"),
+            ));
+        }
+    };
+
+    let pr_number = match payload["pr_number"].as_i64() {
+        Some(n) => n,
+        None => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                "Missing or invalid 'pr_number' field".to_string(),
+            ));
+        }
+    };
+
+    let pr_url = match payload["pr_url"].as_str() {
+        Some(u) => u,
+        None => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                "Missing 'pr_url' field".to_string(),
+            ));
+        }
+    };
+
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get schaltwerk core: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    match manager.link_session_to_pr(name, pr_number, pr_url) {
+        Ok(()) => {
+            info!("Linked session '{name}' to PR #{pr_number} via API");
+            request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+
+            let body = serde_json::json!({
+                "session": name,
+                "pr_number": pr_number,
+                "pr_url": pr_url,
+                "linked": true,
+            })
+            .to_string();
+
+            Ok(json_response(StatusCode::OK, body))
+        }
+        Err(e) => {
+            error!("Failed to link session '{name}' to PR: {e}");
+            Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to link session to PR: {e}"),
+            ))
+        }
+    }
+}
+
+async fn unlink_session_pr(
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let manager = match get_core_write().await {
+        Ok(core) => core.session_manager(),
+        Err(e) => {
+            error!("Failed to get schaltwerk core: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    match manager.unlink_session_from_pr(name) {
+        Ok(()) => {
+            info!("Unlinked PR from session '{name}' via API");
+            request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
+
+            let body = serde_json::json!({
+                "session": name,
+                "linked": false,
+            })
+            .to_string();
+
+            Ok(json_response(StatusCode::OK, body))
+        }
+        Err(e) => {
+            error!("Failed to unlink PR from session '{name}': {e}");
+            Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to unlink PR from session: {e}"),
             ))
         }
     }

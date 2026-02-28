@@ -2615,6 +2615,23 @@ impl SessionManager {
         self.db_manager.list_specs()
     }
 
+    pub fn link_session_to_pr(
+        &self,
+        name: &str,
+        pr_number: i64,
+        pr_url: &str,
+    ) -> Result<()> {
+        let session = self.get_session(name)?;
+        self.db_manager
+            .update_session_pr_info(&session.id, Some(pr_number), Some(pr_url))
+    }
+
+    pub fn unlink_session_from_pr(&self, name: &str) -> Result<()> {
+        let session = self.get_session(name)?;
+        self.db_manager
+            .update_session_pr_info(&session.id, None, None)
+    }
+
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
         self.db_manager.update_git_stats(session_id)
     }

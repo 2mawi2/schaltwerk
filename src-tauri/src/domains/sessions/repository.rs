@@ -277,6 +277,17 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to update session epic: {e}"))
     }
 
+    pub fn update_session_pr_info(
+        &self,
+        session_id: &str,
+        pr_number: Option<i64>,
+        pr_url: Option<&str>,
+    ) -> Result<()> {
+        self.db
+            .update_session_pr_info(session_id, pr_number, pr_url)
+            .map_err(|e| anyhow!("Failed to update session PR info: {e}"))
+    }
+
     pub fn update_session_initial_prompt(&self, session_id: &str, prompt: &str) -> Result<()> {
         self.db
             .update_session_initial_prompt(session_id, prompt)

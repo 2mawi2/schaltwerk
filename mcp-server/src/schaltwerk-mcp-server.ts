@@ -114,6 +114,12 @@ interface SchaltwerkPrepareMergeArgs {
   mode?: 'squash' | 'reapply'
 }
 
+interface SchaltwerkLinkPrArgs {
+  session_name: string
+  pr_number: number
+  pr_url: string
+}
+
 interface SchaltwerkSetSetupScriptArgs {
   setup_script: string
 }
@@ -801,6 +807,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["session_name"]
         },
         outputSchema: toolOutputSchemas.schaltwerk_prepare_merge
+      },
+      {
+        name: "schaltwerk_link_pr",
+        description: `Link an existing GitHub pull request to a running or reviewed session. Use this when an agent creates a PR manually (e.g. via 'gh pr create') and wants to associate it with the current session so the Schaltwerk UI shows the PR link. Call without pr_number/pr_url to unlink.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_name: {
+              type: "string",
+              description: "Name of the session to link the PR to."
+            },
+            pr_number: {
+              type: "number",
+              description: "GitHub PR number (e.g. 142). Omit together with pr_url to unlink."
+            },
+            pr_url: {
+              type: "string",
+              description: "Full GitHub PR URL (e.g. 'https://github.com/owner/repo/pull/142'). Omit together with pr_number to unlink."
+            }
+          },
+          required: ["session_name"]
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_link_pr
       },
       {
         name: "schaltwerk_get_current_tasks",
@@ -1584,6 +1613,44 @@ ${cancelLine}`
           : `Failed to open merge modal for '${mergeArgs.session_name}'.`
 
         response = buildStructuredResponse(structured, { summaryText: summary })
+        break
+      }
+
+      case "schaltwerk_link_pr": {
+        const linkArgs = args as unknown as SchaltwerkLinkPrArgs
+
+        if (!linkArgs.session_name || typeof linkArgs.session_name !== 'string') {
+          throw new Error('session_name is required when invoking schaltwerk_link_pr.')
+        }
+
+        const hasPr = typeof linkArgs.pr_number === 'number' && typeof linkArgs.pr_url === 'string'
+        const hasPartialPr = (linkArgs.pr_number != null) !== (linkArgs.pr_url != null)
+
+        if (hasPartialPr) {
+          throw new Error('Both pr_number and pr_url must be provided together, or both omitted to unlink.')
+        }
+
+        if (hasPr) {
+          const result = await bridge.linkSessionToPr(linkArgs.session_name, linkArgs.pr_number, linkArgs.pr_url)
+          const structured = {
+            session: result.session,
+            pr_number: result.pr_number,
+            pr_url: result.pr_url,
+            linked: true,
+          }
+          const summary = `Linked session '${linkArgs.session_name}' to PR #${linkArgs.pr_number} (${linkArgs.pr_url})`
+          response = buildStructuredResponse(structured, { summaryText: summary })
+        } else {
+          const result = await bridge.unlinkSessionFromPr(linkArgs.session_name)
+          const structured = {
+            session: result.session,
+            pr_number: null,
+            pr_url: null,
+            linked: false,
+          }
+          const summary = `Unlinked PR from session '${linkArgs.session_name}'`
+          response = buildStructuredResponse(structured, { summaryText: summary })
+        }
         break
       }
 
