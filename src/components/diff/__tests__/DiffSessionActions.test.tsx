@@ -1,9 +1,13 @@
+import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { useSetAtom } from 'jotai'
 import { DiffSessionActions } from '../DiffSessionActions'
 import { TauriCommands } from '../../../common/tauriCommands'
+import { UiEvent } from '../../../common/uiEvents'
 import type { EnrichedSession } from '../../../types/session'
 import { renderWithProviders } from '../../../tests/test-utils'
+import { projectPathAtom } from '../../../store/atoms/project'
 
 const invokeMock = vi.fn(async (command: string, _args?: Record<string, unknown>) => {
   switch (command) {
@@ -145,5 +149,50 @@ describe('DiffSessionActions', () => {
 
     await waitFor(() => expect(onLoadChangedFiles).toHaveBeenCalled())
     await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('emits OpenPreviewPanel event with url when preview button is clicked', async () => {
+    const events: CustomEvent[] = []
+    const listener = (e: Event) => { events.push(e as CustomEvent) }
+    window.addEventListener(String(UiEvent.OpenPreviewPanel), listener)
+
+    const ProjectPathSetter = ({ children }: { children: React.ReactNode }) => {
+      const setProjectPath = useSetAtom(projectPathAtom)
+      useEffect(() => { setProjectPath('/test/project') }, [setProjectPath])
+      return <>{children}</>
+    }
+
+    renderWithProviders(
+      <ProjectPathSetter>
+        <DiffSessionActions
+          isSessionSelection={true}
+          sessionName="demo"
+          targetSession={createSession({
+            pr_number: 99,
+            pr_url: 'https://github.com/org/repo/pull/99',
+          })}
+          canMarkReviewed={false}
+          onClose={() => {}}
+          onReloadSessions={async () => {}}
+          onLoadChangedFiles={async () => {}}
+        >
+          {({ headerActions }) => <div data-testid="header">{headerActions}</div>}
+        </DiffSessionActions>
+      </ProjectPathSetter>
+    )
+
+    const previewButton = await screen.findByTitle(/Open PR #99 in app preview/i)
+    fireEvent.click(previewButton)
+
+    await waitFor(() => {
+      expect(events.length).toBeGreaterThan(0)
+      const last = events[events.length - 1]
+      expect(last.detail).toMatchObject({
+        previewKey: expect.stringContaining('demo'),
+        url: 'https://github.com/org/repo/pull/99',
+      })
+    })
+
+    window.removeEventListener(String(UiEvent.OpenPreviewPanel), listener)
   })
 })

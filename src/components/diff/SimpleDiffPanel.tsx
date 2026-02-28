@@ -10,6 +10,7 @@ import {
   VscLink,
   VscComment,
   VscLinkExternal,
+  VscPreview,
   VscPass,
   VscError,
   VscCircleFilled,
@@ -31,8 +32,11 @@ import { getPasteSubmissionOptions } from '../../common/terminalPaste'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { inlineSidebarDefaultPreferenceAtom } from '../../store/atoms/diffPreferences'
+import { projectPathAtom } from '../../store/atoms/project'
+import { buildPreviewKey, setPreviewUrlActionAtom } from '../../store/atoms/preview'
+import { rightPanelTabAtom } from '../../store/atoms/rightPanelTab'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
@@ -84,6 +88,9 @@ export function SimpleDiffPanel({
   const { sessions, reloadSessions } = useSessions()
   const { getOrchestratorAgentType } = useClaudeSession()
   const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
+  const projectPath = useAtomValue(projectPathAtom)
+  const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
+  const setRightPanelTab = useSetAtom(rightPanelTabAtom)
   const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
   const openDiffViewerShortcut = useShortcutDisplay(KeyboardShortcutAction.OpenDiffViewer)
 
@@ -247,6 +254,13 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     if (!prNumber) return
     await fetchAndPasteToTerminal(prNumber)
   }, [prNumber, fetchAndPasteToTerminal])
+
+  const handleOpenPrInPreview = useCallback(() => {
+    if (!prUrl || !projectPath || !sessionName) return
+    const previewKey = buildPreviewKey(projectPath, 'session', sessionName)
+    setPreviewUrl({ key: previewKey, url: prUrl })
+    setRightPanelTab('preview')
+  }, [prUrl, projectPath, sessionName, setPreviewUrl, setRightPanelTab])
 
   const handleViewerSelectionChange = useCallback((filePath: string | null) => {
     if (filePath !== activeFile) {
@@ -466,6 +480,15 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                     title={`Open PR #${prNumber} in browser`}
                   >
                     <VscLinkExternal />
+                  </button>
+                )}
+                {prUrl && (
+                  <button
+                    onClick={handleOpenPrInPreview}
+                    className="p-1 rounded text-blue-400 hover:text-blue-300 transition-colors"
+                    title={t.simpleDiffPanel.openPrInPreview.replace('{prNumber}', String(prNumber))}
+                  >
+                    <VscPreview />
                   </button>
                 )}
                 <button

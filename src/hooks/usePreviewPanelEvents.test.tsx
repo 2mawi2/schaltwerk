@@ -76,6 +76,38 @@ const ClickHarness = () => {
   )
 }
 
+it('sets preview URL when OpenPreviewPanel event includes a url', async () => {
+  localStorage.setItem('schaltwerk:layout:rightPanelCollapsed', 'true')
+  const UrlInspector = () => {
+    usePreviewPanelEvents()
+    const collapsed = useAtomValue(rightPanelCollapsedAtom)
+    const tab = useAtomValue(rightPanelTabAtom)
+    const state = useAtomValue(previewStateAtom)('test-key')
+    return (
+      <div>
+        <div data-testid="collapsed">{String(collapsed)}</div>
+        <div data-testid="tab">{tab}</div>
+        <div data-testid="url">{state.url ?? ''}</div>
+      </div>
+    )
+  }
+  const { getByTestId } = renderWithProviders(<UrlInspector />)
+
+  expect(getByTestId('collapsed').textContent).toBe('true')
+  expect(getByTestId('tab').textContent).toBe('changes')
+  expect(getByTestId('url').textContent).toBe('')
+
+  await act(async () => {
+    emitUiEvent(UiEvent.OpenPreviewPanel, { previewKey: 'test-key', url: 'https://github.com/org/repo/pull/42' })
+  })
+
+  await waitFor(() => {
+    expect(getByTestId('collapsed').textContent).toBe('false')
+    expect(getByTestId('tab').textContent).toBe('preview')
+    expect(getByTestId('url').textContent).toBe('https://github.com/org/repo/pull/42')
+  })
+})
+
 it('click interception opens sidebar and updates preview URL', async () => {
   localStorage.setItem('schaltwerk:layout:rightPanelCollapsed', 'true')
   const { getByTestId } = renderWithProviders(<ClickHarness />)
