@@ -6,7 +6,6 @@ import { useUpdateSessionFromParent } from './useUpdateSessionFromParent'
 import { TauriCommands } from '../common/tauriCommands'
 
 const useSessionsMock = vi.fn()
-const useSelectionMock = vi.fn()
 const pushToastMock = vi.fn()
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -15,10 +14,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('./useSessions', () => ({
   useSessions: () => useSessionsMock(),
-}))
-
-vi.mock('./useSelection', () => ({
-  useSelection: () => useSelectionMock(),
 }))
 
 vi.mock('../common/toast/ToastProvider', () => ({
@@ -58,78 +53,15 @@ describe('useUpdateSessionFromParent', () => {
     vi.clearAllMocks()
     const session = createSession()
 
-    useSelectionMock.mockReturnValue({
-      selection: { kind: 'session', payload: 'session-1' },
-    })
-
     useSessionsMock.mockReturnValue({
       sessions: [session],
     })
   })
 
-  describe('validation checks', () => {
-    it('shows warning toast when no session is selected', async () => {
-      useSelectionMock.mockReturnValueOnce({
-        selection: { kind: 'orchestrator' },
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'No active session',
-        }),
-      )
-      expect(mockInvoke).not.toHaveBeenCalled()
-    })
-
-    it('shows warning toast when session payload is missing', async () => {
-      useSelectionMock.mockReturnValueOnce({
-        selection: { kind: 'session', payload: null },
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'No active session',
-        }),
-      )
-      expect(mockInvoke).not.toHaveBeenCalled()
-    })
-
-    it('shows warning toast when session is not found in sessions list', async () => {
-      useSessionsMock.mockReturnValueOnce({
-        sessions: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'Session not found',
-        }),
-      )
-      expect(mockInvoke).not.toHaveBeenCalled()
-    })
-
-    it('shows warning toast when session is a spec', async () => {
+  describe('updates all running sessions', () => {
+    it('shows warning toast when no running sessions exist', async () => {
       const specSession = createSession({
+        session_id: 'spec-1',
         session_state: 'spec',
         status: 'spec',
       })
@@ -140,20 +72,261 @@ describe('useUpdateSessionFromParent', () => {
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateAllSessionsFromParent()
       })
 
       expect(pushToastMock).toHaveBeenCalledWith(
         expect.objectContaining({
           tone: 'warning',
-          title: 'Cannot update spec',
+          title: 'No running sessions',
         }),
       )
       expect(mockInvoke).not.toHaveBeenCalled()
     })
+
+    it('shows warning toast when sessions list is empty', async () => {
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'warning',
+          title: 'No running sessions',
+        }),
+      )
+      expect(mockInvoke).not.toHaveBeenCalled()
+    })
+
+    it('calls invoke for each running session', async () => {
+      const session1 = createSession({ session_id: 'session-1', display_name: 'S1' })
+      const session2 = createSession({ session_id: 'session-2', display_name: 'S2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke.mockResolvedValue({
+        status: 'success',
+        parentBranch: 'main',
+        message: 'Updated',
+        conflictingPaths: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(mockInvoke).toHaveBeenCalledTimes(2)
+      expect(mockInvoke).toHaveBeenCalledWith(
+        TauriCommands.SchaltwerkCoreUpdateSessionFromParent,
+        { name: 'session-1' },
+      )
+      expect(mockInvoke).toHaveBeenCalledWith(
+        TauriCommands.SchaltwerkCoreUpdateSessionFromParent,
+        { name: 'session-2' },
+      )
+    })
+
+    it('skips spec sessions', async () => {
+      const running = createSession({ session_id: 'running-1' })
+      const spec = createSession({ session_id: 'spec-1', session_state: 'spec', status: 'spec' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [running, spec],
+      })
+      mockInvoke.mockResolvedValue({
+        status: 'success',
+        parentBranch: 'main',
+        message: 'Updated',
+        conflictingPaths: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(mockInvoke).toHaveBeenCalledTimes(1)
+      expect(mockInvoke).toHaveBeenCalledWith(
+        TauriCommands.SchaltwerkCoreUpdateSessionFromParent,
+        { name: 'running-1' },
+      )
+    })
+
+    it('includes reviewed sessions', async () => {
+      const running = createSession({ session_id: 'running-1' })
+      const reviewed = createSession({
+        session_id: 'reviewed-1',
+        session_state: 'reviewed',
+        ready_to_merge: true,
+      })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [running, reviewed],
+      })
+      mockInvoke.mockResolvedValue({
+        status: 'success',
+        parentBranch: 'main',
+        message: 'Updated',
+        conflictingPaths: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(mockInvoke).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows success toast when all sessions succeed', async () => {
+      const session1 = createSession({ session_id: 's1', display_name: 'S1' })
+      const session2 = createSession({ session_id: 's2', display_name: 'S2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke.mockResolvedValue({
+        status: 'success',
+        parentBranch: 'main',
+        message: 'Updated',
+        conflictingPaths: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'success',
+          title: 'All sessions updated',
+        }),
+      )
+    })
+
+    it('shows success toast when all sessions are already up to date', async () => {
+      const session1 = createSession({ session_id: 's1' })
+      const session2 = createSession({ session_id: 's2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke.mockResolvedValue({
+        status: 'already_up_to_date',
+        parentBranch: 'main',
+        message: 'Already up to date',
+        conflictingPaths: [],
+      })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'info',
+          title: 'All sessions up to date',
+        }),
+      )
+    })
+
+    it('shows mixed results when some sessions fail', async () => {
+      const session1 = createSession({ session_id: 's1', display_name: 'S1' })
+      const session2 = createSession({ session_id: 's2', display_name: 'S2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke
+        .mockResolvedValueOnce({
+          status: 'success',
+          parentBranch: 'main',
+          message: 'Updated',
+          conflictingPaths: [],
+        })
+        .mockResolvedValueOnce({
+          status: 'has_conflicts',
+          parentBranch: 'main',
+          message: 'Conflicts',
+          conflictingPaths: ['file.ts'],
+        })
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'warning',
+          title: 'Some sessions had issues',
+        }),
+      )
+    })
+
+    it('handles invoke errors gracefully per session', async () => {
+      const session1 = createSession({ session_id: 's1', display_name: 'S1' })
+      const session2 = createSession({ session_id: 's2', display_name: 'S2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke
+        .mockResolvedValueOnce({
+          status: 'success',
+          parentBranch: 'main',
+          message: 'Updated',
+          conflictingPaths: [],
+        })
+        .mockRejectedValueOnce(new Error('Network error'))
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'warning',
+          title: 'Some sessions had issues',
+        }),
+      )
+    })
+
+    it('shows error toast when all sessions fail', async () => {
+      const session1 = createSession({ session_id: 's1', display_name: 'S1' })
+      const session2 = createSession({ session_id: 's2', display_name: 'S2' })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [session1, session2],
+      })
+      mockInvoke.mockRejectedValue(new Error('Network error'))
+
+      const { result } = renderHook(() => useUpdateSessionFromParent())
+
+      await act(async () => {
+        await result.current.updateAllSessionsFromParent()
+      })
+
+      expect(pushToastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tone: 'error',
+          title: 'Update failed',
+        }),
+      )
+    })
   })
 
-  describe('successful update scenarios', () => {
+  describe('single session update', () => {
     it('calls invoke with correct command and session name', async () => {
       mockInvoke.mockResolvedValueOnce({
         status: 'success',
@@ -165,7 +338,7 @@ describe('useUpdateSessionFromParent', () => {
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateSessionFromParent('session-1')
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(
@@ -185,7 +358,7 @@ describe('useUpdateSessionFromParent', () => {
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateSessionFromParent('session-1')
       })
 
       expect(pushToastMock).toHaveBeenCalledWith(
@@ -196,223 +369,45 @@ describe('useUpdateSessionFromParent', () => {
       )
     })
 
-    it('shows info toast when already up to date', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'already_up_to_date',
-        parentBranch: 'main',
-        message: 'Already up to date',
-        conflictingPaths: [],
-      })
-
+    it('shows warning toast when session not found', async () => {
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'info',
-          title: 'Already up to date',
-        }),
-      )
-    })
-  })
-
-  describe('error scenarios', () => {
-    it('shows warning toast when uncommitted changes exist', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'has_uncommitted_changes',
-        parentBranch: 'main',
-        message: 'Commit or stash changes',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateSessionFromParent('nonexistent')
       })
 
       expect(pushToastMock).toHaveBeenCalledWith(
         expect.objectContaining({
           tone: 'warning',
-          title: 'Uncommitted changes',
+          title: 'Session not found',
         }),
       )
+      expect(mockInvoke).not.toHaveBeenCalled()
     })
 
-    it('shows warning toast with conflict paths when conflicts detected', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'has_conflicts',
-        parentBranch: 'main',
-        message: 'Merge conflicts',
-        conflictingPaths: ['file1.ts', 'file2.ts'],
+    it('shows warning toast when session is a spec', async () => {
+      const specSession = createSession({
+        session_id: 'spec-1',
+        session_state: 'spec',
+        status: 'spec',
+      })
+      useSessionsMock.mockReturnValueOnce({
+        sessions: [specSession],
       })
 
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateSessionFromParent('spec-1')
       })
 
       expect(pushToastMock).toHaveBeenCalledWith(
         expect.objectContaining({
           tone: 'warning',
-          title: 'Merge conflicts',
-          description: 'Conflicts in: file1.ts, file2.ts',
+          title: 'Cannot update spec',
         }),
       )
-    })
-
-    it('truncates conflict paths when more than 3 files', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'has_conflicts',
-        parentBranch: 'main',
-        message: 'Merge conflicts',
-        conflictingPaths: ['file1.ts', 'file2.ts', 'file3.ts', 'file4.ts'],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'Merge conflicts',
-          description: 'Conflicts in: file1.ts, file2.ts, file3.ts...',
-        }),
-      )
-    })
-
-    it('falls back to message when no conflict paths provided', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'has_conflicts',
-        parentBranch: 'main',
-        message: 'Cannot merge due to conflicts',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'Merge conflicts',
-          description: 'Cannot merge due to conflicts',
-        }),
-      )
-    })
-
-    it('shows error toast when pull fails', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'pull_failed',
-        parentBranch: 'main',
-        message: 'Could not fetch origin',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'error',
-          title: 'Update failed',
-          description: 'Could not fetch origin',
-        }),
-      )
-    })
-
-    it('shows error toast when merge fails', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'merge_failed',
-        parentBranch: 'main',
-        message: 'Failed to merge branches',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'error',
-          title: 'Merge failed',
-          description: 'Failed to merge branches',
-        }),
-      )
-    })
-
-    it('shows warning toast for no_session status', async () => {
-      mockInvoke.mockResolvedValueOnce({
-        status: 'no_session',
-        parentBranch: 'main',
-        message: 'Cannot update a spec session',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'warning',
-          title: 'No active session',
-        }),
-      )
-    })
-
-    it('shows error toast when invoke throws', async () => {
-      mockInvoke.mockRejectedValueOnce(new Error('Network error'))
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'error',
-          title: 'Update failed',
-          description: 'Network error',
-        }),
-      )
-    })
-
-    it('handles non-Error thrown values', async () => {
-      mockInvoke.mockRejectedValueOnce('String error')
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tone: 'error',
-          title: 'Update failed',
-          description: 'String error',
-        }),
-      )
+      expect(mockInvoke).not.toHaveBeenCalled()
     })
   })
 
@@ -430,7 +425,7 @@ describe('useUpdateSessionFromParent', () => {
 
       let updatePromise: Promise<void>
       act(() => {
-        updatePromise = result.current.updateSessionFromParent()
+        updatePromise = result.current.updateAllSessionsFromParent()
       })
 
       expect(result.current.isUpdating).toBe(true)
@@ -449,49 +444,15 @@ describe('useUpdateSessionFromParent', () => {
     })
 
     it('resets isUpdating to false even on error', async () => {
-      const session = createSession()
-      useSessionsMock.mockReturnValue({
-        sessions: [session],
-      })
       mockInvoke.mockRejectedValue(new Error('Failed'))
 
       const { result } = renderHook(() => useUpdateSessionFromParent())
 
       await act(async () => {
-        await result.current.updateSessionFromParent()
+        await result.current.updateAllSessionsFromParent()
       })
 
       expect(result.current.isUpdating).toBe(false)
-    })
-  })
-
-  describe('session display name', () => {
-    it('uses display_name in toast when available', async () => {
-      const sessionWithDisplayName = createSession({
-        session_id: 'session-1',
-        display_name: 'My Custom Name',
-      })
-      useSessionsMock.mockReturnValue({
-        sessions: [sessionWithDisplayName],
-      })
-      mockInvoke.mockResolvedValue({
-        status: 'success',
-        parentBranch: 'main',
-        message: 'Done',
-        conflictingPaths: [],
-      })
-
-      const { result } = renderHook(() => useUpdateSessionFromParent())
-
-      await act(async () => {
-        await result.current.updateSessionFromParent()
-      })
-
-      expect(pushToastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          description: expect.stringContaining('My Custom Name'),
-        }),
-      )
     })
   })
 })

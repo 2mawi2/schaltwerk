@@ -253,7 +253,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { handleMergeShortcut, isSessionMerging } = useSessionMergeShortcut({
         getCommitDraftForSession,
     })
-    const { updateSessionFromParent } = useUpdateSessionFromParent()
+    const { updateAllSessionsFromParent } = useUpdateSessionFromParent()
     const openMergeDialogWithPrefill = useSetAtom(openMergeDialogActionAtom)
 
     const [prDialogState, setPrDialogState] = useState<{
@@ -1259,7 +1259,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onResetSelection: handleResetSelectionShortcut,
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
         onOpenMergeModal: () => { void handleMergeShortcut() },
-        onUpdateSessionFromParent: () => { void updateSessionFromParent() },
+        onUpdateSessionFromParent: () => { void updateAllSessionsFromParent() },
         onCreatePullRequest: handleCreatePullRequestShortcut,
         isDiffViewerOpen,
         isModalOpen: isAnyModalOpen()
