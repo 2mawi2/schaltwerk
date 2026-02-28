@@ -453,4 +453,52 @@ describe('Sidebar keyboard navigation basic', () => {
     })
   })
 
+  it('allows converting reviewed sessions to specs with Cmd+S', async () => {
+    const reviewedSessions = [
+      { info: { session_id: 'reviewed-session', branch: 'review/branch', worktree_path: '/review', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: true, session_state: 'reviewed' }, terminals: [] },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return reviewedSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.ListAvailableOpenApps) return [{ id: 'finder', name: 'Finder', kind: 'system' }]
+      if (cmd === TauriCommands.GetDefaultOpenApp) return 'finder'
+      if (cmd === TauriCommands.PathExists) return true
+      if (cmd === TauriCommands.DirectoryExists) return true
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
+        return { filter_mode: 'reviewed', sort_mode: 'name' }
+      }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
+        return undefined
+      }
+      return undefined
+    })
+
+    await renderSidebar()
+
+    await waitFor(() => {
+      expect(screen.getByText('reviewed-session')).toBeInTheDocument()
+    })
+
+    const reviewedButton = screen.getByText('reviewed-session').closest('[role="button"]') as HTMLElement | null
+    if (reviewedButton) {
+      await click(reviewedButton)
+    }
+
+    await waitFor(() => {
+      const selectedButton = screen.getByText('reviewed-session').closest('[role="button"]')
+      expect(selectedButton?.getAttribute('data-session-selected')).toBe('true')
+    })
+
+    await press('s', { metaKey: true })
+
+    await waitFor(() => {
+      expect(screen.getByText('Convert to Spec')).toBeInTheDocument()
+    })
+  })
+
 })

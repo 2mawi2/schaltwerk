@@ -1442,6 +1442,42 @@ fn test_convert_running_session_to_draft() {
 }
 
 #[test]
+fn test_convert_reviewed_session_to_draft() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let spec_content = "# Agent: Implement auth\n- Add login form";
+    let _draft = manager
+        .create_spec_session("review-test", spec_content)
+        .unwrap();
+
+    let running = manager
+        .start_spec_session("review-test", None, None, None)
+        .unwrap();
+    assert_eq!(running.session_state, SessionState::Running);
+
+    manager.mark_session_ready(&running.name).unwrap();
+    let reviewed = manager
+        .db_ref()
+        .get_session_by_name(&env.repo_path, &running.name)
+        .unwrap();
+    assert_eq!(reviewed.session_state, SessionState::Reviewed);
+
+    let reviewed_worktree = reviewed.worktree_path.clone();
+    let reviewed_branch = reviewed.branch.clone();
+
+    let new_spec_name = manager
+        .convert_session_to_draft(&reviewed.name)
+        .unwrap();
+
+    let converted = manager.get_spec(&new_spec_name).unwrap();
+    assert_eq!(converted.content, spec_content.to_string());
+
+    assert!(!reviewed_worktree.exists());
+    assert!(!git::branch_exists(&env.repo_path, &reviewed_branch).unwrap());
+}
+
+#[test]
 fn test_convert_session_to_draft_preserves_content() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();

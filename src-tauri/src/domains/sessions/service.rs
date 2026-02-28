@@ -2518,11 +2518,18 @@ impl SessionManager {
     pub fn convert_session_to_draft(&self, name: &str) -> Result<String> {
         let session = self.db_manager.get_session_by_name(name)?;
 
-        if session.session_state != SessionState::Running {
-            return Err(anyhow!("Session '{name}' is not in running state"));
+        if session.session_state != SessionState::Running
+            && session.session_state != SessionState::Reviewed
+        {
+            return Err(anyhow!(
+                "Session '{name}' must be in running or reviewed state to convert to spec"
+            ));
         }
 
-        log::info!("Converting session '{name}' from running to spec (new entity flow)");
+        log::info!(
+            "Converting session '{name}' from {:?} to spec (new entity flow)",
+            session.session_state
+        );
 
         let (spec_content, initial_prompt) = self
             .db_manager
@@ -2554,11 +2561,18 @@ impl SessionManager {
     pub async fn convert_session_to_draft_async(&self, name: &str) -> Result<String> {
         let session = self.db_manager.get_session_by_name(name)?;
 
-        if session.session_state != SessionState::Running {
-            return Err(anyhow!("Session '{name}' is not in running state"));
+        if session.session_state != SessionState::Running
+            && session.session_state != SessionState::Reviewed
+        {
+            return Err(anyhow!(
+                "Session '{name}' must be in running or reviewed state to convert to spec"
+            ));
         }
 
-        log::info!("Converting session '{name}' from running to spec (async flow)");
+        log::info!(
+            "Converting session '{name}' from {:?} to spec (async flow)",
+            session.session_state
+        );
 
         let (spec_content, initial_prompt) = self
             .db_manager
