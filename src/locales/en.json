@@ -814,7 +814,8 @@
     "discardAllChanges": "Discard all changes and reset this session",
     "resetSession": "Reset Session",
     "markAsReviewed": "Mark as Reviewed",
-    "markAsReviewedTitle": "Mark this session as reviewed"
+    "markAsReviewedTitle": "Mark this session as reviewed",
+    "openPrInPreview": "Open PR #{number} in app preview"
   },
   "collapsedDiffBadge": {
     "generatedFile": "Generated file",
@@ -1213,7 +1214,8 @@
     "sendReviewComments": "Send review comments",
     "showChangedFiles": "Show changed files",
     "browseAllFiles": "Browse all project files",
-    "linkToGithubPr": "Link to GitHub PR"
+    "linkToGithubPr": "Link to GitHub PR",
+    "openPrInPreview": "Open PR #{prNumber} in app preview"
   },
   "tabBar": {
     "openAnotherProject": "Open another project"

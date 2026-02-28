@@ -212,7 +212,7 @@ export type UiEventPayloads = {
   [UiEvent.OpencodeSearchResize]: SelectionResizeDetail
   [UiEvent.FocusTerminal]: FocusTerminalDetail | undefined
   [UiEvent.TerminalReady]: { terminalId: string }
-  [UiEvent.OpenPreviewPanel]: { previewKey: string }
+  [UiEvent.OpenPreviewPanel]: { previewKey: string; url?: string }
   [UiEvent.RunScriptUpdated]: RunScriptUpdatedDetail
   [UiEvent.SessionPreferencesUpdated]: SessionPreferencesDetail
   [UiEvent.DevErrorToastPreferenceChanged]: DevErrorToastPreferenceDetail

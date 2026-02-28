@@ -814,7 +814,8 @@
     "discardAllChanges": "放弃所有更改并重置此会话",
     "resetSession": "重置会话",
     "markAsReviewed": "标记为已审核",
-    "markAsReviewedTitle": "将此会话标记为已审核"
+    "markAsReviewedTitle": "将此会话标记为已审核",
+    "openPrInPreview": "在应用预览中打开 PR #{number}"
   },
   "collapsedDiffBadge": {
     "generatedFile": "生成的文件",
@@ -1213,7 +1214,8 @@
     "sendReviewComments": "发送审查评论",
     "showChangedFiles": "显示已更改的文件",
     "browseAllFiles": "浏览所有项目文件",
-    "linkToGithubPr": "关联 GitHub PR"
+    "linkToGithubPr": "关联 GitHub PR",
+    "openPrInPreview": "在应用预览中打开 PR #{prNumber}"
   },
   "tabBar": {
     "openAnotherProject": "打开另一个项目"
