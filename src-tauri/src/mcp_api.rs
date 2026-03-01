@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use url::form_urlencoded;
 
 use schaltwerk::domains::settings::setup_script::SetupScriptService;
-use crate::commands::github::{CreateSessionPrArgs, github_create_session_pr_impl};
+use crate::commands::github::{CreateSessionPrArgs, github_create_session_pr_impl, github_get_pr_feedback_impl};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
     schaltwerk_core_start_claude_orchestrator, schaltwerk_core_start_session_agent_with_restart,
@@ -89,6 +89,12 @@ async fn handle_mcp_request_inner(
             get_session_spec(&name).await
         }
         (&Method::GET, "/api/sessions") => list_sessions(req).await,
+        (&Method::GET, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/pr-feedback") =>
+        {
+            let name = extract_session_name_for_action(path, "/pr-feedback");
+            get_session_pr_feedback(&name, app).await
+        }
         (&Method::GET, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
             get_session(&name).await
@@ -2519,4 +2525,51 @@ async fn reset_session(
     };
 
     reset_session_with_payload(name, payload, app).await
+}
+
+async fn get_session_pr_feedback(
+    session_name: &str,
+    _app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let pr_number = match get_core_read().await {
+        Ok(core) => {
+            match core.session_manager().get_session(session_name) {
+                Ok(session) => match session.pr_number {
+                    Some(n) => n as u64,
+                    None => {
+                        return Ok(json_error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!("Session '{session_name}' has no linked PR"),
+                        ));
+                    }
+                },
+                Err(e) => {
+                    return Ok(json_error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session not found: {e}"),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let project_manager = crate::get_project_manager().await;
+    let cli = schaltwerk::services::GitHubCli::new();
+
+    match github_get_pr_feedback_impl(project_manager, &cli, pr_number).await {
+        Ok(payload) => {
+            let json = serde_json::to_string(&payload).unwrap_or_default();
+            Ok(json_response(StatusCode::OK, json))
+        }
+        Err(e) => Ok(json_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            e,
+        )),
+    }
 }

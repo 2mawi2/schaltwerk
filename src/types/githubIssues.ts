@@ -68,3 +68,34 @@ export interface GithubPrSelectionResult {
   details: GithubPrDetails
   prompt: string
 }
+
+export interface GithubReviewThreadComment {
+  author: string | null
+  body: string
+  createdAt: string
+}
+
+export interface GithubReviewThread {
+  id: string
+  isResolved: boolean
+  isOutdated: boolean
+  path: string
+  line: number | null
+  comments: GithubReviewThreadComment[]
+}
+
+export interface GithubStatusCheck {
+  name: string | null
+  status: string | null
+  conclusion: string | null
+}
+
+export interface GithubPrFeedback {
+  state: string
+  isDraft: boolean
+  reviewDecision: string | null
+  latestReviews: GithubPrReview[]
+  statusChecks: GithubStatusCheck[]
+  unresolvedThreads: GithubReviewThread[]
+  resolvedThreadCount: number
+}

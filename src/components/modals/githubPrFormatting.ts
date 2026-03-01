@@ -1,4 +1,4 @@
-import type { GithubPrDetails, GithubPrSummary } from '../../types/githubIssues'
+import type { GithubPrDetails, GithubPrFeedback, GithubPrSummary } from '../../types/githubIssues'
 import { formatDateTime } from '../../utils/dateTime'
 
 export interface PrReviewComment {
@@ -136,4 +136,64 @@ export function buildPrPreview(details: GithubPrDetails): string {
 
 export function formatPrUpdatedTimestamp(summary: GithubPrSummary): string {
   return formatDateTime(summary.updatedAt, undefined, summary.updatedAt)
+}
+
+export function formatPrFeedbackForTerminal(
+  feedback: GithubPrFeedback,
+  prNumber: number
+): string {
+  const lines: string[] = []
+
+  const failedChecks = feedback.statusChecks.filter(c =>
+    c.conclusion === 'FAILURE' || c.conclusion === 'TIMED_OUT' || c.conclusion === 'CANCELLED'
+  )
+  const pendingChecks = feedback.statusChecks.filter(c =>
+    !c.conclusion && c.status && c.status !== 'COMPLETED'
+  )
+  const passedCount = feedback.statusChecks.length - failedChecks.length - pendingChecks.length
+  const threadCount = feedback.unresolvedThreads.length
+
+  lines.push(`\nPR #${prNumber} Feedback: ${feedback.state}${feedback.isDraft ? ' (draft)' : ''} | Review: ${feedback.reviewDecision ?? 'none'} | ${threadCount} unresolved threads (${feedback.resolvedThreadCount} resolved) | CI: ${failedChecks.length} failed, ${pendingChecks.length} pending, ${passedCount} passed\n`)
+
+  if (feedback.latestReviews.length > 0) {
+    lines.push('## Reviews')
+    for (const r of feedback.latestReviews) {
+      lines.push(`- ${r.author ?? 'Unknown'}: ${r.state}`)
+    }
+    lines.push('')
+  }
+
+  if (failedChecks.length > 0 || pendingChecks.length > 0) {
+    lines.push('## CI Checks')
+    for (const c of failedChecks) {
+      lines.push(`- FAILED: ${c.name ?? 'unnamed check'}`)
+    }
+    for (const c of pendingChecks) {
+      lines.push(`- PENDING: ${c.name ?? 'unnamed check'}`)
+    }
+    if (passedCount > 0) {
+      lines.push(`- ${passedCount} checks passed`)
+    }
+    lines.push('')
+  }
+
+  if (threadCount > 0) {
+    lines.push('## Unresolved Review Threads')
+    lines.push('Address each thread below:\n')
+    for (const t of feedback.unresolvedThreads) {
+      const location = t.line ? `${t.path}:${t.line}` : t.path
+      lines.push(`### ${location} [thread:${t.id}]`)
+      for (const c of t.comments) {
+        const body = c.body.length > 500 ? c.body.substring(0, 500) + '...' : c.body
+        lines.push(`**${c.author ?? 'Unknown'}:** ${body}`)
+      }
+      lines.push('')
+    }
+  }
+
+  if (threadCount === 0 && failedChecks.length === 0 && pendingChecks.length === 0) {
+    lines.push('No action items found. PR looks ready.')
+  }
+
+  return lines.join('\n')
 }

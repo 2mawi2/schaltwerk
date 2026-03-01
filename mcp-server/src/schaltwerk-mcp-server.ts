@@ -11,7 +11,7 @@ import {
   McpError,
   CallToolRequest,
 } from "@modelcontextprotocol/sdk/types.js"
-import { SchaltwerkBridge, Session, MergeModeOption } from "./schaltwerk-bridge.js"
+import { SchaltwerkBridge, Session, MergeModeOption, type PrFeedbackPayload } from "./schaltwerk-bridge.js"
 import { toolOutputSchemas } from "./schemas.js"
 
 const DEFAULT_AGENT = 'claude'
@@ -186,6 +186,62 @@ function buildStructuredResponse(
   return includeStructured
     ? { structuredContent: structured, content: contentEntries }
     : { content: contentEntries }
+}
+
+function formatPrFeedbackSummary(feedback: PrFeedbackPayload): string {
+  const lines: string[] = []
+  const failedChecks = feedback.statusChecks.filter(c =>
+    c.conclusion === 'FAILURE' || c.conclusion === 'TIMED_OUT' || c.conclusion === 'CANCELLED'
+  )
+  const pendingChecks = feedback.statusChecks.filter(c =>
+    !c.conclusion && c.status && c.status !== 'COMPLETED'
+  )
+  const passedCount = feedback.statusChecks.length - failedChecks.length - pendingChecks.length
+  const threadCount = feedback.unresolvedThreads.length
+
+  lines.push(`PR Feedback: ${feedback.state}${feedback.isDraft ? ' (draft)' : ''} | Review: ${feedback.reviewDecision ?? 'none'} | ${threadCount} unresolved threads (${feedback.resolvedThreadCount} resolved) | CI: ${failedChecks.length} failed, ${pendingChecks.length} pending, ${passedCount} passed`)
+
+  if (feedback.latestReviews.length > 0) {
+    lines.push('')
+    lines.push('## Reviews')
+    for (const r of feedback.latestReviews) {
+      lines.push(`- ${r.author ?? 'Unknown'}: ${r.state}`)
+    }
+  }
+
+  if (failedChecks.length > 0 || pendingChecks.length > 0) {
+    lines.push('')
+    lines.push('## CI Checks')
+    for (const c of failedChecks) {
+      lines.push(`- FAILED: ${c.name ?? 'unnamed check'}`)
+    }
+    for (const c of pendingChecks) {
+      lines.push(`- PENDING: ${c.name ?? 'unnamed check'}`)
+    }
+    if (passedCount > 0) {
+      lines.push(`- ${passedCount} checks passed`)
+    }
+  }
+
+  if (threadCount > 0) {
+    lines.push('')
+    lines.push('## Unresolved Review Threads')
+    lines.push('Address each thread below:')
+    for (const t of feedback.unresolvedThreads) {
+      const location = t.line ? `${t.path}:${t.line}` : t.path
+      lines.push(`\n### ${location} [thread:${t.id}]`)
+      for (const c of t.comments) {
+        const body = c.body.length > 500 ? c.body.substring(0, 500) + '...' : c.body
+        lines.push(`**${c.author ?? 'Unknown'}:** ${body}`)
+      }
+    }
+  }
+
+  if (threadCount === 0 && failedChecks.length === 0 && pendingChecks.length === 0) {
+    lines.push('\nNo action items found. PR looks ready.')
+  }
+
+  return lines.join('\n')
 }
 
 type SpecDocumentPayload = {
@@ -871,6 +927,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           additionalProperties: false
         },
         outputSchema: toolOutputSchemas.schaltwerk_run_script
+      },
+      {
+        name: "schaltwerk_get_pr_feedback",
+        description: `Get comprehensive PR feedback for a session including unresolved review comments, CI check results, and review decisions. Only returns actionable items: resolved and outdated threads are excluded, passed CI checks are summarized as a count. Use this to understand what needs to be fixed before a PR can be merged.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            session_name: {
+              type: "string",
+              description: "Name of the session with a linked PR"
+            }
+          },
+          required: ["session_name"],
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_get_pr_feedback
       }
   ]
 
@@ -1651,6 +1723,18 @@ ${cancelLine}`
           const summary = `Unlinked PR from session '${linkArgs.session_name}'`
           response = buildStructuredResponse(structured, { summaryText: summary })
         }
+        break
+      }
+
+      case "schaltwerk_get_pr_feedback": {
+        const feedbackArgs = args as { session_name?: string }
+        if (!feedbackArgs.session_name || typeof feedbackArgs.session_name !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, "'session_name' is required.")
+        }
+
+        const feedback = await bridge.getPrFeedback(feedbackArgs.session_name)
+        const summary = formatPrFeedbackSummary(feedback)
+        response = buildStructuredResponse(feedback, { summaryText: summary, jsonFirst: false })
         break
       }
 

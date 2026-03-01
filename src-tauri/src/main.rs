@@ -1167,6 +1167,7 @@ fn main() {
             github_create_session_pr,
             github_preview_pr,
             github_get_pr_review_comments,
+            github_get_pr_feedback,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,

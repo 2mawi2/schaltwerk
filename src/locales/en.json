@@ -815,7 +815,9 @@
     "resetSession": "Reset Session",
     "markAsReviewed": "Mark as Reviewed",
     "markAsReviewedTitle": "Mark this session as reviewed",
-    "openPrInPreview": "Open PR #{number} in app preview"
+    "openPrInPreview": "Open PR #{number} in app preview",
+    "sendPrFeedback": "Send PR #{number} feedback digest to terminal",
+    "prFeedback": "PR #{number} Feedback"
   },
   "collapsedDiffBadge": {
     "generatedFile": "Generated file",
@@ -1153,7 +1155,10 @@
     "commentsSent": "Comments sent",
     "commentsSentDesc": "{count} comment(s) sent to terminal",
     "commentsCopied": "Comments copied",
-    "commentsCopiedDesc": "{count} comment(s) copied to clipboard"
+    "commentsCopiedDesc": "{count} comment(s) copied to clipboard",
+    "feedbackSent": "Feedback sent",
+    "feedbackSentDesc": "PR feedback digest sent to terminal",
+    "fetchFeedbackFailed": "Failed to fetch PR feedback"
   },
   "ariaLabels": {
     "close": "Close",

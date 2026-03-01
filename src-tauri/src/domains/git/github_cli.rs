@@ -143,6 +143,7 @@ pub struct GitHubPrReview {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubStatusCheck {
+    pub name: Option<String>,
     pub status: Option<String>,
     pub conclusion: Option<String>,
 }
@@ -157,6 +158,34 @@ pub struct GitHubPrReviewComment {
     pub created_at: String,
     pub html_url: String,
     pub in_reply_to_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubReviewThreadComment {
+    pub author_login: Option<String>,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitHubReviewThread {
+    pub id: String,
+    pub is_resolved: bool,
+    pub is_outdated: bool,
+    pub path: String,
+    pub line: Option<u64>,
+    pub comments: Vec<GitHubReviewThreadComment>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GitHubPrFeedback {
+    pub state: String,
+    pub is_draft: bool,
+    pub review_decision: Option<String>,
+    pub latest_reviews: Vec<GitHubPrReview>,
+    pub status_checks: Vec<GitHubStatusCheck>,
+    pub unresolved_threads: Vec<GitHubReviewThread>,
+    pub resolved_thread_count: usize,
 }
 
 #[derive(Debug)]
@@ -889,6 +918,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             .unwrap_or_default()
             .into_iter()
             .map(|check| GitHubStatusCheck {
+                name: check.name,
                 status: check.status,
                 conclusion: check.conclusion,
             })
@@ -983,6 +1013,111 @@ impl<R: CommandRunner> GitHubCli<R> {
             .collect();
 
         Ok(comments)
+    }
+
+    pub fn get_pr_feedback(
+        &self,
+        project_path: &Path,
+        pr_number: u64,
+        repository: Option<&str>,
+    ) -> Result<GitHubPrFeedback, GitHubCliError> {
+        debug!(
+            "[GitHubCli] Fetching PR feedback for project={}, pr_number={}",
+            project_path.display(),
+            pr_number
+        );
+        ensure_git_remote_exists(project_path)?;
+
+        let pr_details = self.get_pr_with_comments(project_path, pr_number, repository)?;
+
+        let repo_name = match repository {
+            Some(repo) => repo.to_string(),
+            None => self.view_repository(project_path)?.name_with_owner,
+        };
+        let (owner, name) = parse_owner_name(&repo_name)?;
+
+        let query = format!(
+            r#"{{ repository(owner: "{owner}", name: "{name}") {{ pullRequest(number: {pr_number}) {{ state isDraft reviewDecision latestReviews(last: 10) {{ nodes {{ author {{ login }} state submittedAt }} }} reviewThreads(last: 100) {{ nodes {{ id isResolved isOutdated path line comments(last: 20) {{ nodes {{ author {{ login }} body createdAt }} }} }} }} }} }} }}"#
+        );
+
+        let env = [("GH_PROMPT_DISABLED", "1"), ("NO_COLOR", "1")];
+        let query_arg = format!("query={query}");
+        let args_vec = vec![
+            "api".to_string(),
+            "graphql".to_string(),
+            "-f".to_string(),
+            query_arg.clone(),
+        ];
+        let arg_refs: Vec<&str> = args_vec.iter().map(|entry| entry.as_str()).collect();
+
+        let output = self
+            .runner
+            .run(&self.program, &arg_refs, Some(project_path), &env)
+            .map_err(map_runner_error)?;
+
+        if !output.success() {
+            return Err(command_failure(&self.program, &args_vec, output));
+        }
+
+        let clean_output = strip_ansi_codes(&output.stdout);
+        let parsed: GraphQLResponse<PrFeedbackGraphQLData> =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse PR feedback GraphQL response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned PR feedback in an unexpected format.".to_string(),
+                )
+            })?;
+
+        let pr = parsed.data.repository.pull_request;
+        let all_threads = pr.review_threads.nodes;
+        let resolved_thread_count = all_threads.iter().filter(|t| t.is_resolved).count();
+
+        let unresolved_threads = all_threads
+            .into_iter()
+            .filter(|t| !t.is_resolved && !t.is_outdated)
+            .map(|t| GitHubReviewThread {
+                id: t.id,
+                is_resolved: t.is_resolved,
+                is_outdated: t.is_outdated,
+                path: t.path,
+                line: t.line,
+                comments: t
+                    .comments
+                    .nodes
+                    .into_iter()
+                    .map(|c| GitHubReviewThreadComment {
+                        author_login: c.author.and_then(|a| a.login),
+                        body: c.body,
+                        created_at: c.created_at,
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        let latest_reviews = pr
+            .latest_reviews
+            .nodes
+            .into_iter()
+            .map(|r| GitHubPrReview {
+                author_login: r.author.and_then(|a| a.login),
+                state: r.state,
+                submitted_at: r.submitted_at.unwrap_or_default(),
+            })
+            .collect();
+
+        Ok(GitHubPrFeedback {
+            state: pr.state,
+            is_draft: pr.is_draft,
+            review_decision: pr.review_decision,
+            latest_reviews,
+            status_checks: pr_details.status_check_rollup,
+            unresolved_threads,
+            resolved_thread_count,
+        })
     }
 
     pub fn create_pr_from_worktree(
@@ -1998,6 +2133,7 @@ struct PrDetailsResponse {
 
 #[derive(Debug, Deserialize)]
 struct StatusCheckRollupNode {
+    name: Option<String>,
     status: Option<String>,
     conclusion: Option<String>,
 }
@@ -2021,6 +2157,74 @@ struct PrReviewCommentResponse {
     created_at: String,
     html_url: String,
     in_reply_to_id: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLResponse<T> {
+    data: T,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrFeedbackGraphQLData {
+    repository: GraphQLRepository,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLRepository {
+    #[serde(rename = "pullRequest")]
+    pull_request: GraphQLPullRequest,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLPullRequest {
+    state: String,
+    #[serde(rename = "isDraft")]
+    is_draft: bool,
+    #[serde(rename = "reviewDecision")]
+    review_decision: Option<String>,
+    #[serde(rename = "latestReviews")]
+    latest_reviews: GraphQLConnection<GraphQLReviewNode>,
+    #[serde(rename = "reviewThreads")]
+    review_threads: GraphQLConnection<GraphQLReviewThreadNode>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLConnection<T> {
+    nodes: Vec<T>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLReviewNode {
+    author: Option<IssueActor>,
+    state: String,
+    #[serde(rename = "submittedAt")]
+    submitted_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLReviewThreadNode {
+    id: String,
+    #[serde(rename = "isResolved")]
+    is_resolved: bool,
+    #[serde(rename = "isOutdated")]
+    is_outdated: bool,
+    path: String,
+    line: Option<u64>,
+    comments: GraphQLConnection<GraphQLThreadCommentNode>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GraphQLThreadCommentNode {
+    author: Option<IssueActor>,
+    body: String,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+}
+
+fn parse_owner_name(name_with_owner: &str) -> Result<(&str, &str), GitHubCliError> {
+    name_with_owner
+        .split_once('/')
+        .ok_or_else(|| GitHubCliError::InvalidInput(format!("Invalid repository: {name_with_owner}")))
 }
 
 #[cfg(test)]
@@ -2832,5 +3036,192 @@ mod tests {
         );
         assert!(!args.contains(&"--title".to_string()));
         assert!(!args.contains(&"--body".to_string()));
+    }
+
+    #[test]
+    fn parse_owner_name_splits_valid_input() {
+        let (owner, name) = parse_owner_name("octocat/hello-world").unwrap();
+        assert_eq!(owner, "octocat");
+        assert_eq!(name, "hello-world");
+    }
+
+    #[test]
+    fn parse_owner_name_rejects_missing_slash() {
+        let err = parse_owner_name("no-slash-here").unwrap_err();
+        assert!(matches!(err, GitHubCliError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn graphql_pr_feedback_response_deserializes() {
+        let json_str = r#"{
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "state": "OPEN",
+                        "isDraft": false,
+                        "reviewDecision": "CHANGES_REQUESTED",
+                        "latestReviews": {
+                            "nodes": [
+                                { "author": { "login": "alice" }, "state": "CHANGES_REQUESTED", "submittedAt": "2024-01-01T00:00:00Z" }
+                            ]
+                        },
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "id": "PRRT_thread1",
+                                    "isResolved": false,
+                                    "isOutdated": false,
+                                    "path": "src/main.rs",
+                                    "line": 42,
+                                    "comments": {
+                                        "nodes": [
+                                            { "author": { "login": "alice" }, "body": "Fix this", "createdAt": "2024-01-01T00:00:00Z" }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "id": "PRRT_thread2",
+                                    "isResolved": true,
+                                    "isOutdated": false,
+                                    "path": "src/lib.rs",
+                                    "line": 10,
+                                    "comments": {
+                                        "nodes": [
+                                            { "author": { "login": "bob" }, "body": "Already resolved", "createdAt": "2024-01-01T00:00:00Z" }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "id": "PRRT_thread3",
+                                    "isResolved": false,
+                                    "isOutdated": true,
+                                    "path": "src/old.rs",
+                                    "line": 5,
+                                    "comments": {
+                                        "nodes": []
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }"#;
+
+        let parsed: GraphQLResponse<PrFeedbackGraphQLData> =
+            serde_json::from_str(json_str).expect("should deserialize");
+
+        let pr = parsed.data.repository.pull_request;
+        assert_eq!(pr.state, "OPEN");
+        assert!(!pr.is_draft);
+        assert_eq!(pr.review_decision, Some("CHANGES_REQUESTED".to_string()));
+        assert_eq!(pr.latest_reviews.nodes.len(), 1);
+        assert_eq!(pr.latest_reviews.nodes[0].state, "CHANGES_REQUESTED");
+
+        let threads = pr.review_threads.nodes;
+        assert_eq!(threads.len(), 3);
+
+        let resolved_count = threads.iter().filter(|t| t.is_resolved).count();
+        assert_eq!(resolved_count, 1);
+
+        let unresolved_not_outdated: Vec<_> = threads
+            .iter()
+            .filter(|t| !t.is_resolved && !t.is_outdated)
+            .collect();
+        assert_eq!(unresolved_not_outdated.len(), 1);
+        assert_eq!(unresolved_not_outdated[0].path, "src/main.rs");
+        assert_eq!(unresolved_not_outdated[0].line, Some(42));
+        assert_eq!(unresolved_not_outdated[0].comments.nodes[0].body, "Fix this");
+    }
+
+    #[test]
+    fn get_pr_feedback_filters_resolved_and_outdated_threads() {
+        let runner = MockRunner::default();
+        let tmp = TempDir::new().unwrap();
+        let project_path = tmp.path();
+
+        let repo = Repository::init(project_path).unwrap();
+        repo.remote("origin", "https://github.com/owner/repo.git")
+            .unwrap();
+
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: json!({
+                "number": 1,
+                "title": "Test PR",
+                "url": "https://github.com/owner/repo/pull/1",
+                "body": "desc",
+                "labels": [],
+                "comments": [],
+                "headRefName": "feature",
+                "reviewDecision": "APPROVED",
+                "statusCheckRollup": [
+                    { "name": "CI", "status": "COMPLETED", "conclusion": "SUCCESS", "__typename": "CheckRun" }
+                ],
+                "latestReviews": [],
+                "isCrossRepository": false
+            })
+            .to_string(),
+            stderr: String::new(),
+        }));
+
+        runner.push_response(Ok(CommandOutput {
+            status: Some(0),
+            stdout: json!({
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "state": "OPEN",
+                            "isDraft": false,
+                            "reviewDecision": "APPROVED",
+                            "latestReviews": { "nodes": [] },
+                            "reviewThreads": {
+                                "nodes": [
+                                    {
+                                        "id": "PRRT_keep",
+                                        "isResolved": false,
+                                        "isOutdated": false,
+                                        "path": "keep.rs",
+                                        "line": 1,
+                                        "comments": { "nodes": [
+                                            { "author": { "login": "u" }, "body": "unresolved", "createdAt": "" }
+                                        ] }
+                                    },
+                                    {
+                                        "id": "PRRT_resolved",
+                                        "isResolved": true,
+                                        "isOutdated": false,
+                                        "path": "resolved.rs",
+                                        "line": 2,
+                                        "comments": { "nodes": [] }
+                                    },
+                                    {
+                                        "id": "PRRT_outdated",
+                                        "isResolved": false,
+                                        "isOutdated": true,
+                                        "path": "outdated.rs",
+                                        "line": 3,
+                                        "comments": { "nodes": [] }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            })
+            .to_string(),
+            stderr: String::new(),
+        }));
+
+        let cli = GitHubCli::with_runner(runner);
+        let feedback = cli.get_pr_feedback(project_path, 1, Some("owner/repo")).unwrap();
+
+        assert_eq!(feedback.state, "OPEN");
+        assert_eq!(feedback.unresolved_threads.len(), 1);
+        assert_eq!(feedback.unresolved_threads[0].id, "PRRT_keep");
+        assert_eq!(feedback.unresolved_threads[0].path, "keep.rs");
+        assert_eq!(feedback.resolved_thread_count, 1);
+        assert_eq!(feedback.status_checks.len(), 1);
+        assert_eq!(feedback.status_checks[0].name, Some("CI".to_string()));
     }
 }

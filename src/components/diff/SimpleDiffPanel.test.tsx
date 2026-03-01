@@ -7,7 +7,6 @@ import { TestProviders } from '../../tests/test-utils'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 import { rightPanelTabAtom } from '../../store/atoms/rightPanelTab'
-import { previewStateAtom } from '../../store/atoms/preview'
 import { projectPathAtom } from '../../store/atoms/project'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))

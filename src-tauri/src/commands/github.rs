@@ -8,8 +8,8 @@ use schaltwerk::shared::session_metadata_gateway::SessionMetadataGateway;
 use schaltwerk::services::{
     CommandRunner, CreatePrOptions, CreateSessionPrOptions, GitHubCli, GitHubCliError,
     GitHubIssueComment, GitHubIssueDetails, GitHubIssueLabel, GitHubIssueSummary,
-    GitHubPrDetails, GitHubPrReview, GitHubPrReviewComment, GitHubPrSummary, GitHubStatusCheck,
-    MergeMode, PrCommitMode, PrContent, sanitize_branch_name,
+    GitHubPrDetails, GitHubPrReview, GitHubPrReviewComment, GitHubPrSummary,
+    GitHubStatusCheck, MergeMode, PrCommitMode, PrContent, sanitize_branch_name,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -661,6 +661,121 @@ async fn github_get_pr_review_comments_impl<R: CommandRunner>(
         })?;
 
     Ok(comments.into_iter().map(map_pr_review_comment_payload).collect())
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubReviewThreadCommentPayload {
+    pub author: Option<String>,
+    pub body: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubReviewThreadPayload {
+    pub id: String,
+    pub is_resolved: bool,
+    pub is_outdated: bool,
+    pub path: String,
+    pub line: Option<u64>,
+    pub comments: Vec<GitHubReviewThreadCommentPayload>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubStatusCheckPayload {
+    pub name: Option<String>,
+    pub status: Option<String>,
+    pub conclusion: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubPrFeedbackPayload {
+    pub state: String,
+    pub is_draft: bool,
+    pub review_decision: Option<String>,
+    pub latest_reviews: Vec<GitHubPrReviewPayload>,
+    pub status_checks: Vec<GitHubStatusCheckPayload>,
+    pub unresolved_threads: Vec<GitHubReviewThreadPayload>,
+    pub resolved_thread_count: usize,
+}
+
+#[tauri::command]
+pub async fn github_get_pr_feedback(
+    _app: AppHandle,
+    pr_number: u64,
+) -> Result<GitHubPrFeedbackPayload, String> {
+    let manager = get_project_manager().await;
+    let cli = GitHubCli::new();
+    github_get_pr_feedback_impl(Arc::clone(&manager), &cli, pr_number).await
+}
+
+pub async fn github_get_pr_feedback_impl<R: CommandRunner>(
+    project_manager: Arc<ProjectManager>,
+    cli: &GitHubCli<R>,
+    pr_number: u64,
+) -> Result<GitHubPrFeedbackPayload, String> {
+    let project = resolve_project(project_manager).await?;
+
+    if let Err(err) = cli.ensure_installed() {
+        return Err(format_cli_error(err));
+    }
+
+    let feedback = cli
+        .get_pr_feedback(&project.path, pr_number, project.repository.as_deref())
+        .map_err(|err| {
+            error!("GitHub PR feedback fetch failed: {err}");
+            format_cli_error(err)
+        })?;
+
+    Ok(map_pr_feedback_payload(feedback))
+}
+
+fn map_pr_feedback_payload(
+    feedback: schaltwerk::domains::git::github_cli::GitHubPrFeedback,
+) -> GitHubPrFeedbackPayload {
+    GitHubPrFeedbackPayload {
+        state: feedback.state,
+        is_draft: feedback.is_draft,
+        review_decision: feedback.review_decision,
+        latest_reviews: feedback
+            .latest_reviews
+            .into_iter()
+            .map(map_pr_review_payload)
+            .collect(),
+        status_checks: feedback
+            .status_checks
+            .into_iter()
+            .map(|c| GitHubStatusCheckPayload {
+                name: c.name,
+                status: c.status,
+                conclusion: c.conclusion,
+            })
+            .collect(),
+        unresolved_threads: feedback
+            .unresolved_threads
+            .into_iter()
+            .map(|t| GitHubReviewThreadPayload {
+                id: t.id,
+                is_resolved: t.is_resolved,
+                is_outdated: t.is_outdated,
+                path: t.path,
+                line: t.line,
+                comments: t
+                    .comments
+                    .into_iter()
+                    .map(|c| GitHubReviewThreadCommentPayload {
+                        author: c.author_login,
+                        body: c.body,
+                        created_at: c.created_at,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        resolved_thread_count: feedback.resolved_thread_count,
+    }
 }
 
 fn get_commit_info(worktree_path: &std::path::Path, base_branch: &str) -> Option<(usize, Vec<String>)> {

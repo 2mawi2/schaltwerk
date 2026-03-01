@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCheck, VscDiscard, VscComment, VscLinkExternal, VscPreview } from 'react-icons/vsc'
+import { VscCheck, VscDiscard, VscComment, VscChecklist, VscLinkExternal, VscPreview } from 'react-icons/vsc'
 import type { EnrichedSession } from '../../types/session'
 import { TauriCommands } from '../../common/tauriCommands'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { usePrComments } from '../../hooks/usePrComments'
+import { usePrFeedback } from '../../hooks/usePrFeedback'
 import { useTranslation } from '../../common/i18n'
 import { useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
@@ -40,6 +41,7 @@ export function DiffSessionActions({
 }: DiffSessionActionsProps) {
   const { t } = useTranslation()
   const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
+  const { fetchingFeedback, fetchAndPasteFeedback } = usePrFeedback()
   const projectPath = useAtomValue(projectPathAtom)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -87,6 +89,11 @@ export function DiffSessionActions({
     await fetchAndPasteToTerminal(prNumber)
   }, [prNumber, fetchAndPasteToTerminal])
 
+  const handleFetchAndPasteFeedback = useCallback(async () => {
+    if (!prNumber) return
+    await fetchAndPasteFeedback(prNumber)
+  }, [prNumber, fetchAndPasteFeedback])
+
   const handleOpenPrInPreview = useCallback(() => {
     if (!prUrl || !projectPath || !sessionName) return
     const previewKey = buildPreviewKey(projectPath, 'session', sessionName)
@@ -100,6 +107,15 @@ export function DiffSessionActions({
       <>
         {prNumber && (
           <>
+            <button
+              onClick={() => { void handleFetchAndPasteFeedback() }}
+              className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              title={t.diffSessionActions.sendPrFeedback.replace('{number}', String(prNumber))}
+              disabled={fetchingFeedback}
+            >
+              <VscChecklist className="text-lg" />
+              {fetchingFeedback ? t.diffSessionActions.fetching : t.diffSessionActions.prFeedback.replace('{number}', String(prNumber))}
+            </button>
             <button
               onClick={() => { void handleFetchAndPasteComments() }}
               className="px-2 py-1 bg-blue-600/80 hover:bg-blue-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -151,7 +167,7 @@ export function DiffSessionActions({
         )}
       </>
     )
-  }, [t, isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed, prNumber, prUrl, fetchingComments, handleFetchAndPasteComments, handleOpenPrInPreview])
+  }, [t, isSessionSelection, isResetting, canMarkReviewed, handleMarkReviewedClick, isMarkingReviewed, prNumber, prUrl, fetchingComments, handleFetchAndPasteComments, fetchingFeedback, handleFetchAndPasteFeedback, handleOpenPrInPreview])
 
   const dialogs = useMemo(() => (
     <ConfirmResetDialog

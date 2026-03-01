@@ -1473,4 +1473,41 @@ export class SchaltwerkBridge {
       return null
     }
   }
+
+  async getPrFeedback(sessionName: string): Promise<PrFeedbackPayload> {
+    const response = await this.fetchWithAutoPort(
+      `/api/sessions/${encodeURIComponent(sessionName)}/pr-feedback`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          ...this.getProjectHeaders()
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const body = await response.text()
+      throw new Error(body || `Failed to get PR feedback: ${response.statusText}`)
+    }
+
+    return await response.json() as PrFeedbackPayload
+  }
+}
+
+export interface PrFeedbackPayload {
+  state: string
+  isDraft: boolean
+  reviewDecision: string | null
+  latestReviews: Array<{ author: string | null; state: string; submittedAt: string }>
+  statusChecks: Array<{ name: string | null; status: string | null; conclusion: string | null }>
+  unresolvedThreads: Array<{
+    id: string
+    isResolved: boolean
+    isOutdated: boolean
+    path: string
+    line: number | null
+    comments: Array<{ author: string | null; body: string; createdAt: string }>
+  }>
+  resolvedThreadCount: number
 }

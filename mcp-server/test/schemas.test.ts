@@ -158,6 +158,29 @@ const sampleStructuredOutputs: Record<string, any> = {
     session: 'alpha_spec',
     deleted: true,
   },
+  schaltwerk_get_pr_feedback: {
+    state: 'OPEN',
+    isDraft: false,
+    reviewDecision: 'CHANGES_REQUESTED',
+    latestReviews: [
+      { author: 'alice', state: 'CHANGES_REQUESTED', submittedAt: '2024-01-01T00:00:00Z' },
+    ],
+    statusChecks: [
+      { name: 'Unit Tests', status: 'COMPLETED', conclusion: 'FAILURE' },
+      { name: 'Lint', status: 'IN_PROGRESS', conclusion: null },
+    ],
+    unresolvedThreads: [
+      {
+        id: 'PRRT_kwDOABC123',
+        path: 'src/auth/login.ts',
+        line: 42,
+        comments: [
+          { author: 'alice', body: 'Validate email format', createdAt: '2024-01-01T00:00:00Z' },
+        ],
+      },
+    ],
+    resolvedThreadCount: 2,
+  },
   schaltwerk_get_current_tasks: {
     tasks: [
       {

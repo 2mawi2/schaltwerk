@@ -815,7 +815,9 @@
     "resetSession": "重置会话",
     "markAsReviewed": "标记为已审核",
     "markAsReviewedTitle": "将此会话标记为已审核",
-    "openPrInPreview": "在应用预览中打开 PR #{number}"
+    "openPrInPreview": "在应用预览中打开 PR #{number}",
+    "sendPrFeedback": "将 PR #{number} 反馈摘要发送到终端",
+    "prFeedback": "PR #{number} 反馈"
   },
   "collapsedDiffBadge": {
     "generatedFile": "生成的文件",
@@ -1153,7 +1155,10 @@
     "commentsSent": "评论已发送",
     "commentsSentDesc": "已发送 {count} 条评论到终端",
     "commentsCopied": "评论已复制",
-    "commentsCopiedDesc": "已复制 {count} 条评论到剪贴板"
+    "commentsCopiedDesc": "已复制 {count} 条评论到剪贴板",
+    "feedbackSent": "反馈已发送",
+    "feedbackSentDesc": "PR 反馈摘要已发送到终端",
+    "fetchFeedbackFailed": "获取 PR 反馈失败"
   },
   "ariaLabels": {
     "close": "关闭",

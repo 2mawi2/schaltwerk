@@ -533,6 +533,66 @@ export const toolOutputSchemas = {
     required: ['session', 'linked'],
     additionalProperties: false,
   },
+
+  schaltwerk_get_pr_feedback: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      state: { type: 'string' },
+      isDraft: { type: 'boolean' },
+      reviewDecision: nullableString,
+      latestReviews: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            author: nullableString,
+            state: { type: 'string' },
+            submittedAt: { type: 'string' },
+          },
+          required: ['state', 'submittedAt'],
+        },
+      },
+      statusChecks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: nullableString,
+            status: nullableString,
+            conclusion: nullableString,
+          },
+        },
+      },
+      unresolvedThreads: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            path: { type: 'string' },
+            line: nullableNumber,
+            comments: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  author: nullableString,
+                  body: { type: 'string' },
+                  createdAt: { type: 'string' },
+                },
+                required: ['body', 'createdAt'],
+              },
+            },
+          },
+          required: ['id', 'path', 'comments'],
+        },
+      },
+      resolvedThreadCount: { type: 'number' },
+    },
+    required: ['state', 'isDraft', 'latestReviews', 'statusChecks', 'unresolvedThreads', 'resolvedThreadCount'],
+    additionalProperties: false,
+  },
 } as const
 
 export type ToolOutputName = keyof typeof toolOutputSchemas

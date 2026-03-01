@@ -19,6 +19,7 @@ export const TauriCommands = {
   GitHubGetPrDetails: 'github_get_pr_details',
   GitHubPreviewPr: 'github_preview_pr',
   GitHubGetPrReviewComments: 'github_get_pr_review_comments',
+  GitHubGetPrFeedback: 'github_get_pr_feedback',
   CreateNewProject: 'create_new_project',
   CreateRunTerminal: 'create_run_terminal',
   CreateTerminal: 'create_terminal',

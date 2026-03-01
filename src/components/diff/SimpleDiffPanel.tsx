@@ -9,6 +9,7 @@ import {
   VscChevronLeft,
   VscLink,
   VscComment,
+  VscChecklist,
   VscLinkExternal,
   VscPreview,
   VscPass,
@@ -43,6 +44,7 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { LinkPrModal } from '../modals/LinkPrModal'
 import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
+import { usePrFeedback } from '../../hooks/usePrFeedback'
 import { useGithubPrSearch } from '../../hooks/useGithubPrSearch'
 import type { GithubPrDetails } from '../../types/githubIssues'
 
@@ -88,6 +90,7 @@ export function SimpleDiffPanel({
   const { sessions, reloadSessions } = useSessions()
   const { getOrchestratorAgentType } = useClaudeSession()
   const { fetchingComments, fetchAndPasteToTerminal } = usePrComments()
+  const { fetchingFeedback, fetchAndPasteFeedback } = usePrFeedback()
   const projectPath = useAtomValue(projectPathAtom)
   const setPreviewUrl = useSetAtom(setPreviewUrlActionAtom)
   const setRightPanelTab = useSetAtom(rightPanelTabAtom)
@@ -255,11 +258,16 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
     await fetchAndPasteToTerminal(prNumber)
   }, [prNumber, fetchAndPasteToTerminal])
 
+  const handleFetchAndPasteFeedback = useCallback(async () => {
+    if (!prNumber) return
+    await fetchAndPasteFeedback(prNumber)
+  }, [prNumber, fetchAndPasteFeedback])
+
   const handleOpenPrInPreview = useCallback(() => {
     if (!prUrl || !projectPath || !sessionName) return
     const previewKey = buildPreviewKey(projectPath, 'session', sessionName)
     setPreviewUrl({ key: previewKey, url: prUrl })
-    setRightPanelTab('preview')
+    void setRightPanelTab('preview')
   }, [prUrl, projectPath, sessionName, setPreviewUrl, setRightPanelTab])
 
   const handleViewerSelectionChange = useCallback((filePath: string | null) => {
@@ -465,6 +473,14 @@ const handleToggleInlinePreference = useCallback((event: ChangeEvent<HTMLInputEl
                     )}
                   </div>
                 )}
+                <button
+                  onClick={() => { void handleFetchAndPasteFeedback() }}
+                  className="p-1 rounded text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
+                  title={t.diffSessionActions.sendPrFeedback.replace('{number}', String(prNumber))}
+                  disabled={fetchingFeedback}
+                >
+                  <VscChecklist />
+                </button>
                 <button
                   onClick={() => { void handleFetchAndPasteComments() }}
                   className="p-1 rounded text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"

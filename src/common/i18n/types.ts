@@ -810,13 +810,16 @@ export interface Translations {
   }
   diffSessionActions: {
     sendPrComments: string
+    sendPrFeedback: string
     fetching: string
     prComments: string
+    prFeedback: string
     openPrInBrowser: string
     discardAllChanges: string
     resetSession: string
     markAsReviewed: string
     markAsReviewedTitle: string
+    openPrInPreview: string
   }
   collapsedDiffBadge: {
     generatedFile: string
@@ -1163,6 +1166,9 @@ export interface Translations {
     commentsSentDesc: string
     commentsCopied: string
     commentsCopiedDesc: string
+    feedbackSent: string
+    feedbackSentDesc: string
+    fetchFeedbackFailed: string
   }
   ariaLabels: {
     close: string
