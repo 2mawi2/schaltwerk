@@ -30,6 +30,7 @@ export const STATE_MANAGEMENT_EXCEPTIONS: ArchitectureException[] = [
   { file: 'src/contexts/RunContext.tsx', reason: 'UI coordination - run workflow state (acceptable use)' },
   { file: 'src/contexts/SpecReviewContext.tsx', reason: 'UI coordination - spec review comments state (acceptable use)' },
   { file: 'src/contexts/GithubIntegrationContext.tsx', reason: 'Needs evaluation - might be dependency injection' },
+  { file: 'src/contexts/GitlabIntegrationContext.tsx', reason: 'Needs evaluation - mirrors GithubIntegrationContext pattern' },
   { file: 'src/contexts/KeyboardShortcutsContext.tsx', reason: 'Needs evaluation - might not need reactive state' },
 ];
 

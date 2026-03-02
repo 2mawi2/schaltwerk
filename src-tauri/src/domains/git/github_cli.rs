@@ -15,6 +15,7 @@ use crate::shared::resolve_windows_executable;
 use super::branches::branch_exists;
 use super::operations::{commit_all_changes, has_uncommitted_changes};
 use super::repository::get_current_branch;
+use super::strip_ansi_codes;
 use super::worktrees::update_worktree_branch;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1682,28 +1683,6 @@ fn combine_output(output: &CommandOutput) -> String {
     } else {
         format!("{}\n{}", output.stdout, output.stderr)
     }
-}
-
-fn strip_ansi_codes(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for ch in chars.by_ref() {
-                    if ch.is_ascii_alphabetic() {
-                        break;
-                    }
-                }
-            }
-        } else {
-            result.push(ch);
-        }
-    }
-
-    result
 }
 
 fn extract_pr_url(text: &str) -> Option<String> {
