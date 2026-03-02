@@ -1,14 +1,11 @@
 import { useEffect } from 'react'
-import { useAtomValue } from 'jotai'
 import { useSelection } from './useSelection'
-import { diffLayoutPreferenceAtom } from '../store/atoms/diffPreferences'
 import { diffPreloader } from '../domains/diff/preloader'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { logger } from '../utils/logger'
 
 export function useDiffPreloader(): void {
   const { selection } = useSelection()
-  const diffLayout = useAtomValue(diffLayoutPreferenceAtom)
 
   useEffect(() => {
     if (selection.sessionState === 'spec') return
@@ -16,7 +13,7 @@ export function useDiffPreloader(): void {
     const sessionName = selection.payload ?? null
     const isOrchestrator = selection.kind === 'orchestrator'
 
-    diffPreloader.preload(sessionName, isOrchestrator, diffLayout)
+    diffPreloader.preload(sessionName, isOrchestrator, 'unified')
 
     let disposed = false
     let unlisten: (() => void) | null = null
@@ -26,7 +23,7 @@ export function useDiffPreloader(): void {
       const eventSession = event.session_name
       if (sessionName && eventSession === sessionName) {
         diffPreloader.invalidate(sessionName)
-        diffPreloader.preload(sessionName, isOrchestrator, diffLayout)
+        diffPreloader.preload(sessionName, isOrchestrator, 'unified')
       }
     }).then(fn => {
       if (disposed) {
@@ -42,5 +39,5 @@ export function useDiffPreloader(): void {
       disposed = true
       unlisten?.()
     }
-  }, [selection.payload, selection.kind, selection.sessionState, diffLayout])
+  }, [selection.payload, selection.kind, selection.sessionState])
 }
