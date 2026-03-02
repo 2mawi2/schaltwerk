@@ -27,8 +27,8 @@ describe('agentColors', () => {
             expect(getAgentColorKey('amp')).toBe('yellow')
         })
 
-        it('returns yellow for kilocode', () => {
-            expect(getAgentColorKey('kilocode')).toBe('yellow')
+        it('returns yellow for kilo', () => {
+            expect(getAgentColorKey('kilo')).toBe('yellow')
         })
 
         it('returns red for unknown agents', () => {

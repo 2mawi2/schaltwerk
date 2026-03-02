@@ -12,8 +12,8 @@ describe('getPasteSubmissionOptions', () => {
     expect(result).toEqual({ useBracketedPaste: false, needsDelayedSubmit: true })
   })
 
-  it('returns brackets and delayed submit for kilocode (TUI agent)', () => {
-    const result = getPasteSubmissionOptions('kilocode')
+  it('returns brackets and delayed submit for kilo (TUI agent)', () => {
+    const result = getPasteSubmissionOptions('kilo')
     expect(result).toEqual({ useBracketedPaste: true, needsDelayedSubmit: true })
   })
 

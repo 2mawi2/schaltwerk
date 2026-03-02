@@ -27,7 +27,7 @@ export const displayNameForAgent = (agent: AgentType) => {
             return 'Qwen'
         case 'amp':
             return 'Amp'
-        case 'kilocode':
+        case 'kilo':
             return 'Kilo Code'
         case 'terminal':
             return 'Terminal Only'

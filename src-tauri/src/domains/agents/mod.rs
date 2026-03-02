@@ -6,7 +6,7 @@ pub mod command_parser;
 pub mod copilot;
 pub mod droid;
 pub mod gemini;
-pub mod kilocode;
+pub mod kilo;
 pub mod launch_spec;
 pub mod manifest;
 pub mod naming;

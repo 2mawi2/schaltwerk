@@ -222,7 +222,7 @@ impl KilocodeIndex {
 
         let start = Instant::now();
         let (new_index, next_cache, stats) =
-            build_kilocode_session_index(tasks_dir, workspaces_dir, &state.task_cache);
+            build_kilo_session_index(tasks_dir, workspaces_dir, &state.task_cache);
         let elapsed = start.elapsed();
 
         if stats.scanned_files > 0 {
@@ -580,30 +580,30 @@ fn find_kilo_session_in_new_storage(path: &Path, home: &Path) -> Option<Kilocode
     })
 }
 
-// --- Legacy Kilo CLI storage format (~/.kilocode/cli/) ---
+// --- Legacy Kilo CLI storage format (~/.kilo/cli/) ---
 
 /// Get or create the session index with cache invalidation
 #[cfg(not(test))]
 static SESSION_INDEX: OnceLock<KilocodeIndex> = OnceLock::new();
 
-fn find_kilocode_session_in_legacy_storage(
+fn find_kilo_session_in_legacy_storage(
     worktree_path: &Path,
     index_cache: &KilocodeIndex,
 ) -> Option<KilocodeSessionInfo> {
     let home = dirs::home_dir()?;
-    let kilocode_tasks_dir = home.join(".kilocode/cli/global/tasks");
-    let kilocode_workspaces_dir = home.join(".kilocode/cli/workspaces");
+    let kilo_tasks_dir = home.join(".kilo/cli/global/tasks");
+    let kilo_workspaces_dir = home.join(".kilo/cli/workspaces");
 
-    if !kilocode_tasks_dir.exists() || !kilocode_workspaces_dir.exists() {
-        debug!("find_kilocode_session: legacy storage dirs do not exist");
+    if !kilo_tasks_dir.exists() || !kilo_workspaces_dir.exists() {
+        debug!("find_kilo_session: legacy storage dirs do not exist");
         return None;
     }
 
     let normalized_worktree = normalize_path(worktree_path)?;
-    let index = index_cache.get_or_rebuild(&kilocode_tasks_dir, &kilocode_workspaces_dir);
+    let index = index_cache.get_or_rebuild(&kilo_tasks_dir, &kilo_workspaces_dir);
 
     let entry = index.get(&normalized_worktree);
-    debug!("find_kilocode_session: legacy lookup result for {normalized_worktree:?} = {entry:?}");
+    debug!("find_kilo_session: legacy lookup result for {normalized_worktree:?} = {entry:?}");
 
     entry.map(|e| KilocodeSessionInfo {
         id: e.session_id.clone(),
@@ -613,12 +613,12 @@ fn find_kilocode_session_in_legacy_storage(
 
 /// Find a Kilocode session by matching worktree path.
 /// Tries the new OpenCode-compatible storage format first (~/.local/share/kilo/storage/),
-/// then falls back to the legacy format (~/.kilocode/cli/).
-fn find_kilocode_session_with_index(
+/// then falls back to the legacy format (~/.kilo/cli/).
+fn find_kilo_session_with_index(
     worktree_path: &Path,
     index_cache: &KilocodeIndex,
 ) -> Option<KilocodeSessionInfo> {
-    debug!("find_kilocode_session: looking for worktree_path={worktree_path:?}");
+    debug!("find_kilo_session: looking for worktree_path={worktree_path:?}");
 
     let home = dirs::home_dir()?;
 
@@ -626,19 +626,19 @@ fn find_kilocode_session_with_index(
         return Some(info);
     }
 
-    find_kilocode_session_in_legacy_storage(worktree_path, index_cache)
+    find_kilo_session_in_legacy_storage(worktree_path, index_cache)
 }
 
 #[cfg(not(test))]
-pub fn find_kilocode_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
+pub fn find_kilo_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
     let index_cache = SESSION_INDEX.get_or_init(KilocodeIndex::new);
-    find_kilocode_session_with_index(worktree_path, index_cache)
+    find_kilo_session_with_index(worktree_path, index_cache)
 }
 
 #[cfg(test)]
-pub fn find_kilocode_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
+pub fn find_kilo_session(worktree_path: &Path) -> Option<KilocodeSessionInfo> {
     let index_cache = KilocodeIndex::new();
-    find_kilocode_session_with_index(worktree_path, &index_cache)
+    find_kilo_session_with_index(worktree_path, &index_cache)
 }
 
 #[derive(Clone, Default)]
@@ -672,7 +672,7 @@ struct DiskCacheFile {
 }
 
 fn cache_file_path(tasks_dir: &Path) -> PathBuf {
-    tasks_dir.join("_schaltwerk_kilocode_index_cache.json")
+    tasks_dir.join("_schaltwerk_kilo_index_cache.json")
 }
 
 fn load_disk_cache(tasks_dir: &Path) -> HashMap<PathBuf, CachedTaskEntry> {
@@ -806,7 +806,7 @@ fn persist_disk_cache(tasks_dir: &Path, cache: &HashMap<PathBuf, CachedTaskEntry
 /// Build the session index by scanning KiloCode workspaces + tasks.
 /// Maps normalized CWD paths to the workspace's lastSession.sessionId
 /// along with whether the matched task has meaningful conversation history.
-fn build_kilocode_session_index(
+fn build_kilo_session_index(
     tasks_dir: &Path,
     workspaces_dir: &Path,
     previous_cache: &HashMap<PathBuf, CachedTaskEntry>,
@@ -953,7 +953,7 @@ fn escape_single_quotes(s: &str) -> String {
     s.replace('\'', "'\"'\"'")
 }
 
-pub fn build_kilocode_command_with_config(
+pub fn build_kilo_command_with_config(
     worktree_path: &Path,
     session_info: Option<&KilocodeSessionInfo>,
     initial_prompt: Option<&str>,
@@ -965,13 +965,13 @@ pub fn build_kilocode_command_with_config(
             if !trimmed.is_empty() {
                 trimmed
             } else {
-                "kilocode"
+                "kilo"
             }
         } else {
-            "kilocode"
+            "kilo"
         }
     } else {
-        "kilocode"
+        "kilo"
     };
     let binary_invocation = format_binary_invocation(binary_name);
     let cwd_quoted = format_binary_invocation(&worktree_path.display().to_string());
@@ -1022,23 +1022,23 @@ mod tests {
     #[test]
     fn test_new_session_with_prompt() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some("implement feature X"),
             Some(&config),
         );
-        assert!(cmd.ends_with("kilocode --prompt 'implement feature X'"));
+        assert!(cmd.ends_with("kilo --prompt 'implement feature X'"));
     }
 
     #[test]
     fn test_command_with_spaces_in_cwd() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/with spaces"),
             None,
             None,
@@ -1050,27 +1050,27 @@ mod tests {
     #[test]
     fn test_basic_command() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some("hello"),
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && kilocode --prompt 'hello'");
+        assert_eq!(cmd, "cd /path/to/worktree && kilo --prompt 'hello'");
     }
 
     #[test]
     fn test_resume_by_session_id_with_history() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
         let session_info = KilocodeSessionInfo {
             id: "abc-123-session".to_string(),
             has_history: true,
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             Some("ignored prompt"),
@@ -1078,20 +1078,20 @@ mod tests {
         );
         assert_eq!(
             cmd,
-            "cd /path/to/worktree && kilocode --session abc-123-session"
+            "cd /path/to/worktree && kilo --session abc-123-session"
         );
     }
 
     #[test]
     fn test_resume_session_with_history() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
         let session_info = KilocodeSessionInfo {
             id: "session-xyz".to_string(),
             has_history: true,
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             None,
@@ -1099,38 +1099,38 @@ mod tests {
         );
         assert_eq!(
             cmd,
-            "cd /path/to/worktree && kilocode --session session-xyz"
+            "cd /path/to/worktree && kilo --session session-xyz"
         );
     }
 
     #[test]
     fn test_session_without_history_starts_fresh() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
         let session_info = KilocodeSessionInfo {
             id: "stale-session".to_string(),
             has_history: false,
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             None,
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && kilocode");
+        assert_eq!(cmd, "cd /path/to/worktree && kilo");
     }
 
     #[test]
     fn test_session_without_history_uses_prompt() {
         let config = KilocodeConfig {
-            binary_path: Some("kilocode".to_string()),
+            binary_path: Some("kilo".to_string()),
         };
         let session_info = KilocodeSessionInfo {
             id: "stale-session".to_string(),
             has_history: false,
         };
-        let cmd = build_kilocode_command_with_config(
+        let cmd = build_kilo_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             Some("implement feature Y"),
@@ -1138,7 +1138,7 @@ mod tests {
         );
         assert_eq!(
             cmd,
-            "cd /path/to/worktree && kilocode --prompt 'implement feature Y'"
+            "cd /path/to/worktree && kilo --prompt 'implement feature Y'"
         );
     }
 
@@ -1254,7 +1254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_kilocode_session_index_with_mapping_no_history() {
+    fn test_build_kilo_session_index_with_mapping_no_history() {
         let temp_dir = TempDir::new().unwrap();
         let tasks_dir = temp_dir.path().join("tasks");
         let workspaces_dir = temp_dir.path().join("workspaces");
@@ -1284,14 +1284,14 @@ mod tests {
         .unwrap();
 
         let (index, _cache, _stats) =
-            build_kilocode_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
+            build_kilo_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
         let entry = index.get(&normalize_path(&project_dir).unwrap()).unwrap();
         assert_eq!(entry.session_id, "last-sess-123");
         assert!(!entry.has_history);
     }
 
     #[test]
-    fn test_build_kilocode_session_index_with_history() {
+    fn test_build_kilo_session_index_with_history() {
         let temp_dir = TempDir::new().unwrap();
         let tasks_dir = temp_dir.path().join("tasks");
         let workspaces_dir = temp_dir.path().join("workspaces");
@@ -1321,18 +1321,18 @@ mod tests {
         .unwrap();
 
         let (index, _cache, _stats) =
-            build_kilocode_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
+            build_kilo_session_index(&tasks_dir, &workspaces_dir, &HashMap::new());
         let entry = index.get(&normalize_path(&project_dir).unwrap()).unwrap();
         assert_eq!(entry.session_id, "sess-with-history");
         assert!(entry.has_history);
     }
 
     #[test]
-    fn test_find_kilocode_session_graceful_degradation() {
+    fn test_find_kilo_session_graceful_degradation() {
         let temp_dir = TempDir::new().unwrap();
         let nonexistent = temp_dir.path().join("nonexistent");
 
-        let result = find_kilocode_session(&nonexistent);
+        let result = find_kilo_session(&nonexistent);
         assert!(result.is_none());
     }
 

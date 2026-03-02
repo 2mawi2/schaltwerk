@@ -37,7 +37,7 @@ pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
         AgentKind::Droid
     } else if agent_name.ends_with("/qwen") || agent_name == "qwen" {
         AgentKind::Qwen
-    } else if agent_name.contains("kilocode") {
+    } else if agent_name.contains("kilo") {
         AgentKind::Kilocode
     } else {
         AgentKind::Fallback
@@ -55,7 +55,7 @@ impl AgentKind {
             AgentKind::Amp => "amp",
             AgentKind::Droid => "droid",
             AgentKind::Qwen => "qwen",
-            AgentKind::Kilocode => "kilocode",
+            AgentKind::Kilocode => "kilo",
             AgentKind::Fallback => "claude",
         }
     }
@@ -75,7 +75,7 @@ pub async fn collect_agent_env_and_cli(
         AgentKind::Amp => "amp",
         AgentKind::Droid => "droid",
         AgentKind::Qwen => "qwen",
-        AgentKind::Kilocode => "kilocode",
+        AgentKind::Kilocode => "kilo",
         AgentKind::Fallback => "claude",
     };
 
@@ -334,7 +334,7 @@ mod tests {
         ));
         assert!(matches!(infer_agent_kind("qwen"), AgentKind::Qwen));
         assert!(matches!(infer_agent_kind("/usr/bin/qwen"), AgentKind::Qwen));
-        assert!(matches!(infer_agent_kind("kilocode"), AgentKind::Kilocode));
+        assert!(matches!(infer_agent_kind("kilo"), AgentKind::Kilocode));
         assert!(matches!(infer_agent_kind("unknown"), AgentKind::Fallback));
     }
 
@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(AgentKind::Amp.manifest_key(), "amp");
         assert_eq!(AgentKind::Droid.manifest_key(), "droid");
         assert_eq!(AgentKind::Qwen.manifest_key(), "qwen");
-        assert_eq!(AgentKind::Kilocode.manifest_key(), "kilocode");
+        assert_eq!(AgentKind::Kilocode.manifest_key(), "kilo");
         assert_eq!(AgentKind::Fallback.manifest_key(), "claude");
     }
 

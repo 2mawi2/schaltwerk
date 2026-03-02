@@ -43,7 +43,7 @@ pub fn build_submission_payload(
 pub fn submission_options_for_agent(agent_type: Option<&str>) -> (bool, bool) {
     match agent_type {
         Some("claude") | Some("droid") => (false, true),
-        Some("kilocode") => (true, true),
+        Some("kilo") => (true, true),
         _ => (true, false),
     }
 }
@@ -105,7 +105,7 @@ mod tests {
     }
 
     #[test]
-    fn submission_options_for_kilocode_use_bracketed_delayed() {
-        assert_eq!(submission_options_for_agent(Some("kilocode")), (true, true));
+    fn submission_options_for_kilo_use_bracketed_delayed() {
+        assert_eq!(submission_options_for_agent(Some("kilo")), (true, true));
     }
 }

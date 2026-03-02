@@ -32,8 +32,8 @@ pub(crate) fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static
         Some("opencode")
     } else if terminal_id.contains("gemini") {
         Some("gemini")
-    } else if terminal_id.contains("kilocode") {
-        Some("kilocode")
+    } else if terminal_id.contains("kilo") {
+        Some("kilo")
     } else {
         None
     }
@@ -334,8 +334,8 @@ mod tests {
             Some("gemini")
         );
         assert_eq!(
-            get_agent_type_from_terminal("session-kilocode-top"),
-            Some("kilocode")
+            get_agent_type_from_terminal("session-kilo-top"),
+            Some("kilo")
         );
         assert_eq!(get_agent_type_from_terminal("session-unknown-top"), None);
     }

@@ -39,7 +39,7 @@ describe('useSettings', () => {
         droid: [{ key: 'WELCOME_PROMPT', value: 'ready' }],
         qwen: [{ key: 'PROJECT_ID', value: 'test-id' }],
         amp: [{ key: 'AMP_API_KEY', value: 'amp-key' }],
-        kilocode: [{ key: 'KILO_KEY', value: 'kilo-key' }],
+        kilo: [{ key: 'KILO_KEY', value: 'kilo-key' }],
         terminal: []
       }
 
@@ -52,7 +52,7 @@ describe('useSettings', () => {
         droid: '--log-level debug',
         qwen: '--project test',
         amp: '--mode free',
-        kilocode: '--mode architect',
+        kilo: '--mode architect',
         terminal: ''
       }
 
@@ -65,7 +65,7 @@ describe('useSettings', () => {
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
-        kilocode: { model: '', reasoningEffort: '' },
+        kilo: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -122,11 +122,11 @@ describe('useSettings', () => {
         cliArgs: '--mode free'
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
-        agentType: 'kilocode',
+        agentType: 'kilo',
         envVars: { KILO_KEY: 'kilo-key' }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
-        agentType: 'kilocode',
+        agentType: 'kilo',
         cliArgs: '--mode architect'
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
@@ -169,7 +169,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       }
 
@@ -182,7 +182,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       }
 
@@ -195,7 +195,7 @@ describe('useSettings', () => {
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
-        kilocode: { model: '', reasoningEffort: '' },
+        kilo: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -371,7 +371,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       }
 
@@ -384,7 +384,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       }
 
@@ -397,7 +397,7 @@ describe('useSettings', () => {
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
-        kilocode: { model: '', reasoningEffort: '' },
+        kilo: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -467,7 +467,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       }
 
@@ -480,7 +480,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       }
 
@@ -493,7 +493,7 @@ describe('useSettings', () => {
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
-        kilocode: { model: '', reasoningEffort: '' },
+        kilo: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -558,7 +558,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       }
 
@@ -571,7 +571,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       }
 
@@ -584,7 +584,7 @@ describe('useSettings', () => {
         droid: { model: '', reasoningEffort: '' },
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
-        kilocode: { model: '', reasoningEffort: '' },
+        kilo: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -717,7 +717,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       })
       expect(result.current.loading).toBe(false)
@@ -741,7 +741,7 @@ describe('useSettings', () => {
         droid: [],
         qwen: [],
         amp: [],
-        kilocode: [],
+        kilo: [],
         terminal: []
       })
     })
@@ -778,7 +778,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       })
     })
@@ -801,7 +801,7 @@ describe('useSettings', () => {
         droid: '',
         qwen: '',
         amp: '',
-        kilocode: '',
+        kilo: '',
         terminal: ''
       })
     })

@@ -13,7 +13,7 @@ export const getAgentColorKey = (
         case 'codex':
             return 'red'
         case 'amp':
-        case 'kilocode':
+        case 'kilo':
             return 'yellow'
         default:
             return 'red'

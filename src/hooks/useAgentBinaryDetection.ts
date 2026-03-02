@@ -29,7 +29,7 @@ export type AgentType =
     | 'droid'
     | 'qwen'
     | 'amp'
-    | 'kilocode'
+    | 'kilo'
     | 'terminal'
 
 // UI agent names to backend agent names mapping
@@ -42,7 +42,7 @@ const AGENT_TO_BINARY_MAPPING: Record<string, AgentType> = {
     'droid': 'droid',
     'qwen': 'qwen',
     'amp': 'amp',
-    'kilocode': 'kilocode'
+    'kilo': 'kilo'
 }
 
 export function mapAgentToBinary(agentName: string): AgentType {
@@ -63,7 +63,7 @@ const DEFAULT_CONFIGS: Record<string, AgentBinaryConfig> = {
     'droid': { agent_name: 'droid', custom_path: null, auto_detect: true, detected_binaries: [] },
     'qwen': { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
     'amp': { agent_name: 'amp', custom_path: null, auto_detect: true, detected_binaries: [] },
-    'kilocode': { agent_name: 'kilocode', custom_path: null, auto_detect: true, detected_binaries: [] }
+    'kilo': { agent_name: 'kilo', custom_path: null, auto_detect: true, detected_binaries: [] }
 }
 
 // Cache for binary configs to avoid repeated backend calls

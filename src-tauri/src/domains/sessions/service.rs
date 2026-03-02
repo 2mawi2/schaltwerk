@@ -403,7 +403,7 @@ mod service_unified_tests {
         let _registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
-        for (i, agent_type) in ["claude", "codex", "gemini", "opencode", "kilocode"]
+        for (i, agent_type) in ["claude", "codex", "gemini", "opencode", "kilo"]
             .iter()
             .enumerate()
         {

@@ -19,7 +19,7 @@ const DEFAULT_AGENT = 'claude'
 interface SchaltwerkStartArgs {
   name?: string
   prompt?: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp' | 'kilocode'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp' | 'kilo'
   base_branch?: string
   use_existing_branch?: boolean
   skip_permissions?: boolean
@@ -68,7 +68,7 @@ interface SchaltwerkCurrentSpecUpdateArgs {
 
 interface SchaltwerkDraftStartArgs {
   session_name: string
-  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp' | 'kilocode'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex' | 'qwen' | 'droid' | 'amp' | 'kilo'
   skip_permissions?: boolean
   base_branch?: string
 }
@@ -354,7 +354,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   const tools = [
       {
         name: "schaltwerk_create",
-        description: `Create a new Schaltwerk session and matching git worktree for an AI agent. Provide a unique session name plus a specific, implementation-focused prompt; that prompt seeds the agent. Optional fields let you select agent_type (claude, opencode, gemini, codex, qwen, droid, kilocode), choose a base_branch, or bypass manual permission prompts when you understand the risk. Use this whenever you need a fresh, isolated development branch.`,
+        description: `Create a new Schaltwerk session and matching git worktree for an AI agent. Provide a unique session name plus a specific, implementation-focused prompt; that prompt seeds the agent. Optional fields let you select agent_type (claude, opencode, gemini, codex, qwen, droid, kilo), choose a base_branch, or bypass manual permission prompts when you understand the risk. Use this whenever you need a fresh, isolated development branch.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -368,7 +368,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             agent_type: {
             type: "string",
-            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp", "kilocode"],
+            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp", "kilo"],
             description: "AI agent type to use (default: claude)"
             },
             base_branch: {
@@ -656,7 +656,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             agent_type: {
             type: "string",
-            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp", "kilocode"],
+            enum: ["claude", "opencode", "gemini", "codex", "qwen", "droid", "amp", "kilo"],
             description: "AI agent type to use (default: claude)"
             },
             skip_permissions: {

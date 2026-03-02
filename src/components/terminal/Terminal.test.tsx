@@ -569,8 +569,8 @@ describe('Terminal', () => {
     expect(instance.config.minimumContrastRatio).toBeCloseTo(ATLAS_CONTRAST_BASE)
   })
 
-  it('uses agent scrollback for TUI-based agents (kilocode)', async () => {
-    renderTerminal({ terminalId: 'session-kilocode-top', sessionName: 'kilocode', agentType: 'kilocode' })
+  it('uses agent scrollback for TUI-based agents (kilo)', async () => {
+    renderTerminal({ terminalId: 'session-kilo-top', sessionName: 'kilo', agentType: 'kilo' })
 
     await waitFor(() => {
       expect(terminalHarness.acquireMock).toHaveBeenCalled()

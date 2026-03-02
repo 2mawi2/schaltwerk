@@ -67,11 +67,11 @@ default_binary_path = "amp"
 auto_send_initial_command = false
 supports_resume = false
 
-[agents.kilocode]
-id = "kilocode"
+[agents.kilo]
+id = "kilo"
 display_name = "Kilo Code"
-binary_name = "kilocode"
-default_binary_path = "kilocode"
+binary_name = "kilo"
+default_binary_path = "kilo"
 auto_send_initial_command = false
 supports_resume = true
 

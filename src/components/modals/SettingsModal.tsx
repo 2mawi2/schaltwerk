@@ -264,7 +264,7 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     droid: {},
     qwen: {},
     amp: {},
-    kilocode: {},
+    kilo: {},
     terminal: {},
 }
 
@@ -1958,7 +1958,7 @@ fi`}
                         </div>
                     )}
 
-                    {activeAgentTab === 'kilocode' && (
+                    {activeAgentTab === 'kilo' && (
                         <div className="mt-6 p-3 bg-bg-elevated rounded">
                             <div className="text-caption text-text-tertiary">
                                 <strong>Common Kilo Code CLI arguments:</strong>

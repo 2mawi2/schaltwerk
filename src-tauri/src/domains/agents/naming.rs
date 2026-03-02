@@ -281,7 +281,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         log::warn!("Failed to create temp directory for name generation: {e}");
     }
 
-    if agent_type == "opencode" || agent_type == "kilocode" {
+    if agent_type == "opencode" || agent_type == "kilo" {
         if let Err(e) = std::process::Command::new("git")
             .args(["init"])
             .current_dir(&unique_temp_dir)
@@ -470,10 +470,10 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
         return Ok(None);
     }
 
-    if agent_type == "kilocode" {
-        log::info!("Attempting to generate name with kilocode");
+    if agent_type == "kilo" {
+        log::info!("Attempting to generate name with kilo");
 
-        let binary = "kilocode".to_string();
+        let binary = "kilo".to_string();
         let mut command = Command::new(&binary);
         command.args(["run", &prompt_json]);
         command.current_dir(&run_dir);
@@ -486,23 +486,23 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
 
         let output = match output {
             Ok(output) => {
-                log::debug!("kilocode executed successfully");
+                log::debug!("kilo executed successfully");
                 output
             }
             Err(e) => {
-                log::warn!("Failed to execute kilocode: {e}");
+                log::warn!("Failed to execute kilo: {e}");
                 return Ok(None);
             }
         };
 
         if output.status.success() {
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
-            log::debug!("kilocode stdout: {stdout}");
+            log::debug!("kilo stdout: {stdout}");
 
             let candidate = parse_opencode_output(&stdout);
 
             if let Some(result) = candidate {
-                log::info!("kilocode returned name candidate: {result}");
+                log::info!("kilo returned name candidate: {result}");
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
 
@@ -515,14 +515,14 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
                     return Ok(Some(name));
                 }
             } else {
-                log::warn!("kilocode produced no usable output for naming");
+                log::warn!("kilo produced no usable output for naming");
             }
         } else {
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
             log::warn!(
-                "kilocode returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+                "kilo returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
                 stderr.trim(),
                 stdout.trim()
             );

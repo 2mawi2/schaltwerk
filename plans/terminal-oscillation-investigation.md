@@ -50,7 +50,7 @@ if (chunk.includes(CLEAR_SCROLLBACK_SEQ)) {
 Created a centralized list of TUI-based agents and helper function:
 
 ```typescript
-export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilocode', 'claude'] as const
+export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilo', 'claude'] as const
 
 export function isTuiAgent(agentType: string | null | undefined): boolean {
     if (!agentType) return false
@@ -61,7 +61,7 @@ export function isTuiAgent(agentType: string | null | undefined): boolean {
 ### 5. Updated TUI Mode Detection (REFACTORED)
 **Files:** `src/components/terminal/Terminal.tsx`, `src/hooks/useTerminalConfig.ts`
 
-Changed from `agentType === 'kilocode'` to `isTuiAgent(agentType)` so both Kilocode and Claude Code get TUI mode treatment:
+Changed from `agentType === 'kilo'` to `isTuiAgent(agentType)` so both Kilocode and Claude Code get TUI mode treatment:
 - Lower scrollback lines (2000 vs 20000)
 - `shouldFollowOutput()` returns false (prevents auto-scroll)
 - Clear scrollback sequences stripped (prevents viewport jumps)

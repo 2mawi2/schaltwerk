@@ -2411,7 +2411,7 @@ async fn start_orchestrator_with_prompt(
         let mut paths = std::collections::HashMap::new();
         for agent in [
             "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
-            "kilocode",
+            "kilo",
         ] {
             if let Ok(path) = settings.get_effective_binary_path(agent) {
                 paths.insert(agent.to_string(), path);

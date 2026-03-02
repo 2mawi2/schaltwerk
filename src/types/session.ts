@@ -7,12 +7,12 @@ export const AGENT_TYPES = [
     'droid',
     'qwen',
     'amp',
-    'kilocode',
+    'kilo',
     'terminal'
 ] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
-export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilocode', 'claude', 'opencode'] as const
+export const TUI_BASED_AGENTS: readonly AgentType[] = ['kilo', 'claude', 'opencode'] as const
 
 export function isTuiAgent(agentType: string | null | undefined): boolean {
     if (!agentType) return false
@@ -28,7 +28,7 @@ export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     droid: true,
     qwen: true,
     amp: true,
-    kilocode: false,
+    kilo: false,
     terminal: false
 }
 
