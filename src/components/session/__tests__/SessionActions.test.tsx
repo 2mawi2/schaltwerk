@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SessionActions } from '../SessionActions'
 import { GithubIntegrationContext } from '../../../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../../../hooks/useGithubIntegration'
+import { GitlabIntegrationContext } from '../../../contexts/GitlabIntegrationContext'
+import type { GitlabIntegrationValue } from '../../../hooks/useGitlabIntegration'
 
 const pushToast = vi.fn()
 
@@ -17,6 +19,17 @@ vi.mock('../../../hooks/usePrComments', () => ({
     fetchAndCopyToClipboard: vi.fn(),
   }),
 }))
+
+const defaultGitlabValue: GitlabIntegrationValue = {
+  status: null,
+  sources: [],
+  loading: false,
+  isGlabMissing: false,
+  hasSources: false,
+  refreshStatus: async () => {},
+  loadSources: async () => {},
+  saveSources: async () => {},
+}
 
 function renderWithGithub(value: Partial<GithubIntegrationValue>) {
   const defaultValue: GithubIntegrationValue = {
@@ -46,14 +59,16 @@ function renderWithGithub(value: Partial<GithubIntegrationValue>) {
   const contextValue: GithubIntegrationValue = { ...defaultValue, ...value }
 
   return render(
-    <GithubIntegrationContext.Provider value={contextValue}>
-      <SessionActions
-        sessionState="reviewed"
-        isReadyToMerge={true}
-        sessionId="session-123"
-        onCreatePullRequest={vi.fn()}
-      />
-    </GithubIntegrationContext.Provider>
+    <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+      <GithubIntegrationContext.Provider value={contextValue}>
+        <SessionActions
+          sessionState="reviewed"
+          isReadyToMerge={true}
+          sessionId="session-123"
+          onCreatePullRequest={vi.fn()}
+        />
+      </GithubIntegrationContext.Provider>
+    </GitlabIntegrationContext.Provider>
   )
 }
 
@@ -91,14 +106,16 @@ describe('SessionActions – GitHub PR button', () => {
     }
 
     render(
-      <GithubIntegrationContext.Provider value={defaultValue}>
-        <SessionActions
-          sessionState="reviewed"
-          isReadyToMerge={true}
-          sessionId="session-123"
-          onCreatePullRequest={onCreatePullRequest}
-        />
-      </GithubIntegrationContext.Provider>
+      <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+        <GithubIntegrationContext.Provider value={defaultValue}>
+          <SessionActions
+            sessionState="reviewed"
+            isReadyToMerge={true}
+            sessionId="session-123"
+            onCreatePullRequest={onCreatePullRequest}
+          />
+        </GithubIntegrationContext.Provider>
+      </GitlabIntegrationContext.Provider>
     )
 
     const button = screen.getByLabelText('Create pull request')
@@ -117,13 +134,15 @@ describe('SessionActions – GitHub PR button', () => {
     } as unknown as GithubIntegrationValue
 
     render(
-      <GithubIntegrationContext.Provider value={defaultValue}>
-        <SessionActions
-          sessionState="reviewed"
-          isReadyToMerge={true}
-          sessionId="session-123"
-        />
-      </GithubIntegrationContext.Provider>
+      <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+        <GithubIntegrationContext.Provider value={defaultValue}>
+          <SessionActions
+            sessionState="reviewed"
+            isReadyToMerge={true}
+            sessionId="session-123"
+          />
+        </GithubIntegrationContext.Provider>
+      </GitlabIntegrationContext.Provider>
     )
 
     const button = screen.getByLabelText('Create pull request') as HTMLButtonElement
@@ -141,14 +160,16 @@ describe('SessionActions – Running state', () => {
   it('shows quick merge button when onQuickMerge is provided', () => {
     const onQuickMerge = vi.fn()
     render(
-      <GithubIntegrationContext.Provider value={mockGithub}>
-        <SessionActions
-          sessionState="running"
-          isReadyToMerge={false}
-          sessionId="session-123"
-          onQuickMerge={onQuickMerge}
-        />
-      </GithubIntegrationContext.Provider>
+      <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+        <GithubIntegrationContext.Provider value={mockGithub}>
+          <SessionActions
+            sessionState="running"
+            isReadyToMerge={false}
+            sessionId="session-123"
+            onQuickMerge={onQuickMerge}
+          />
+        </GithubIntegrationContext.Provider>
+      </GitlabIntegrationContext.Provider>
     )
 
     const button = screen.getByLabelText('Quick merge session')
@@ -159,13 +180,15 @@ describe('SessionActions – Running state', () => {
 
   it('does not show quick merge button when onQuickMerge is missing', () => {
     render(
-      <GithubIntegrationContext.Provider value={mockGithub}>
-        <SessionActions
-          sessionState="running"
-          isReadyToMerge={false}
-          sessionId="session-123"
-        />
-      </GithubIntegrationContext.Provider>
+      <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+        <GithubIntegrationContext.Provider value={mockGithub}>
+          <SessionActions
+            sessionState="running"
+            isReadyToMerge={false}
+            sessionId="session-123"
+          />
+        </GithubIntegrationContext.Provider>
+      </GitlabIntegrationContext.Provider>
     )
 
     const button = screen.queryByLabelText('Quick merge session')

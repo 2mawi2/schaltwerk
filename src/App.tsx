@@ -70,7 +70,7 @@ import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { useAgentBinarySnapshot } from './hooks/useAgentBinarySnapshot'
 import { useDiffPreloader } from './hooks/useDiffPreloader'
 import { theme } from './common/theme'
-import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
+import { useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
 import { validatePanelPercentage } from './utils/panel'
@@ -2192,9 +2192,7 @@ function AppContent() {
 export default function App() {
   return (
     <PierreDiffProvider>
-      <GithubIntegrationProvider>
-        <AppContent />
-      </GithubIntegrationProvider>
+      <AppContent />
     </PierreDiffProvider>
   )
 }

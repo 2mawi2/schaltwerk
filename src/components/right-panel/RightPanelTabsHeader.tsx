@@ -1,6 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
-import { VscDiff, VscGitCommit, VscInfo, VscNotebook, VscPreview } from 'react-icons/vsc'
+import { VscDiff, VscGitCommit, VscGitPullRequest, VscInfo, VscIssues, VscNotebook, VscPreview } from 'react-icons/vsc'
 import type { TabKey } from './RightPanelTabs.types'
 import { useTranslation } from '../../common/i18n'
 import './RightPanelTabsHeader.css'
@@ -14,6 +14,8 @@ interface RightPanelTabsHeaderProps {
   showSpecTab: boolean
   showSpecsTab: boolean
   showPreviewTab: boolean
+  showGitlabIssuesTab: boolean
+  showGitlabMrsTab: boolean
   onSelectTab: (tab: TabKey) => void
 }
 
@@ -45,6 +47,8 @@ export const RightPanelTabsHeader = ({
   showSpecTab,
   showSpecsTab,
   showPreviewTab,
+  showGitlabIssuesTab,
+  showGitlabMrsTab,
   onSelectTab
 }: RightPanelTabsHeaderProps) => {
   const { t } = useTranslation()
@@ -95,6 +99,24 @@ export const RightPanelTabsHeader = ({
       title: t.rightPanelTabs.specsTitle,
       icon: <VscNotebook className={specTabIconClass} />,
       dataAttrs: { 'data-onboarding': 'specs-workspace-tab' }
+    })
+  }
+
+  if (showGitlabIssuesTab) {
+    descriptors.push({
+      key: 'gitlab-issues',
+      label: t.rightPanelTabs.gitlabIssues,
+      title: t.rightPanelTabs.gitlabIssuesTitle,
+      icon: <VscIssues className={baseTabIconClass} />
+    })
+  }
+
+  if (showGitlabMrsTab) {
+    descriptors.push({
+      key: 'gitlab-mrs',
+      label: t.rightPanelTabs.gitlabMrs,
+      title: t.rightPanelTabs.gitlabMrsTitle,
+      icon: <VscGitPullRequest className={baseTabIconClass} />
     })
   }
 

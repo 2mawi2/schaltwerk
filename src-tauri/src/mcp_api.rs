@@ -110,6 +110,12 @@ async fn handle_mcp_request_inner(
             prepare_pull_request(req, &name, app).await
         }
         (&Method::POST, path)
+            if path.starts_with("/api/sessions/") && path.ends_with("/prepare-gitlab-mr") =>
+        {
+            let name = extract_session_name_for_action(path, "/prepare-gitlab-mr");
+            prepare_gitlab_merge_request(req, &name, app).await
+        }
+        (&Method::POST, path)
             if path.starts_with("/api/sessions/") && path.ends_with("/prepare-merge") =>
         {
             let name = extract_session_name_for_action(path, "/prepare-merge");
@@ -1527,6 +1533,30 @@ struct PreparePrResponse {
     modal_triggered: bool,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct PrepareGitlabMrRequest {
+    mr_title: Option<String>,
+    mr_body: Option<String>,
+    base_branch: Option<String>,
+    source_project: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenGitlabMrModalPayload {
+    session_name: String,
+    suggested_title: Option<String>,
+    suggested_body: Option<String>,
+    suggested_base_branch: Option<String>,
+    suggested_source_project: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct PrepareGitlabMrResponse {
+    session_name: String,
+    modal_triggered: bool,
+}
+
 async fn prepare_pull_request(
     req: Request<Incoming>,
     name: &str,
@@ -1605,6 +1635,84 @@ async fn prepare_pull_request(
 
     let json = serde_json::to_string(&response).unwrap_or_else(|e| {
         error!("Failed to serialize prepare PR response for '{name}': {e}");
+        "{}".to_string()
+    });
+
+    Ok(json_response(StatusCode::OK, json))
+}
+
+async fn prepare_gitlab_merge_request(
+    req: Request<Incoming>,
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    match get_core_read().await {
+        Ok(core) => {
+            let manager = core.session_manager();
+            match manager.get_session(name) {
+                Ok(session) => {
+                    if session.session_state == SessionState::Spec {
+                        return Ok(error_response(
+                            StatusCode::BAD_REQUEST,
+                            format!(
+                                "Session '{name}' is a spec. Start the spec before creating a merge request."
+                            ),
+                        ));
+                    }
+                }
+                Err(e) => {
+                    return Ok(error_response(
+                        StatusCode::NOT_FOUND,
+                        format!("Session '{name}' not found: {e}"),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to acquire session manager for prepare GitLab MR: {e}");
+            return Ok(error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let body_bytes = req.into_body().collect().await?.to_bytes();
+    let payload: PrepareGitlabMrRequest = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid JSON payload: {e}"),
+            ));
+        }
+    };
+
+    let event_payload = OpenGitlabMrModalPayload {
+        session_name: name.to_string(),
+        suggested_title: payload.mr_title,
+        suggested_body: payload.mr_body,
+        suggested_base_branch: payload.base_branch,
+        suggested_source_project: payload.source_project,
+    };
+
+    if let Err(e) = emit_event(&app, SchaltEvent::OpenGitlabMrModal, &event_payload) {
+        error!("Failed to emit OpenGitlabMrModal event: {e}");
+        return Ok(error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to trigger GitLab MR modal: {e}"),
+        ));
+    }
+
+    info!("Triggered GitLab MR modal for session '{name}'");
+
+    let response = PrepareGitlabMrResponse {
+        session_name: name.to_string(),
+        modal_triggered: true,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+        error!("Failed to serialize prepare GitLab MR response for '{name}': {e}");
         "{}".to_string()
     });
 

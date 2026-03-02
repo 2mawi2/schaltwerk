@@ -9,7 +9,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
-import { EventPayloadMap, GitOperationPayload, OpenMergeModalPayload, OpenPrModalPayload } from '../../common/events'
+import { EventPayloadMap, GitOperationPayload, OpenGitlabMrModalPayload, OpenMergeModalPayload, OpenPrModalPayload } from '../../common/events'
 import { useSelection } from '../../hooks/useSelection'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { useSessions } from '../../hooks/useSessions'
@@ -27,6 +27,7 @@ import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { MergeSessionModal } from '../modals/MergeSessionModal'
 import { PrSessionModal, PrPreviewResponse, PrCreateOptions } from '../modals/PrSessionModal'
+import { GitlabMrSessionModal } from '../modals/GitlabMrSessionModal'
 import { useSessionPrShortcut } from '../../hooks/useSessionPrShortcut'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
@@ -276,6 +277,43 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         preview: null,
         error: null,
     })
+
+    const [gitlabMrDialogState, setGitlabMrDialogState] = useState<{
+        isOpen: boolean
+        sessionName: string | null
+        prefill?: {
+            suggestedTitle?: string
+            suggestedBody?: string
+            suggestedBaseBranch?: string
+            suggestedSourceProject?: string
+        }
+    }>({
+        isOpen: false,
+        sessionName: null,
+    })
+
+    const handleOpenGitlabMrModal = useCallback((
+        sessionName: string,
+        prefill?: {
+            suggestedTitle?: string
+            suggestedBody?: string
+            suggestedBaseBranch?: string
+            suggestedSourceProject?: string
+        }
+    ) => {
+        setGitlabMrDialogState({
+            isOpen: true,
+            sessionName,
+            prefill,
+        })
+    }, [])
+
+    const handleCloseGitlabMrModal = useCallback(() => {
+        setGitlabMrDialogState({
+            isOpen: false,
+            sessionName: null,
+        })
+    }, [])
 
     const handleMergeSession = useCallback(
         (sessionId: string) => {
@@ -596,6 +634,34 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }
         }
     }, [createSafeUnlistener, handleOpenPrModal, pushToast])
+
+    useEffect(() => {
+        let unlistenOpenGitlabMrModal: UnlistenFn | null = null
+
+        const attach = async () => {
+            try {
+                const unlisten = await listenEvent(SchaltEvent.OpenGitlabMrModal, (payload: OpenGitlabMrModalPayload) => {
+                    handleOpenGitlabMrModal(payload.sessionName, {
+                        suggestedTitle: payload.suggestedTitle,
+                        suggestedBody: payload.suggestedBody,
+                        suggestedBaseBranch: payload.suggestedBaseBranch,
+                        suggestedSourceProject: payload.suggestedSourceProject,
+                    })
+                })
+                unlistenOpenGitlabMrModal = createSafeUnlistener(unlisten)
+            } catch (error) {
+                logger.warn('Failed to listen for OpenGitlabMrModal events:', error)
+            }
+        }
+
+        void attach()
+
+        return () => {
+            if (unlistenOpenGitlabMrModal) {
+                unlistenOpenGitlabMrModal()
+            }
+        }
+    }, [createSafeUnlistener, handleOpenGitlabMrModal])
 
     useEffect(() => {
         let unlistenOpenMergeModal: UnlistenFn | null = null
@@ -1842,6 +1908,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             setSwitchOrchestratorModal({ open: true, initialAgentType, initialSkipPermissions, targetSessionId: sessionId })
                                         }}
                                         onCreatePullRequest={(sessionId) => { void handlePrShortcut(sessionId) }}
+                                        onCreateGitlabMr={(sessionId) => { handleOpenGitlabMrModal(sessionId) }}
                                         resettingSelection={resettingSelection}
                                         isSessionRunning={isSessionRunning}
                                         onMerge={handleMergeSession}
@@ -2030,6 +2097,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 onConfirm={(options) => { void handleConfirmPr(options) }}
                 autoCancelEnabled={autoCancelAfterPr}
                 onToggleAutoCancel={(next) => { void updateAutoCancelAfterPr(next) }}
+            />
+            <GitlabMrSessionModal
+                open={gitlabMrDialogState.isOpen}
+                sessionName={gitlabMrDialogState.sessionName}
+                prefill={gitlabMrDialogState.prefill}
+                onClose={handleCloseGitlabMrModal}
             />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal.open}

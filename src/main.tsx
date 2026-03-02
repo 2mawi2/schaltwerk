@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { ToastProvider } from './common/toast/ToastProvider'
 import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
+import { GitlabIntegrationProvider } from './contexts/GitlabIntegrationContext'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -37,17 +38,19 @@ const AppLoader: React.FC = () => {
           <KeyboardShortcutsProvider>
             <JotaiProvider>
               <GithubIntegrationProvider>
-                <ModalProvider>
-                  <FocusProvider>
-                    <ReviewProvider>
-                      <RunProvider>
-                        <div ref={rootRef} tabIndex={-1} className="h-screen w-screen outline-none">
-                          <App />
-                        </div>
-                      </RunProvider>
-                    </ReviewProvider>
-                  </FocusProvider>
-                </ModalProvider>
+                <GitlabIntegrationProvider>
+                  <ModalProvider>
+                    <FocusProvider>
+                      <ReviewProvider>
+                        <RunProvider>
+                          <div ref={rootRef} tabIndex={-1} className="h-screen w-screen outline-none">
+                            <App />
+                          </div>
+                        </RunProvider>
+                      </ReviewProvider>
+                    </FocusProvider>
+                  </ModalProvider>
+                </GitlabIntegrationProvider>
               </GithubIntegrationProvider>
             </JotaiProvider>
           </KeyboardShortcutsProvider>
