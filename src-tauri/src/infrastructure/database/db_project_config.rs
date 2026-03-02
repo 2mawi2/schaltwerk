@@ -122,6 +122,12 @@ pub trait ProjectConfigMethods {
         config: &ProjectGitlabConfig,
     ) -> Result<()>;
     fn clear_project_gitlab_config(&self, repo_path: &Path) -> Result<()>;
+    fn get_project_worktree_base_directory(&self, repo_path: &Path) -> Result<Option<String>>;
+    fn set_project_worktree_base_directory(
+        &self,
+        repo_path: &Path,
+        base_directory: Option<&str>,
+    ) -> Result<()>;
 }
 
 impl ProjectConfigMethods for Database {
@@ -781,6 +787,66 @@ impl ProjectConfigMethods for Database {
 
         Ok(())
     }
+
+    fn get_project_worktree_base_directory(&self, repo_path: &Path) -> Result<Option<String>> {
+        let conn = self.get_conn()?;
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let result: rusqlite::Result<Option<String>> = conn.query_row(
+            "SELECT worktree_base_directory FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(Some(dir)) if dir.trim().is_empty() => Ok(None),
+            Ok(value) => Ok(value),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_project_worktree_base_directory(
+        &self,
+        repo_path: &Path,
+        base_directory: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.get_conn()?;
+        let now = Utc::now().timestamp();
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let stored_value = base_directory
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    worktree_base_directory,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    worktree_base_directory = excluded.worktree_base_directory,
+                    updated_at = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), stored_value, now, now],
+        )?;
+
+        Ok(())
+    }
 }
 
 impl Database {
@@ -907,6 +973,118 @@ mod tests {
             .expect("load branch prefix");
 
         assert_eq!(loaded, "");
+    }
+
+    #[test]
+    fn worktree_base_directory_defaults_to_none_when_not_set() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_round_trip_absolute_path() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert_eq!(loaded, Some("/tmp/worktrees".to_string()));
+    }
+
+    #[test]
+    fn worktree_base_directory_round_trip_relative_path() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("../../worktrees"))
+            .expect("store worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert_eq!(loaded, Some("../../worktrees".to_string()));
+    }
+
+    #[test]
+    fn worktree_base_directory_clear_with_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        db.set_project_worktree_base_directory(&repo_path, None)
+            .expect("clear worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_empty_string_treated_as_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some(""))
+            .expect("store empty worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_whitespace_only_treated_as_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("   "))
+            .expect("store whitespace worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_preserves_other_settings() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_branch_prefix(&repo_path, "custom-prefix")
+            .expect("store branch prefix");
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        let prefix = db
+            .get_project_branch_prefix(&repo_path)
+            .expect("load branch prefix");
+        assert_eq!(prefix, "custom-prefix");
+
+        let dir = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+        assert_eq!(dir, Some("/tmp/worktrees".to_string()));
     }
 
     #[test]
