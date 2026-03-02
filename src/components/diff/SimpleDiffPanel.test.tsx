@@ -260,7 +260,7 @@ describe('SimpleDiffPanel', () => {
       if (cmd === TauriCommands.GetCommitComparisonInfo) return []
       if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
       if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { initial_prompt: '' }
-      if (cmd === TauriCommands.SchaltwerkCoreGetPrDetails) return null
+      if (cmd === TauriCommands.GitHubGetPrDetails) return null
       return null
     })
 

@@ -1230,6 +1230,7 @@ export interface Translations {
     showChangedFiles: string
     browseAllFiles: string
     linkToGithubPr: string
+    openPrInPreview: string
   }
   tabBar: {
     openAnotherProject: string
