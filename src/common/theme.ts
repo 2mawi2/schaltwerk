@@ -374,23 +374,20 @@ export const theme = {
     full: '9999px',
   },
   
-   fontSize: {
-     // Standardized semantic font sizes
-     caption: '0.6875rem',  // 11px - Small labels, metadata
-     body: '0.875rem',      // 14px - Primary body text
-     bodyLarge: '1rem',     // 16px - Larger body text
-     heading: '1.125rem',   // 18px - Section headings
-     headingLarge: '1.25rem', // 20px - Main headings
-     headingXLarge: '1.5rem', // 24px - Page titles
-     display: '2rem',       // 32px - Hero text, important notices
-
-     // UI-specific sizes
-     button: '0.875rem',    // 14px - Button text
-     input: '0.875rem',     // 14px - Input field text
-     label: '0.8125rem',    // 13px - Form labels
-     code: '0.8125rem',     // 13px - Code snippets (monospace)
-     terminal: '0.8125rem', // 13px - Terminal text
-   },
+  fontSize: {
+    caption: 'var(--font-caption)',
+    body: 'var(--font-body)',
+    bodyLarge: 'var(--font-body-large)',
+    heading: 'var(--font-heading)',
+    headingLarge: 'var(--font-heading-large)',
+    headingXLarge: 'var(--font-heading-xlarge)',
+    display: 'var(--font-display)',
+    button: 'var(--font-button)',
+    input: 'var(--font-input)',
+    label: 'var(--font-label)',
+    code: 'var(--font-code)',
+    terminal: 'var(--font-terminal)',
+  },
   
   shadow: {
     sm: '0 1px 2px 0 rgba(0, 0, 0, 0.5)',
