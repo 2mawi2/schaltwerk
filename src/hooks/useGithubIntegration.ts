@@ -6,6 +6,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { GitHubStatusPayload, GitHubPrPayload, GitHubRepositoryPayload } from '../common/events'
 import { logger } from '../utils/logger'
 import { projectPathAtom } from '../store/atoms/project'
+import { resolveErrorMessage } from '../utils/resolveErrorMessage'
 
 export interface CreateReviewedPrArgs {
   sessionId: string
@@ -30,16 +31,6 @@ export interface GithubIntegrationValue {
   isGhMissing: boolean
   hasRepository: boolean
   refreshStatus: () => Promise<void>
-}
-
-function resolveErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return String(error)
-  }
 }
 
 export function useGithubIntegration(): GithubIntegrationValue {
