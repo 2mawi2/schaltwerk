@@ -19,6 +19,8 @@ import { IconButton } from '../common/IconButton';
 import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useGitlabIntegrationContext } from '../../contexts/GitlabIntegrationContext'
+import { useAtomValue } from 'jotai'
+import { projectForgeAtom } from '../../store/atoms/forge'
 import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
 import type { Epic } from '../../types/session'
@@ -104,6 +106,7 @@ export function SessionActions({
   const { t } = useTranslation()
   const github = useGithubIntegrationContext()
   const gitlab = useGitlabIntegrationContext()
+  const forge = useAtomValue(projectForgeAtom)
   const { pushToast } = useToast()
   const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
   const spacing = 'gap-0.5';
@@ -112,6 +115,8 @@ export function SessionActions({
   const conflictTooltip = conflictCount > 0
     ? `${t.sessionActions.resolveConflictsShortcut}${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
     : t.sessionActions.resolveConflictsShortcut;
+
+  const isGitlab = forge === 'gitlab'
 
   const canCreatePr = github.canCreatePr;
   const prTooltip = canCreatePr
@@ -143,6 +148,26 @@ export function SessionActions({
     }
     await fetchAndCopyToClipboard(prNumber)
   }, [prNumber, pushToast, fetchAndCopyToClipboard, t])
+
+  const forgeButton = isGitlab ? (
+    <IconButton
+      icon={<FaGitlab />}
+      onClick={handleOpenGitlabMr}
+      ariaLabel={t.sessionActions.createGitlabMr}
+      tooltip={gitlabMrTooltip}
+      disabled={!canCreateGitlabMr || !onCreateGitlabMr}
+      className={!canCreateGitlabMr || !onCreateGitlabMr ? 'opacity-60' : undefined}
+    />
+  ) : (
+    <IconButton
+      icon={<FaGithub />}
+      onClick={handleOpenPullRequest}
+      ariaLabel={t.sessionActions.createPr}
+      tooltip={canCreatePr ? t.sessionActions.createPrShortcut : prTooltip}
+      disabled={!canCreatePr || !onCreatePullRequest}
+      className={!canCreatePr ? 'opacity-60' : undefined}
+    />
+  )
 
   return (
     <div className={`flex items-center ${spacing}`} data-onboarding="session-actions">
@@ -201,24 +226,7 @@ export function SessionActions({
               showDeleteButton
             />
           )}
-          <IconButton
-            icon={<FaGithub />}
-            onClick={handleOpenPullRequest}
-            ariaLabel={t.sessionActions.createPr}
-            tooltip={canCreatePr ? t.sessionActions.createPrShortcut : prTooltip}
-            disabled={!canCreatePr || !onCreatePullRequest}
-            className={!canCreatePr ? 'opacity-60' : undefined}
-          />
-          {onCreateGitlabMr && (
-            <IconButton
-              icon={<FaGitlab />}
-              onClick={handleOpenGitlabMr}
-              ariaLabel={t.sessionActions.createGitlabMr}
-              tooltip={gitlabMrTooltip}
-              disabled={!canCreateGitlabMr}
-              className={!canCreateGitlabMr ? 'opacity-60' : undefined}
-            />
-          )}
+          {forgeButton}
           {showPromoteIcon && onPromoteVersion && (
             <div
               onMouseEnter={onPromoteVersionHover}
@@ -311,24 +319,7 @@ export function SessionActions({
               disabled={fetchingComments}
             />
           )}
-          <IconButton
-            icon={<FaGithub />}
-            onClick={handleOpenPullRequest}
-            ariaLabel={t.sessionActions.createPr}
-            tooltip={canCreatePr ? t.sessionActions.createPrShortcut : prTooltip}
-            disabled={!canCreatePr || !onCreatePullRequest}
-            className={!canCreatePr ? 'opacity-60' : undefined}
-          />
-          {onCreateGitlabMr && (
-            <IconButton
-              icon={<FaGitlab />}
-              onClick={handleOpenGitlabMr}
-              ariaLabel={t.sessionActions.createGitlabMr}
-              tooltip={gitlabMrTooltip}
-              disabled={!canCreateGitlabMr}
-              className={!canCreateGitlabMr ? 'opacity-60' : undefined}
-            />
-          )}
+          {forgeButton}
           {onMerge && (
             mergeStatus === 'merged' ? (
               <span

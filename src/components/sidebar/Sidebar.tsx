@@ -55,6 +55,7 @@ import { EpicModal } from '../modals/EpicModal'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import { useEpics } from '../../hooks/useEpics'
 import { EpicGroupHeader } from './EpicGroupHeader'
+import { projectForgeAtom } from '../../store/atoms/forge'
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
@@ -142,6 +143,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()
     const github = useGithubIntegrationContext()
+    const forge = useAtomValue(projectForgeAtom)
     const { pushToast } = useToast()
     const { 
         sessions,
@@ -1252,9 +1254,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     ])
 
     const handleCreatePullRequestShortcut = useCallback(() => {
+        if (forge === 'gitlab') {
+            if (selection.kind !== 'session' || !selection.payload) return
+            handleOpenGitlabMrModal(selection.payload)
+            return
+        }
         if (!github.canCreatePr) return
         void handlePrShortcut()
-    }, [github.canCreatePr, handlePrShortcut])
+    }, [forge, selection, github.canCreatePr, handlePrShortcut, handleOpenGitlabMrModal])
 
     const runRefineSpecFlow = useCallback((sessionId: string, displayName?: string) => {
         void runSpecRefineWithOrchestrator({

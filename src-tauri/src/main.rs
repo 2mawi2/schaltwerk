@@ -1327,6 +1327,7 @@ fn main() {
             directory_exists,
             get_git_graph_history,
             get_git_graph_commit_files,
+            detect_project_forge,
             create_new_project,
             schaltwerk_core_clone_project,
             initialize_project,

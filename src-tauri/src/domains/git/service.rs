@@ -1,7 +1,7 @@
 // Re-export all the functions from the git domain modules
 pub use super::repository::{
-    INITIAL_COMMIT_MESSAGE, create_initial_commit, discover_repository, get_default_branch,
-    init_repository, repository_has_commits,
+    ForgeType, INITIAL_COMMIT_MESSAGE, create_initial_commit, detect_forge, discover_repository,
+    get_default_branch, init_repository, repository_has_commits,
 };
 
 pub use super::branches::{

@@ -1,3 +1,5 @@
+use crate::get_project_manager;
+use schaltwerk::domains::git::service::{ForgeType, detect_forge};
 use schaltwerk::services::{
     CommitFileChange, HistoryProviderSnapshot, get_commit_file_changes as fetch_commit_files,
     get_git_history as fetch_git_history, get_git_history_with_head as fetch_git_history_with_head,
@@ -32,4 +34,14 @@ pub fn get_git_graph_commit_files(
 ) -> Result<Vec<CommitFileChange>, String> {
     let path = Path::new(&repo_path);
     fetch_commit_files(path, &commit_hash).map_err(|e| format!("Failed to get commit files: {e}"))
+}
+
+#[tauri::command]
+pub async fn detect_project_forge() -> Result<ForgeType, String> {
+    let project_manager = get_project_manager().await;
+    let project = project_manager
+        .current_project()
+        .await
+        .map_err(|e| format!("No active project: {e}"))?;
+    Ok(detect_forge(&project.path))
 }

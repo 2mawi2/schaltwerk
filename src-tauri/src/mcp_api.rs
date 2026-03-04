@@ -11,7 +11,9 @@ use std::path::PathBuf;
 use url::form_urlencoded;
 
 use schaltwerk::domains::settings::setup_script::SetupScriptService;
+use schaltwerk::domains::git::service::{ForgeType, detect_forge};
 use crate::commands::github::{CreateSessionPrArgs, github_create_session_pr_impl};
+use crate::commands::gitlab::{CreateGitlabSessionMrArgs, gitlab_create_session_mr};
 use crate::commands::schaltwerk_core::{
     MergeCommandError, merge_session_with_events, schaltwerk_core_cancel_session,
     schaltwerk_core_start_claude_orchestrator, schaltwerk_core_start_session_agent_with_restart,
@@ -19,7 +21,7 @@ use crate::commands::schaltwerk_core::{
 };
 use crate::commands::sessions_refresh::{SessionsRefreshReason, request_sessions_refresh};
 use crate::mcp_api::diff_api::{DiffApiError, DiffChunkRequest, DiffScope, SummaryQuery};
-use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write, SETTINGS_MANAGER};
+use crate::{REQUEST_PROJECT_OVERRIDE, get_core_read, get_core_write, get_project_manager, SETTINGS_MANAGER};
 use schaltwerk::infrastructure::database::db_project_config::ProjectConfigMethods;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::shared::terminal_id::terminal_id_for_orchestrator_top;
@@ -1471,6 +1473,71 @@ async fn create_pull_request(
             ));
         }
     };
+
+    let project_manager = get_project_manager().await;
+    let project = match project_manager.current_project().await {
+        Ok(p) => p,
+        Err(e) => {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                format!("No active project: {e}"),
+            ));
+        }
+    };
+    let forge = detect_forge(&project.path);
+
+    if forge == ForgeType::GitLab {
+        let gitlab_source = {
+            let core = project.schaltwerk_core.read().await;
+            let db = core.database();
+            db.get_project_gitlab_config(&project.path)
+                .ok()
+                .flatten()
+                .and_then(|c| c.sources.into_iter().next())
+        };
+
+        let Some(source) = gitlab_source else {
+            return Ok(error_response(
+                StatusCode::BAD_REQUEST,
+                "GitLab project detected but no GitLab sources configured. Configure GitLab sources first.".to_string(),
+            ));
+        };
+
+        let args = CreateGitlabSessionMrArgs {
+            session_name: name.to_string(),
+            mr_title: payload.pr_title,
+            mr_body: payload.pr_body,
+            base_branch: payload.base_branch,
+            mr_branch_name: payload.pr_branch_name,
+            commit_message: payload.commit_message,
+            source_project: source.project_path,
+            source_hostname: Some(source.hostname),
+            squash: false,
+            mode: payload.mode.unwrap_or(MergeMode::Reapply),
+            cancel_after_mr: payload.cancel_after_pr,
+        };
+
+        return match gitlab_create_session_mr(app, args).await {
+            Ok(mr_result) => {
+                let response = PullRequestResponse {
+                    session_name: name.to_string(),
+                    branch: mr_result.source_branch,
+                    url: mr_result.url,
+                    cancel_requested: payload.cancel_after_pr,
+                    cancel_queued: payload.cancel_after_pr,
+                    cancel_error: None,
+                };
+
+                let json = serde_json::to_string(&response).unwrap_or_else(|e| {
+                    error!("Failed to serialize MR response for '{name}': {e}");
+                    "{}".to_string()
+                });
+
+                Ok(json_response(StatusCode::OK, json))
+            }
+            Err(e) => Ok(error_response(StatusCode::BAD_REQUEST, e)),
+        };
+    }
 
     let args = CreateSessionPrArgs {
         session_name: name.to_string(),

@@ -35,6 +35,7 @@ import {
   initializeSelectionEventsActionAtom,
   setProjectPathActionAtom,
 } from './store/atoms/selection'
+import { refreshForgeAtom } from './store/atoms/forge'
 import {
   projectPathAtom,
   projectTabsAtom,
@@ -136,6 +137,7 @@ function AppContent() {
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
   const refreshKeepAwakeState = useSetAtom(refreshKeepAwakeStateActionAtom)
   const registerKeepAwakeListener = useSetAtom(registerKeepAwakeEventListenerActionAtom)
+  const refreshForge = useSetAtom(refreshForgeAtom)
   const expectSession = useSetAtom(expectSessionActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -212,6 +214,12 @@ function AppContent() {
   useEffect(() => {
     void setSelectionProjectPath(projectPath ?? null)
   }, [projectPath, setSelectionProjectPath])
+
+  useEffect(() => {
+    if (projectPath) {
+      void refreshForge()
+    }
+  }, [projectPath, refreshForge])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
