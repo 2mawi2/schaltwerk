@@ -301,4 +301,42 @@ describe('XtermTerminal wrapper', () => {
     await new Promise(resolve => requestAnimationFrame(resolve))
     expect(instance.scrollToLine).toHaveBeenCalledWith(42)
   })
+
+  it('correctly detects when terminal is at bottom via isAtBottom', async () => {
+    const { XtermTerminal } = await import('./XtermTerminal')
+
+    const wrapper = new XtermTerminal({
+      terminalId: 'at-bottom-test',
+      config: {
+        scrollback: 4000,
+        fontSize: 12,
+        fontFamily: 'Menlo',
+        readOnly: false,
+        minimumContrastRatio: 1.0,
+        smoothScrolling: false,
+      },
+    })
+
+    const { Terminal: MockTerminal } = await import('@xterm/xterm') as unknown as {
+      Terminal: { __instances: Array<{ buffer: { active: { baseY: number; viewportY: number } } }> }
+    }
+    const instance = MockTerminal.__instances.at(-1)!
+
+    // At bottom: baseY === viewportY
+    instance.buffer.active.baseY = 100
+    instance.buffer.active.viewportY = 100
+    expect(wrapper.isAtBottom()).toBe(true)
+
+    // Near bottom (within 1 line tolerance): still considered at bottom
+    instance.buffer.active.viewportY = 99
+    expect(wrapper.isAtBottom()).toBe(true)
+
+    // Scrolled up: not at bottom
+    instance.buffer.active.viewportY = 50
+    expect(wrapper.isAtBottom()).toBe(false)
+
+    // Edge case: viewportY > baseY (shouldn't happen but handle gracefully)
+    instance.buffer.active.viewportY = 101
+    expect(wrapper.isAtBottom()).toBe(true)
+  })
 })
