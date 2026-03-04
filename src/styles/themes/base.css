@@ -7,21 +7,21 @@
   --font-family-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Ubuntu', 'Helvetica Neue', system-ui, sans-serif;
   --font-family-mono: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
 
-  /* Standardized Semantic Font Sizes */
-  --font-caption: 0.6875rem;    /* 11px - Small labels, metadata */
-  --font-body: 0.875rem;        /* 14px - Primary body text */
-  --font-body-large: 1rem;      /* 16px - Larger body text */
-  --font-heading: 1.125rem;     /* 18px - Section headings */
-  --font-heading-large: 1.25rem; /* 20px - Main headings */
-  --font-heading-xlarge: 1.5rem; /* 24px - Page titles */
-  --font-display: 2rem;         /* 32px - Hero text, important notices */
+  /* Semantic Font Sizes — scale with --ui-font-size (default 14px) */
+  --font-caption: calc(var(--ui-font-size) * 0.786);
+  --font-body: var(--ui-font-size);
+  --font-body-large: calc(var(--ui-font-size) * 1.143);
+  --font-heading: calc(var(--ui-font-size) * 1.286);
+  --font-heading-large: calc(var(--ui-font-size) * 1.429);
+  --font-heading-xlarge: calc(var(--ui-font-size) * 1.714);
+  --font-display: calc(var(--ui-font-size) * 2.286);
 
-  /* UI-Specific Font Sizes */
-  --font-button: 0.875rem;      /* 14px - Button text */
-  --font-input: 0.875rem;       /* 14px - Input field text */
-  --font-label: 0.8125rem;      /* 13px - Form labels */
-  --font-code: 0.8125rem;       /* 13px - Code snippets (monospace) */
-  --font-terminal: 0.8125rem;   /* 13px - Terminal text */
+  /* UI-Specific Font Sizes — scale with --ui-font-size */
+  --font-button: var(--ui-font-size);
+  --font-input: var(--ui-font-size);
+  --font-label: calc(var(--ui-font-size) * 0.929);
+  --font-code: calc(var(--ui-font-size) * 0.929);
+  --font-terminal: var(--terminal-font-size);
 
   /* Spacing Variables */
   --spacing-xs: 0.25rem;

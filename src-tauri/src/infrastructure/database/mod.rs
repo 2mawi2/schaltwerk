@@ -11,8 +11,9 @@ pub use connection::Database;
 pub use db_app_config::AppConfigMethods;
 pub use db_epics::EpicMethods;
 pub use db_project_config::{
-    DEFAULT_BRANCH_PREFIX, HeaderActionConfig, ProjectConfigMethods, ProjectGithubConfig,
-    ProjectMergePreferences, ProjectSessionsSettings, RunScript,
+    DEFAULT_BRANCH_PREFIX, GitlabSource, HeaderActionConfig, ProjectConfigMethods,
+    ProjectGithubConfig, ProjectGitlabConfig, ProjectMergePreferences, ProjectSessionsSettings,
+    RunScript,
 };
 pub use db_schema::initialize_schema;
 pub use db_specs::SpecMethods;

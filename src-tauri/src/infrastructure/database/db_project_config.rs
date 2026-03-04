@@ -55,6 +55,24 @@ pub struct ProjectGithubConfig {
     pub default_branch: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GitlabSource {
+    pub id: String,
+    pub label: String,
+    pub project_path: String,
+    pub hostname: String,
+    pub issues_enabled: bool,
+    pub mrs_enabled: bool,
+    pub pipelines_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGitlabConfig {
+    pub sources: Vec<GitlabSource>,
+}
+
 pub trait ProjectConfigMethods {
     fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
     fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
@@ -97,6 +115,19 @@ pub trait ProjectConfigMethods {
         config: &ProjectGithubConfig,
     ) -> Result<()>;
     fn clear_project_github_config(&self, repo_path: &Path) -> Result<()>;
+    fn get_project_gitlab_config(&self, repo_path: &Path) -> Result<Option<ProjectGitlabConfig>>;
+    fn set_project_gitlab_config(
+        &self,
+        repo_path: &Path,
+        config: &ProjectGitlabConfig,
+    ) -> Result<()>;
+    fn clear_project_gitlab_config(&self, repo_path: &Path) -> Result<()>;
+    fn get_project_worktree_base_directory(&self, repo_path: &Path) -> Result<Option<String>>;
+    fn set_project_worktree_base_directory(
+        &self,
+        repo_path: &Path,
+        base_directory: Option<&str>,
+    ) -> Result<()>;
 }
 
 impl ProjectConfigMethods for Database {
@@ -660,6 +691,162 @@ impl ProjectConfigMethods for Database {
 
         Ok(())
     }
+
+    fn get_project_gitlab_config(&self, repo_path: &Path) -> Result<Option<ProjectGitlabConfig>> {
+        let conn = self.get_conn()?;
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let query_res: rusqlite::Result<Option<String>> = conn.query_row(
+            "SELECT gitlab_sources FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| row.get(0),
+        );
+
+        match query_res {
+            Ok(Some(json_str)) => {
+                let sources: Vec<GitlabSource> = serde_json::from_str(&json_str)?;
+                Ok(Some(ProjectGitlabConfig { sources }))
+            }
+            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_project_gitlab_config(
+        &self,
+        repo_path: &Path,
+        config: &ProjectGitlabConfig,
+    ) -> Result<()> {
+        let conn = self.get_conn()?;
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let json_str = serde_json::to_string(&config.sources)?;
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    gitlab_sources,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?3
+                )
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    gitlab_sources = excluded.gitlab_sources,
+                    updated_at = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), json_str, now],
+        )?;
+
+        Ok(())
+    }
+
+    fn clear_project_gitlab_config(&self, repo_path: &Path) -> Result<()> {
+        let conn = self.get_conn()?;
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    gitlab_sources,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    NULL,
+                    ?2,
+                    ?2
+                )
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    gitlab_sources = NULL,
+                    updated_at = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), now],
+        )?;
+
+        Ok(())
+    }
+
+    fn get_project_worktree_base_directory(&self, repo_path: &Path) -> Result<Option<String>> {
+        let conn = self.get_conn()?;
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let result: rusqlite::Result<Option<String>> = conn.query_row(
+            "SELECT worktree_base_directory FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(Some(dir)) if dir.trim().is_empty() => Ok(None),
+            Ok(value) => Ok(value),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_project_worktree_base_directory(
+        &self,
+        repo_path: &Path,
+        base_directory: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.get_conn()?;
+        let now = Utc::now().timestamp();
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let stored_value = base_directory
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    auto_cancel_after_merge,
+                    worktree_base_directory,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    ?1,
+                    COALESCE(
+                        (SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1),
+                        1
+                    ),
+                    ?2,
+                    ?3,
+                    ?4
+                )
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    worktree_base_directory = excluded.worktree_base_directory,
+                    updated_at = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), stored_value, now, now],
+        )?;
+
+        Ok(())
+    }
 }
 
 impl Database {
@@ -789,6 +976,118 @@ mod tests {
     }
 
     #[test]
+    fn worktree_base_directory_defaults_to_none_when_not_set() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_round_trip_absolute_path() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert_eq!(loaded, Some("/tmp/worktrees".to_string()));
+    }
+
+    #[test]
+    fn worktree_base_directory_round_trip_relative_path() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("../../worktrees"))
+            .expect("store worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert_eq!(loaded, Some("../../worktrees".to_string()));
+    }
+
+    #[test]
+    fn worktree_base_directory_clear_with_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        db.set_project_worktree_base_directory(&repo_path, None)
+            .expect("clear worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_empty_string_treated_as_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some(""))
+            .expect("store empty worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_whitespace_only_treated_as_none() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_worktree_base_directory(&repo_path, Some("   "))
+            .expect("store whitespace worktree base directory");
+
+        let loaded = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn worktree_base_directory_preserves_other_settings() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        db.set_project_branch_prefix(&repo_path, "custom-prefix")
+            .expect("store branch prefix");
+
+        db.set_project_worktree_base_directory(&repo_path, Some("/tmp/worktrees"))
+            .expect("store worktree base directory");
+
+        let prefix = db
+            .get_project_branch_prefix(&repo_path)
+            .expect("load branch prefix");
+        assert_eq!(prefix, "custom-prefix");
+
+        let dir = db
+            .get_project_worktree_base_directory(&repo_path)
+            .expect("load worktree base directory");
+        assert_eq!(dir, Some("/tmp/worktrees".to_string()));
+    }
+
+    #[test]
     fn branch_prefix_defaults_to_empty_when_not_set() {
         let db = Database::new_in_memory().expect("db");
         let (_tmp, repo_path) = create_temp_repo_path();
@@ -814,5 +1113,85 @@ mod tests {
             .expect("load branch prefix");
 
         assert_eq!(loaded, "custom-prefix");
+    }
+
+    #[test]
+    fn gitlab_config_roundtrip() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let config = ProjectGitlabConfig {
+            sources: vec![
+                GitlabSource {
+                    id: "src-1".to_string(),
+                    label: "Main Project".to_string(),
+                    project_path: "group/project".to_string(),
+                    hostname: "gitlab.com".to_string(),
+                    issues_enabled: true,
+                    mrs_enabled: true,
+                    pipelines_enabled: false,
+                },
+                GitlabSource {
+                    id: "src-2".to_string(),
+                    label: "Infra".to_string(),
+                    project_path: "group/infra".to_string(),
+                    hostname: "gitlab.example.com".to_string(),
+                    issues_enabled: false,
+                    mrs_enabled: true,
+                    pipelines_enabled: true,
+                },
+            ],
+        };
+
+        db.set_project_gitlab_config(&repo_path, &config)
+            .expect("store gitlab config");
+
+        let loaded = db
+            .get_project_gitlab_config(&repo_path)
+            .expect("load gitlab config");
+
+        assert_eq!(Some(config), loaded);
+    }
+
+    #[test]
+    fn gitlab_config_returns_none_when_unset() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let loaded = db
+            .get_project_gitlab_config(&repo_path)
+            .expect("load gitlab config");
+
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn gitlab_config_clear() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let config = ProjectGitlabConfig {
+            sources: vec![GitlabSource {
+                id: "src-1".to_string(),
+                label: "Project".to_string(),
+                project_path: "group/project".to_string(),
+                hostname: "gitlab.com".to_string(),
+                issues_enabled: true,
+                mrs_enabled: true,
+                pipelines_enabled: true,
+            }],
+        };
+
+        db.set_project_gitlab_config(&repo_path, &config)
+            .expect("store gitlab config");
+
+        db.clear_project_gitlab_config(&repo_path)
+            .expect("clear gitlab config");
+
+        let loaded = db
+            .get_project_gitlab_config(&repo_path)
+            .expect("load gitlab config");
+
+        assert!(loaded.is_none());
     }
 }

@@ -187,6 +187,8 @@ export interface Translations {
     projectGeneral: {
       branchPrefix: string
       branchPrefixDesc: string
+      worktreeBaseDirectory: string
+      worktreeBaseDirectoryDesc: string
       mergeDefaults: string
       mergeDefaultsDesc: string
       autoCancelAfterMerge: string
@@ -955,6 +957,28 @@ export interface Translations {
       refreshFailed: string
     }
   }
+  gitlabMenu: {
+    title: string
+    installed: string
+    authenticated: string
+    hostname: string
+    account: string
+    sources: string
+    installCliHint: string
+    authHint: string
+    configureSources: string
+    refreshStatus: string
+    statusLabels: {
+      sourcesCount: string
+      configureGitlab: string
+      notAuthenticated: string
+      cliNotInstalled: string
+    }
+    toasts: {
+      statusRefreshed: string
+      refreshFailed: string
+    }
+  }
   agentDefaults: {
     title: string
     descriptionWithArgs: string
@@ -1194,6 +1218,71 @@ export interface Translations {
     specsTitle: string
     preview: string
     previewTitle: string
+    gitlabIssues: string
+    gitlabIssuesTitle: string
+    gitlabMrs: string
+    gitlabMrsTitle: string
+  }
+  gitlabIssueTab: {
+    searchPlaceholder: string
+    loading: string
+    noIssuesFound: string
+    adjustSearch: string
+    back: string
+    openInGitlab: string
+    opened: string
+    closed: string
+    source: string
+    updated: string
+    description: string
+    notes: string
+    noNotes: string
+    labels: string
+  }
+  gitlabMrTab: {
+    searchPlaceholder: string
+    loading: string
+    noMrsFound: string
+    adjustSearch: string
+    back: string
+    openInGitlab: string
+    opened: string
+    merged: string
+    closed: string
+    source: string
+    updated: string
+    description: string
+    notes: string
+    noNotes: string
+    labels: string
+    sourceBranch: string
+    targetBranch: string
+    pipeline: string
+    mergeStatus: string
+    reviewers: string
+    noReviewers: string
+    refreshPipeline: string
+    pipelineSuccess: string
+    pipelineFailed: string
+    pipelineRunning: string
+    pipelinePending: string
+    approve: string
+    merge: string
+    comment: string
+    squashCommits: string
+    removeSourceBranch: string
+    approveSuccess: string
+    approveFailed: string
+    mergeSuccess: string
+    mergeFailed: string
+    commentSuccess: string
+    commentFailed: string
+    commentPlaceholder: string
+    send: string
+    cancel: string
+    merging: string
+    approving: string
+    commenting: string
   }
   historySearch: {
     placeholder: string
@@ -1318,5 +1407,56 @@ export interface Translations {
     runSpec: string
     deleteSpec: string
     createPrShortcut: string
+    createGitlabMr: string
+    createGitlabMrShortcut: string
+    noGitlabSources: string
+  }
+  gitlabMrModal: {
+    title: string
+    selectSource: string
+    noSourcesConfigured: string
+    strategy: string
+    squashChanges: string
+    useExistingCommits: string
+    squashDesc: string
+    reapplyDesc: string
+    commitMessage: string
+    mrTitle: string
+    mrTitlePlaceholder: string
+    description: string
+    descriptionPlaceholder: string
+    targetBranch: string
+    targetBranchHint: string
+    useCustomBranch: string
+    customBranchHint: string
+    squashOnMerge: string
+    autoCancelAfterMr: string
+    cancel: string
+    createMr: string
+    creatingMr: string
+    shortcutHint: string
+    created: string
+    createdDesc: string
+    openInGitlab: string
+    failed: string
+  }
+  gitlabSources: {
+    title: string
+    addSource: string
+    noSources: string
+    editSourceTitle: string
+    addSourceTitle: string
+    labelField: string
+    labelPlaceholder: string
+    projectPathField: string
+    projectPathPlaceholder: string
+    hostnameField: string
+    hostnamePlaceholder: string
+    issues: string
+    mergeRequests: string
+    pipelines: string
+    editSource: string
+    deleteSource: string
+    saveError: string
   }
 }
