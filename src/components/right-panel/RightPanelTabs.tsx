@@ -22,6 +22,9 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import { RightPanelTabsHeader } from './RightPanelTabsHeader'
+import { GitlabIssuesTab } from './GitlabIssuesTab'
+import { GitlabMrsTab } from './GitlabMrsTab'
+import { useGitlabIntegrationContext } from '../../contexts/GitlabIntegrationContext'
 import { useAtom, useAtomValue } from 'jotai'
 import { projectPathAtom } from '../../store/atoms/project'
 import { WebPreviewPanel } from './WebPreviewPanel'
@@ -45,6 +48,7 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const { setFocusForSession, currentFocus } = useFocus()
   const { allSessions } = useSessions()
   const [rightPanelTab, setRightPanelTab] = useAtom(rightPanelTabAtom)
+  const gitlabIntegration = useGitlabIntegrationContext()
   const [localFocus, setLocalFocus] = useState<boolean>(false)
   const [showSpecPicker, setShowSpecPicker] = useState(false)
   const [pendingSpecToOpen, setPendingSpecToOpen] = useState<string | null>(null)
@@ -384,7 +388,9 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
   const showHistoryTab = isCommander || isRunningSession
   const showSpecsTab = isCommander
   const showPreviewTab = isCommander || isRunningSession
-  const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab
+  const showGitlabIssuesTab = (isCommander || isRunningSession) && gitlabIntegration.sources.some(s => s.issuesEnabled)
+  const showGitlabMrsTab = (isCommander || isRunningSession) && gitlabIntegration.sources.some(s => s.mrsEnabled)
+  const tabsPresent = showChangesTab || showInfoTab || showSpecTab || showHistoryTab || showSpecsTab || showPreviewTab || showGitlabIssuesTab || showGitlabMrsTab
   // Enable split mode when viewing Changes for normal running sessions
   const useSplitMode = isRunningSession && activeTab === 'changes'
   const isInlineReviewing = (isCommander || isRunningSession)
@@ -431,6 +437,8 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
           showSpecTab={showSpecTab}
           showSpecsTab={showSpecsTab}
           showPreviewTab={showPreviewTab}
+          showGitlabIssuesTab={showGitlabIssuesTab}
+          showGitlabMrsTab={showGitlabMrsTab}
           onSelectTab={tab => { void setRightPanelTab(tab) }}
         />
       )}
@@ -547,6 +555,10 @@ const RightPanelTabsComponent = ({ onOpenHistoryDiff, selectionOverride, isSpecO
                 }}
                 onReviewModeChange={handleSpecReviewModeChange}
               />
+            ) : activeTab === 'gitlab-issues' ? (
+              <GitlabIssuesTab />
+            ) : activeTab === 'gitlab-mrs' ? (
+              <GitlabMrsTab />
             ) : activeTab === 'agent' ? (
               effectiveSelection.kind === 'session' ? (
                 <SpecContentView
