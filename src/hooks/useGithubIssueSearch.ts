@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
 import type { GithubIssueDetails, GithubIssueSummary } from '../types/githubIssues'
 import { logger } from '../utils/logger'
+import { resolveErrorMessage } from '../utils/resolveErrorMessage'
 
 export interface UseGithubIssueSearchResult {
   results: GithubIssueSummary[]
@@ -13,16 +14,6 @@ export interface UseGithubIssueSearchResult {
   refresh: () => void
   fetchDetails: (number: number) => Promise<GithubIssueDetails>
   clearError: () => void
-}
-
-function resolveErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === 'string') return error
-  try {
-    return JSON.stringify(error)
-  } catch {
-    return String(error)
-  }
 }
 
 interface UseGithubIssueSearchOptions {

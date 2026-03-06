@@ -30,6 +30,7 @@ pub enum SchaltEvent {
     GitOperationFailed,
     ProjectFilesUpdated,
     GitHubStatusChanged,
+    GitLabStatusChanged,
     DevBackendError,
     SetupScriptRequested,
     OrchestratorLaunchFailed,
@@ -37,6 +38,7 @@ pub enum SchaltEvent {
     ProjectValidationError,
     OpenPrModal,
     OpenMergeModal,
+    OpenGitlabMrModal,
     SelectAllRequested,
 }
 
@@ -72,6 +74,7 @@ impl SchaltEvent {
             SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
             SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
+            SchaltEvent::GitLabStatusChanged => "schaltwerk:gitlab-status-changed",
             SchaltEvent::DevBackendError => "schaltwerk:dev-backend-error",
             SchaltEvent::SetupScriptRequested => "schaltwerk:setup-script-request",
             SchaltEvent::OrchestratorLaunchFailed => "schaltwerk:orchestrator-launch-failed",
@@ -79,6 +82,7 @@ impl SchaltEvent {
             SchaltEvent::ProjectValidationError => "schaltwerk:project-validation-error",
             SchaltEvent::OpenPrModal => "schaltwerk:open-pr-modal",
             SchaltEvent::OpenMergeModal => "schaltwerk:open-merge-modal",
+            SchaltEvent::OpenGitlabMrModal => "schaltwerk:open-gitlab-mr-modal",
             SchaltEvent::SelectAllRequested => "schaltwerk:select-all-requested",
         }
     }

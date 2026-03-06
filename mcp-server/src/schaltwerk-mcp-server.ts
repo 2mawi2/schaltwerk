@@ -118,6 +118,10 @@ interface SchaltwerkSetSetupScriptArgs {
   setup_script: string
 }
 
+interface SchaltwerkSetWorktreeBaseDirectoryArgs {
+  worktree_base_directory: string
+}
+
 const bridge = new SchaltwerkBridge()
 
  const server = new Server({
@@ -355,6 +359,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           additionalProperties: false
         },
         outputSchema: toolOutputSchemas.schaltwerk_set_setup_script
+      },
+      {
+        name: "schaltwerk_get_worktree_base_directory",
+        description: `Get the custom worktree base directory for the project. Returns the configured directory path (if any) where new session worktrees are created instead of the default .schaltwerk/worktrees/ location.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_get_worktree_base_directory
+      },
+      {
+        name: "schaltwerk_set_worktree_base_directory",
+        description: `Set or clear the custom worktree base directory for the project. Accepts absolute paths (e.g., /Volumes/fast-ssd/worktrees) or paths relative to the repository root (e.g., ../../worktrees). An empty string clears the setting, reverting to the default .schaltwerk/worktrees/ location. Only affects new sessions; existing worktrees are not moved.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            worktree_base_directory: {
+              type: "string",
+              description: "Directory path for new worktrees. Absolute or relative to repo root. Empty string clears the setting."
+            }
+          },
+          required: ["worktree_base_directory"],
+          additionalProperties: false
+        },
+        outputSchema: toolOutputSchemas.schaltwerk_set_worktree_base_directory
       },
       {
         name: "schaltwerk_list",
@@ -1052,6 +1082,40 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
 
         const payload = await bridge.setProjectSetupScript(script)
         const summary = `Setup script updated (${payload.setup_script.length} chars)`
+        response = buildStructuredResponse(payload, {
+          summaryText: summary,
+          jsonFirst: true
+        })
+        break
+      }
+
+      case "schaltwerk_get_worktree_base_directory": {
+        const payload = await bridge.getWorktreeBaseDirectory()
+        const summary = payload.has_custom_directory
+          ? `Custom worktree directory: ${payload.worktree_base_directory}`
+          : 'Using default worktree directory (.schaltwerk/worktrees/)'
+
+        response = buildStructuredResponse(payload, {
+          summaryText: summary,
+          jsonFirst: true
+        })
+        break
+      }
+
+      case "schaltwerk_set_worktree_base_directory": {
+        const wbdArgs = args as SchaltwerkSetWorktreeBaseDirectoryArgs | undefined
+        const dir = wbdArgs?.worktree_base_directory
+        if (dir === undefined || dir === null) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            "'worktree_base_directory' is required when invoking schaltwerk_set_worktree_base_directory (empty string clears it)."
+          )
+        }
+
+        const payload = await bridge.setWorktreeBaseDirectory(dir)
+        const summary = payload.has_custom_directory
+          ? `Worktree base directory set to: ${payload.worktree_base_directory}`
+          : 'Worktree base directory cleared (using default)'
         response = buildStructuredResponse(payload, {
           summaryText: summary,
           jsonFirst: true

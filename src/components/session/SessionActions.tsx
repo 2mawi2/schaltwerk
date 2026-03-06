@@ -14,10 +14,11 @@ import {
   VscBeaker,
   VscComment,
 } from 'react-icons/vsc';
-import { FaGithub } from 'react-icons/fa'
+import { FaGithub, FaGitlab } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
 import type { MergeStatus } from '../../store/atoms/sessions';
 import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
+import { useGitlabIntegrationContext } from '../../contexts/GitlabIntegrationContext'
 import { useToast } from '../../common/toast/ToastProvider'
 import { usePrComments } from '../../hooks/usePrComments'
 import type { Epic } from '../../types/session'
@@ -39,6 +40,7 @@ interface SessionActionsProps {
   defaultBranch?: string;
   showPromoteIcon?: boolean;
   onCreatePullRequest?: (sessionId: string) => void;
+  onCreateGitlabMr?: (sessionId: string) => void;
   prNumber?: number;
   prUrl?: string;
   onRunSpec?: (sessionId: string) => void;
@@ -73,6 +75,7 @@ export function SessionActions({
   hasUncommittedChanges = false,
   showPromoteIcon = false,
   onCreatePullRequest,
+  onCreateGitlabMr,
   prNumber,
   onRunSpec,
   onRefineSpec,
@@ -100,6 +103,7 @@ export function SessionActions({
 }: SessionActionsProps) {
   const { t } = useTranslation()
   const github = useGithubIntegrationContext()
+  const gitlab = useGitlabIntegrationContext()
   const { pushToast } = useToast()
   const { fetchingComments, fetchAndCopyToClipboard } = usePrComments()
   const spacing = 'gap-0.5';
@@ -117,10 +121,20 @@ export function SessionActions({
       : github.hasRepository
         ? t.sessionActions.signInGithub
         : t.sessionActions.connectGithubFirst;
+  const canCreateGitlabMr = gitlab.hasSources
+  const gitlabMrTooltip = canCreateGitlabMr
+    ? t.sessionActions.createGitlabMrShortcut
+    : t.sessionActions.noGitlabSources
+
   const handleOpenPullRequest = useCallback(() => {
     if (!onCreatePullRequest) return
     onCreatePullRequest(sessionId)
   }, [onCreatePullRequest, sessionId])
+
+  const handleOpenGitlabMr = useCallback(() => {
+    if (!onCreateGitlabMr) return
+    onCreateGitlabMr(sessionId)
+  }, [onCreateGitlabMr, sessionId])
 
   const handleFetchAndCopyComments = useCallback(async () => {
     if (!prNumber) {
@@ -195,6 +209,16 @@ export function SessionActions({
             disabled={!canCreatePr || !onCreatePullRequest}
             className={!canCreatePr ? 'opacity-60' : undefined}
           />
+          {onCreateGitlabMr && (
+            <IconButton
+              icon={<FaGitlab />}
+              onClick={handleOpenGitlabMr}
+              ariaLabel={t.sessionActions.createGitlabMr}
+              tooltip={gitlabMrTooltip}
+              disabled={!canCreateGitlabMr}
+              className={!canCreateGitlabMr ? 'opacity-60' : undefined}
+            />
+          )}
           {showPromoteIcon && onPromoteVersion && (
             <div
               onMouseEnter={onPromoteVersionHover}
@@ -295,6 +319,16 @@ export function SessionActions({
             disabled={!canCreatePr || !onCreatePullRequest}
             className={!canCreatePr ? 'opacity-60' : undefined}
           />
+          {onCreateGitlabMr && (
+            <IconButton
+              icon={<FaGitlab />}
+              onClick={handleOpenGitlabMr}
+              ariaLabel={t.sessionActions.createGitlabMr}
+              tooltip={gitlabMrTooltip}
+              disabled={!canCreateGitlabMr}
+              className={!canCreateGitlabMr ? 'opacity-60' : undefined}
+            />
+          )}
           {onMerge && (
             mergeStatus === 'merged' ? (
               <span

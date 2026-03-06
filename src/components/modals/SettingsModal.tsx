@@ -18,6 +18,7 @@ import { useTranslation } from '../../common/i18n/useTranslation'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
+import { GitlabProjectIntegrationCard } from '../settings/GitlabProjectIntegrationCard'
 import { AGENT_TYPES, createAgentRecord } from '../../types/session'
 import { DEFAULT_AGENT } from '../../constants/agents'
 import { displayNameForAgent } from '../shared/agentDefaults'
@@ -39,6 +40,7 @@ import type { SettingsCategory } from '../../types/settings'
 import { requestDockBounce } from '../../utils/attentionBridge'
 import { MarkdownEditor } from '../specs/MarkdownEditor'
 import { useModal } from '../../contexts/ModalContext'
+import { ResizableModal } from '../shared/ResizableModal'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -271,6 +273,7 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
+    worktreeBaseDirectory: string
     environmentVariables: Array<{key: string, value: string}>
 }
 
@@ -315,6 +318,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '',
         environmentVariables: []
     })
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
@@ -676,7 +680,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         ])
         
         // Load project-specific settings (may fail if no project is open)
-        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', environmentVariables: [] }
+        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', worktreeBaseDirectory: '', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true, autoCancelAfterPr: false }
@@ -1081,6 +1085,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
+                    <GitlabProjectIntegrationCard onNotify={showNotification} />
 
                     <div>
                         <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.branchPrefix}</h3>
@@ -1098,6 +1103,24 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 setHasUnsavedChanges(true)
                             }}
                             placeholder=""
+                            className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted text-body focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
+                            spellCheck={false}
+                        />
+                    </div>
+
+                    <div>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.worktreeBaseDirectory}</h3>
+                        <div className="text-body text-text-tertiary mb-3">
+                            {t.settings.projectGeneral.worktreeBaseDirectoryDesc}
+                        </div>
+                        <input
+                            type="text"
+                            value={projectSettings.worktreeBaseDirectory}
+                            onChange={(e) => {
+                                setProjectSettings(prev => ({ ...prev, worktreeBaseDirectory: e.target.value }))
+                                setHasUnsavedChanges(true)
+                            }}
+                            placeholder=".schaltwerk/worktrees"
                             className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted text-body focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                             spellCheck={false}
                         />
@@ -1527,20 +1550,6 @@ fi`}
             )
         }))
     }
-
-    useEffect(() => {
-        if (!open) return
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                e.preventDefault()
-                onClose()
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [open, onClose])
 
     if (!open) return null
 
@@ -2542,6 +2551,47 @@ fi`}
         }
     }
 
+    const settingsFooter = !loading ? (
+        <div className="flex justify-between w-full">
+            <div className="flex gap-2">
+                {onOpenTutorial && (
+                    <button
+                        onClick={() => {
+                            onOpenTutorial()
+                            onClose()
+                        }}
+                        className="settings-btn px-4 py-2 rounded-lg flex items-center gap-2"
+                        title="Open interactive tutorial"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        Open Tutorial
+                    </button>
+                )}
+            </div>
+            <div className="flex gap-2">
+                <button
+                    onClick={onClose}
+                    className="settings-btn px-4 py-2 rounded-lg"
+                >
+                    {t.settings.common.cancel}
+                </button>
+                <button
+                    onClick={() => { void handleSave() }}
+                    disabled={saving}
+                    className="settings-btn-primary px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {saving ? (
+                        <span className="text-button text-white/80">Saving...</span>
+                    ) : (
+                        t.settings.common.save
+                    )}
+                </button>
+            </div>
+        </div>
+    ) : undefined
+
     return (
         <>
             {notification.visible && (
@@ -2552,32 +2602,24 @@ fi`}
                     <div className="text-white text-body">{notification.message}</div>
                 </div>
             )}
-            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-                <div
-                    className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] border rounded-xl shadow-xl overflow-hidden flex flex-col"
-                    style={{ backgroundColor: 'var(--color-bg-tertiary)', borderColor: 'var(--color-border-subtle)' }}
-                >
-                {/* Header */}
-                <div className="px-4 py-3 border-b border-border-default text-text-primary font-medium flex items-center justify-between">
-                    <span>{t.settings.title}</span>
-                    <button
-                        onClick={onClose}
-                        className="text-text-tertiary hover:text-text-primary cursor-pointer transition-colors"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
+            <ResizableModal
+                isOpen={open}
+                onClose={onClose}
+                title={t.settings.title}
+                storageKey="settings"
+                defaultWidth={1200}
+                defaultHeight={800}
+                minWidth={900}
+                minHeight={600}
+                footer={settingsFooter}
+            >
                 {loading ? (
-                    <div className="flex-1 flex items-center justify-center py-8">
+                    <div className="flex items-center justify-center h-full py-8">
                         <span className="text-body text-text-secondary">Loading settings...</span>
                     </div>
                 ) : (
-                    <div className="flex-1 flex overflow-hidden">
-                        {/* Sidebar */}
-                        <div className="w-56 border-r py-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-default)' }}>
+                    <div className="flex h-full overflow-hidden">
+                        <div className="w-56 shrink-0 border-r py-4 overflow-y-auto" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-default)' }}>
                             {projectCategories.length > 0 && (
                                 <>
                                     <div className="px-3 mb-2">
@@ -2625,56 +2667,12 @@ fi`}
                             </nav>
                         </div>
 
-                        {/* Content Area */}
                         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                             {renderSettingsContent()}
                         </div>
                     </div>
                 )}
-
-                {/* Footer */}
-                {!loading && (
-                    <div className="px-4 py-3 border-t border-border-default flex justify-between">
-                        <div className="flex gap-2">
-                            {onOpenTutorial && (
-                                <button
-                                    onClick={() => {
-                                        onOpenTutorial()
-                                        onClose()
-                                    }}
-                                    className="settings-btn px-4 py-2 rounded-lg flex items-center gap-2"
-                                    title="Open interactive tutorial"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                    </svg>
-                                    Open Tutorial
-                                </button>
-                            )}
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={onClose}
-                                className="settings-btn px-4 py-2 rounded-lg"
-                            >
-                                {t.settings.common.cancel}
-                            </button>
-                            <button
-                                onClick={() => { void handleSave() }}
-                                disabled={saving}
-                                className="settings-btn-primary px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {saving ? (
-                                    <span className="text-button text-white/80">Saving...</span>
-                                ) : (
-                                    t.settings.common.save
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
+            </ResizableModal>
 
             {selectedSpec && (
                 <SpecContentModal

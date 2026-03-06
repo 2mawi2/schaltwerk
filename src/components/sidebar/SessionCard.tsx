@@ -44,6 +44,7 @@ interface SessionCardProps {
   onReset?: (sessionId: string) => void;
   onSwitchModel?: (sessionId: string) => void;
   onCreatePullRequest?: (sessionId: string) => void;
+  onCreateGitlabMr?: (sessionId: string) => void;
   isResetting?: boolean;
   isRunning?: boolean;
   onMerge?: (sessionId: string) => void;
@@ -235,6 +236,7 @@ export const SessionCard = memo<SessionCardProps>(
     onReset,
     onSwitchModel,
     onCreatePullRequest,
+    onCreateGitlabMr,
     isResetting = false,
     isRunning = false,
     onMerge,
@@ -594,6 +596,7 @@ export const SessionCard = memo<SessionCardProps>(
             defaultBranch={s.parent_branch ?? undefined}
             showPromoteIcon={showPromoteIcon}
             onCreatePullRequest={onCreatePullRequest}
+            onCreateGitlabMr={onCreateGitlabMr}
             prNumber={s.pr_number}
             prUrl={s.pr_url}
             onRunSpec={onRunDraft}
