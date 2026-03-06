@@ -8,6 +8,8 @@ import { ModalProvider } from '../contexts/ModalContext'
 import { ToastProvider } from '../common/toast/ToastProvider'
 import { GithubIntegrationContext } from '../contexts/GithubIntegrationContext'
 import type { GithubIntegrationValue } from '../hooks/useGithubIntegration'
+import { GitlabIntegrationContext } from '../contexts/GitlabIntegrationContext'
+import type { GitlabIntegrationValue } from '../hooks/useGitlabIntegration'
 import type { ChangedFile } from '../common/events'
 import { Provider, createStore, useSetAtom } from 'jotai'
 import { projectPathAtom } from '../store/atoms/project'
@@ -52,6 +54,44 @@ function createGithubIntegrationValue(overrides?: GithubOverrides): GithubIntegr
   return overrides ? { ...base, ...overrides } : base
 }
 
+type GitlabOverrides = Partial<GitlabIntegrationValue>
+
+function createGitlabIntegrationValue(overrides?: GitlabOverrides): GitlabIntegrationValue {
+  const unimplemented = (method: string) => async () => {
+    throw new Error(
+      `GitlabIntegration mock "${method}" not configured. Provide gitlabOverrides when using renderWithProviders/TestProviders.`
+    )
+  }
+
+  const base: GitlabIntegrationValue = {
+    status: null,
+    sources: [],
+    loading: false,
+    isGlabMissing: false,
+    hasSources: false,
+    refreshStatus: async () => {},
+    loadSources: async () => {},
+    saveSources: unimplemented('saveSources'),
+  }
+
+  return overrides ? { ...base, ...overrides } : base
+}
+
+function GitlabIntegrationTestProvider({
+  overrides,
+  children,
+}: {
+  overrides?: GitlabOverrides
+  children: React.ReactNode
+}) {
+  const value = useMemo(() => createGitlabIntegrationValue(overrides), [overrides])
+  return (
+    <GitlabIntegrationContext.Provider value={value}>
+      {children}
+    </GitlabIntegrationContext.Provider>
+  )
+}
+
 function GithubIntegrationTestProvider({
   overrides,
   children,
@@ -70,10 +110,11 @@ function GithubIntegrationTestProvider({
 interface ProviderTreeProps {
   children: React.ReactNode
   githubOverrides?: GithubOverrides
+  gitlabOverrides?: GitlabOverrides
   includeTestInitializer?: boolean
 }
 
-function ProviderTree({ children, githubOverrides, includeTestInitializer = false }: ProviderTreeProps) {
+function ProviderTree({ children, githubOverrides, gitlabOverrides, includeTestInitializer = false }: ProviderTreeProps) {
   const store = useMemo(() => createStore(), [])
 
   const inner = (
@@ -81,7 +122,9 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
       <ReviewProvider>
         <RunProvider>
           <GithubIntegrationTestProvider overrides={githubOverrides}>
-            {children}
+            <GitlabIntegrationTestProvider overrides={gitlabOverrides}>
+              {children}
+            </GitlabIntegrationTestProvider>
           </GithubIntegrationTestProvider>
         </RunProvider>
       </ReviewProvider>
@@ -109,15 +152,16 @@ function ProviderTree({ children, githubOverrides, includeTestInitializer = fals
 
 interface RenderWithProvidersOptions extends RenderOptions {
   githubOverrides?: GithubOverrides
+  gitlabOverrides?: GitlabOverrides
 }
 
 export function renderWithProviders(
   ui: React.ReactElement,
   options: RenderWithProvidersOptions = {}
 ) {
-  const { githubOverrides, ...renderOptions } = options
+  const { githubOverrides, gitlabOverrides, ...renderOptions } = options
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ProviderTree githubOverrides={githubOverrides}>{children}</ProviderTree>
+    <ProviderTree githubOverrides={githubOverrides} gitlabOverrides={gitlabOverrides}>{children}</ProviderTree>
   )
   return render(ui, { wrapper: Wrapper, ...renderOptions })
 }
@@ -167,12 +211,14 @@ function SelectionTestInitializer({ children }: { children: React.ReactNode }) {
 export function TestProviders({
   children,
   githubOverrides,
+  gitlabOverrides,
 }: {
   children: React.ReactNode
   githubOverrides?: GithubOverrides
+  gitlabOverrides?: GitlabOverrides
 }) {
   return (
-    <ProviderTree githubOverrides={githubOverrides} includeTestInitializer>
+    <ProviderTree githubOverrides={githubOverrides} gitlabOverrides={gitlabOverrides} includeTestInitializer>
       {children}
     </ProviderTree>
   )

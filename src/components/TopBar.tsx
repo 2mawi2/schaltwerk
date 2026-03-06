@@ -12,6 +12,7 @@ import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
 import { GithubMenuButton } from './github/GithubMenuButton'
+import { GitlabMenuButton } from './gitlab/GitlabMenuButton'
 import { WindowControls } from './WindowControls'
 import { getPlatform } from '../utils/platform'
 import { detectPlatformSafe } from '../keyboardShortcuts/helpers'
@@ -195,6 +196,9 @@ export function TopBar({
 
         {/* GitHub status/actions */}
         <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
+
+        {/* GitLab status/actions */}
+        <GitlabMenuButton className="mr-2" onConfigureSources={onOpenSettings} />
 
         {/* Global keep-awake toggle */}
         <div className="mr-2" data-no-drag>
