@@ -7,6 +7,7 @@ import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationCon
 import { useToast } from '../../common/toast/ToastProvider'
 import { logger } from '../../utils/logger'
 import { useTranslation } from '../../common/i18n'
+import { useOutsideDismiss } from '../../hooks/useOutsideDismiss'
 
 interface GithubMenuButtonProps {
   className?: string
@@ -27,19 +28,6 @@ const dividerStyle: CSSProperties = {
 }
 
 type MenuButtonKey = 'connect' | 'reconnect' | 'refresh'
-
-function useOutsideDismiss(ref: React.RefObject<HTMLElement | null>, onDismiss: () => void) {
-  useEffect(() => {
-    const listener = (event: MouseEvent) => {
-      if (!ref.current || ref.current.contains(event.target as Node)) {
-        return
-      }
-      onDismiss()
-    }
-    document.addEventListener('mousedown', listener)
-    return () => document.removeEventListener('mousedown', listener)
-  }, [ref, onDismiss])
-}
 
 export function GithubMenuButton({ className, hasActiveProject = false }: GithubMenuButtonProps) {
   const { t } = useTranslation()

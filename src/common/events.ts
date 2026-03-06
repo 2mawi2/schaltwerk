@@ -26,6 +26,7 @@ export enum SchaltEvent {
   GitOperationFailed = 'schaltwerk:git-operation-failed',
   ProjectFilesUpdated = 'schaltwerk:project-files-updated',
   GitHubStatusChanged = 'schaltwerk:github-status-changed',
+  GitLabStatusChanged = 'schaltwerk:gitlab-status-changed',
   AppUpdateResult = 'schaltwerk:app-update-result',
   DevBackendError = 'schaltwerk:dev-backend-error',
   SetupScriptRequested = 'schaltwerk:setup-script-request',
@@ -35,6 +36,7 @@ export enum SchaltEvent {
   ProjectValidationError = 'schaltwerk:project-validation-error',
   OpenPrModal = 'schaltwerk:open-pr-modal',
   OpenMergeModal = 'schaltwerk:open-merge-modal',
+  OpenGitlabMrModal = 'schaltwerk:open-gitlab-mr-modal',
   SelectAllRequested = 'schaltwerk:select-all-requested',
 }
 
@@ -124,6 +126,13 @@ export interface GitHubStatusPayload {
   repository?: GitHubRepositoryPayload | null
 }
 
+export interface GitLabStatusPayload {
+  installed: boolean
+  authenticated: boolean
+  userLogin?: string | null
+  hostname?: string | null
+}
+
 export interface GitHubPrPayload {
   branch: string
   url: string
@@ -194,6 +203,14 @@ export interface OpenMergeModalPayload {
   commitMessage?: string
 }
 
+export interface OpenGitlabMrModalPayload {
+  sessionName: string
+  suggestedTitle?: string
+  suggestedBody?: string
+  suggestedBaseBranch?: string
+  suggestedSourceProject?: string
+}
+
 import { type EnrichedSession, type Epic } from '../types/session'
 
 export interface SessionsRefreshedEventPayload {
@@ -250,6 +267,7 @@ export type EventPayloadMap = {
   [SchaltEvent.GitOperationFailed]: GitOperationFailedPayload
   [SchaltEvent.ProjectFilesUpdated]: string[]
   [SchaltEvent.GitHubStatusChanged]: GitHubStatusPayload
+  [SchaltEvent.GitLabStatusChanged]: GitLabStatusPayload
   [SchaltEvent.AppUpdateResult]: AppUpdateResultPayload
   [SchaltEvent.DevBackendError]: DevBackendErrorPayload
   [SchaltEvent.SetupScriptRequested]: SetupScriptRequestPayload
@@ -259,5 +277,6 @@ export type EventPayloadMap = {
   [SchaltEvent.ProjectValidationError]: ProjectValidationErrorPayload
   [SchaltEvent.OpenPrModal]: OpenPrModalPayload
   [SchaltEvent.OpenMergeModal]: OpenMergeModalPayload
+  [SchaltEvent.OpenGitlabMrModal]: OpenGitlabMrModalPayload
   [SchaltEvent.SelectAllRequested]: null
 }

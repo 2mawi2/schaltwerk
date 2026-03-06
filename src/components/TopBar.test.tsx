@@ -32,6 +32,10 @@ vi.mock('./github/GithubMenuButton', () => ({
   GithubMenuButton: () => <div data-testid="github-menu" />
 }))
 
+vi.mock('./gitlab/GitlabMenuButton', () => ({
+  GitlabMenuButton: () => <div data-testid="gitlab-menu" />
+}))
+
 vi.mock('./WindowControls', () => ({
   WindowControls: () => <div data-testid="window-controls" />
 }))
