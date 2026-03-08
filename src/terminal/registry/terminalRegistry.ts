@@ -3,6 +3,7 @@ import { XtermTerminal } from '../xterm/XtermTerminal';
 import { disposeGpuRenderer } from '../gpu/gpuRendererRegistry';
 import { sessionTerminalBaseVariants, sanitizeSessionName } from '../../common/terminalIdentity';
 import { terminalOutputManager } from '../stream/terminalOutputManager';
+import { slicePreservingSurrogates } from '../paste/bracketedPaste';
 
 const ESC = '\x1b';
 const CLEAR_SCROLLBACK_SEQ = `${ESC}[3J`;
@@ -18,6 +19,7 @@ const ALT_SCREEN_ENABLE_1047 = `${ESC}[?1047h`;
 const ALT_SCREEN_DISABLE_1047 = `${ESC}[?1047l`;
 const CONTROL_SEQUENCE_TAIL_MAX = 32;
 const MAX_PENDING_CHARS_WHILE_DETACHED = 512 * 1024;
+const FLUSH_CHUNK_SIZE = 64 * 1024;
 
 function stripAnsiSequences(text: string): string {
   // Minimal ANSI strip to detect "boundary-only" chunks without using control-character regexes.
@@ -485,13 +487,55 @@ class TerminalInstanceRegistry {
         return;
       }
 
-      record.xterm.raw.write(payload, () => {
+      if (payload.length <= FLUSH_CHUNK_SIZE) {
+        record.xterm.raw.write(payload, () => {
+          record.latestParseId = writeId;
+
+          if (terminalDebug) {
+            const bufAfter = record.xterm.raw.buffer?.active;
+            if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
+              logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+            }
+          }
+
+          if (hadClear) {
+            this.notifyClearCallbacks(record);
+          }
+          this.notifyOutputCallbacks(record);
+
+          if (record.flushAfterParse && record.pendingChunks && record.pendingChunks.length > 0 && !record.tuiHoldRedraw) {
+            record.flushAfterParse = false;
+            this.scheduleFlush(record, 'after-parse');
+          }
+        });
+      } else {
+        this.writeChunked(record, payload, writeId, hadClear, terminalDebug, baseYBefore, viewportYBefore);
+      }
+    } catch (error) {
+      record.flushAfterParse = false;
+      logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
+    }
+  }
+
+  private writeChunked(
+    record: TerminalInstanceRecord,
+    payload: string,
+    writeId: number,
+    hadClear: boolean,
+    terminalDebug: boolean,
+    baseYBefore: number | undefined,
+    viewportYBefore: number | undefined,
+  ): void {
+    let offset = 0;
+
+    const writeNextChunk = () => {
+      if (offset >= payload.length) {
         record.latestParseId = writeId;
 
         if (terminalDebug) {
           const bufAfter = record.xterm.raw.buffer?.active;
           if (bufAfter && (bufAfter.baseY !== baseYBefore || bufAfter.viewportY !== viewportYBefore)) {
-            logger.debug(`[Registry ${record.id}] Viewport changed after write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
+            logger.debug(`[Registry ${record.id}] Viewport changed after chunked write: baseY ${baseYBefore}→${bufAfter.baseY}, viewportY ${viewportYBefore}→${bufAfter.viewportY}`);
           }
         }
 
@@ -504,11 +548,15 @@ class TerminalInstanceRegistry {
           record.flushAfterParse = false;
           this.scheduleFlush(record, 'after-parse');
         }
-      });
-    } catch (error) {
-      record.flushAfterParse = false;
-      logger.debug(`[Registry] Failed to write batch for ${record.id}`, error);
-    }
+        return;
+      }
+
+      const chunk = slicePreservingSurrogates(payload, offset, offset + FLUSH_CHUNK_SIZE);
+      offset += chunk.length;
+      record.xterm.raw.write(chunk, writeNextChunk);
+    };
+
+    writeNextChunk();
   }
 
   private ensureStream(record: TerminalInstanceRecord): void {
