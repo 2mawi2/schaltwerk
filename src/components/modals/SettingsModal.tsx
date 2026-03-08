@@ -271,6 +271,7 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
+    worktreeBaseDirectory: string
     environmentVariables: Array<{key: string, value: string}>
 }
 
@@ -315,6 +316,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '',
         environmentVariables: []
     })
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
@@ -676,7 +678,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
         ])
         
         // Load project-specific settings (may fail if no project is open)
-        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', environmentVariables: [] }
+        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: '', worktreeBaseDirectory: '', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null, webglEnabled: true }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: true, autoCancelAfterPr: false }
@@ -1098,6 +1100,24 @@ export function SettingsModal({ open, onClose, onOpenTutorial, initialTab }: Pro
                                 setHasUnsavedChanges(true)
                             }}
                             placeholder=""
+                            className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted text-body focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
+                            spellCheck={false}
+                        />
+                    </div>
+
+                    <div>
+                        <h3 className="text-body font-medium text-text-primary mb-2">{t.settings.projectGeneral.worktreeBaseDirectory}</h3>
+                        <div className="text-body text-text-tertiary mb-3">
+                            {t.settings.projectGeneral.worktreeBaseDirectoryDesc}
+                        </div>
+                        <input
+                            type="text"
+                            value={projectSettings.worktreeBaseDirectory}
+                            onChange={(e) => {
+                                setProjectSettings(prev => ({ ...prev, worktreeBaseDirectory: e.target.value }))
+                                setHasUnsavedChanges(true)
+                            }}
+                            placeholder=".schaltwerk/worktrees"
                             className="w-full bg-bg-tertiary text-text-primary rounded px-3 py-2 border border-white/10 placeholder-text-muted text-body focus:outline-none focus:border-[var(--color-border-focus)] transition-colors"
                             spellCheck={false}
                         />
