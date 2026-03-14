@@ -2141,6 +2141,11 @@ export function UnifiedDiffView({
       });
       setFiles(event.changed_files);
 
+      if (sessionName) {
+        diffPreloader.invalidate(sessionName);
+      }
+      setAllFileDiffs(new Map());
+
       void loadChangedFilesGuarded();
     })
       .then((remove) => {
