@@ -4,6 +4,7 @@ pub mod claude;
 pub mod codex;
 pub mod command_parser;
 pub mod copilot;
+pub mod db_kilo;
 pub mod droid;
 pub mod gemini;
 pub mod kilo;

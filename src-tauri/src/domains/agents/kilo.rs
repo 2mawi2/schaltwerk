@@ -421,7 +421,7 @@ struct KiloStoredSessionRecord {
     time: KiloStoredSessionTime,
 }
 
-fn extract_repo_root(path: &Path) -> Option<PathBuf> {
+pub(super) fn extract_repo_root(path: &Path) -> Option<PathBuf> {
     let mut current = path;
     while let Some(parent) = current.parent() {
         if parent
@@ -612,7 +612,8 @@ fn find_kilo_session_in_legacy_storage(
 }
 
 /// Find a Kilocode session by matching worktree path.
-/// Tries the new OpenCode-compatible storage format first (~/.local/share/kilo/storage/),
+/// Tries the SQLite DB first (~/.local/share/kilo/kilo.db),
+/// then the file-based storage format (~/.local/share/kilo/storage/),
 /// then falls back to the legacy format (~/.kilo/cli/).
 fn find_kilo_session_with_index(
     worktree_path: &Path,
@@ -621,6 +622,10 @@ fn find_kilo_session_with_index(
     debug!("find_kilo_session: looking for worktree_path={worktree_path:?}");
 
     let home = dirs::home_dir()?;
+
+    if let Some(info) = super::db_kilo::find_kilo_session_in_db(worktree_path, &home) {
+        return Some(info);
+    }
 
     if let Some(info) = find_kilo_session_in_new_storage(worktree_path, &home) {
         return Some(info);

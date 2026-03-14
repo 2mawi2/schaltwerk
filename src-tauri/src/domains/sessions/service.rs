@@ -91,16 +91,24 @@ fn agent_binary_available(agent: &str, binary_paths: &HashMap<String, String>) -
         .unwrap_or(false)
 }
 
+fn normalize_agent_name(name: &str) -> &str {
+    match name {
+        "kilocode" => "kilo",
+        other => other,
+    }
+}
+
 fn resolve_launch_agent(
     preferred: &str,
     binary_paths: &HashMap<String, String>,
 ) -> Result<String> {
     let preferred_normalized = preferred.trim();
-    let desired = if preferred_normalized.is_empty() {
-        "claude".to_string()
+    let desired_raw = if preferred_normalized.is_empty() {
+        "claude"
     } else {
-        preferred_normalized.to_lowercase()
+        preferred_normalized
     };
+    let desired = normalize_agent_name(&desired_raw.to_lowercase()).to_string();
 
     if agent_binary_available(&desired, binary_paths) {
         return Ok(desired);
@@ -224,6 +232,17 @@ mod service_unified_tests {
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("claude"));
         assert!(err_msg.contains("not available"));
+    }
+
+    #[test]
+    fn resolve_launch_agent_normalizes_kilocode_to_kilo() {
+        let temp_dir = TempDir::new().unwrap();
+        let kilo_path = create_temp_executable(&temp_dir, "kilo");
+        let mut binaries = HashMap::new();
+        binaries.insert("kilo".to_string(), kilo_path);
+
+        let agent = super::resolve_launch_agent("kilocode", &binaries).unwrap();
+        assert_eq!(agent, "kilo");
     }
     use uuid::Uuid;
 
