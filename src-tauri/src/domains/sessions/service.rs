@@ -3216,6 +3216,13 @@ impl SessionManager {
             });
         let agent_type = resolve_launch_agent(&requested_agent_type, binary_paths)?;
 
+        // When skip_prompt is true (e.g., secondary agent tabs), don't use the initial prompt
+        let effective_initial_prompt = if skip_prompt {
+            None
+        } else {
+            session.initial_prompt.as_deref()
+        };
+
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Special handling for Claude's session resumption logic
@@ -3244,14 +3251,6 @@ impl SessionManager {
             log::info!(
                 "Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}"
             );
-
-            // Determine session_id and prompt based on force_restart and existing session
-            // When skip_prompt is true (e.g., secondary agent tabs), don't use the initial prompt
-            let effective_initial_prompt = if skip_prompt {
-                None
-            } else {
-                session.initial_prompt.as_deref()
-            };
 
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt (if not skipped), no session resumption
@@ -3353,13 +3352,11 @@ impl SessionManager {
                 .and_then(|p| crate::domains::agents::codex::extract_session_id_from_path(p));
 
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
-                // Explicit restart - always use initial prompt, no session resumption
+                // Explicit restart - always use initial prompt (if not skipped), no session resumption
                 log::info!(
-                    "Session manager: Force restarting Codex session '{}' with initial_prompt={:?}",
-                    session_name,
-                    session.initial_prompt
+                    "Session manager: Force restarting Codex session '{session_name}' with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                 );
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             } else if let (Some(path), Some(session_id)) =
                 (resume_path.as_ref(), resume_session_id_from_path.clone())
             {
@@ -3379,7 +3376,7 @@ impl SessionManager {
                     );
                     (Some(session_id), None, false)
                 } else {
-                    (None, session.initial_prompt.as_deref(), true)
+                    (None, effective_initial_prompt, true)
                 }
             } else if let Some(session_id) = resumable_session_id {
                 // Fallback: Session sentinel exists - either --continue or --resume picker
@@ -3389,12 +3386,11 @@ impl SessionManager {
                 );
                 (Some(session_id), None, false)
             } else {
-                // No resumable session - use initial prompt for first start
+                // No resumable session - use initial prompt for first start (if not skipped)
                 log::info!(
-                    "Session manager: Starting fresh Codex session '{session_name}' with initial_prompt={initial_prompt:?}",
-                    initial_prompt = session.initial_prompt
+                    "Session manager: Starting fresh Codex session '{session_name}' with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                 );
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             };
 
             log::info!(
@@ -3467,11 +3463,9 @@ impl SessionManager {
 
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 log::info!(
-                    "Session manager: Force restarting OpenCode session '{}' with initial_prompt={:?}",
-                    session_name,
-                    session.initial_prompt
+                    "Session manager: Force restarting OpenCode session '{session_name}' with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                 );
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             } else if let Some(info) = resume_info.as_ref().filter(|info| info.has_history) {
                 log::info!(
                     "Session manager: Resuming OpenCode session '{}' via --session {}",
@@ -3487,11 +3481,10 @@ impl SessionManager {
                     );
                 } else {
                     log::info!(
-                        "Session manager: No OpenCode history detected; starting fresh with initial_prompt={:?}",
-                        session.initial_prompt
+                        "Session manager: No OpenCode history detected; starting fresh with initial_prompt={effective_initial_prompt:?}, skip_prompt={skip_prompt}"
                     );
                 }
-                (None, session.initial_prompt.as_deref(), true)
+                (None, effective_initial_prompt, true)
             };
 
             log::info!(
@@ -3530,9 +3523,11 @@ impl SessionManager {
 
         // Special handling for Amp with MCP servers
         if agent_type == "amp" {
-            self.cache_manager
-                .mark_session_prompted(&session.worktree_path);
-            let prompt_to_use = session.initial_prompt.as_deref();
+            if effective_initial_prompt.is_some() {
+                self.cache_manager
+                    .mark_session_prompted(&session.worktree_path);
+            }
+            let prompt_to_use = effective_initial_prompt;
 
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 &agent_type,
@@ -3558,9 +3553,6 @@ impl SessionManager {
         }
 
         // For all other agents, use the registry directly
-        self.cache_manager
-            .mark_session_prompted(&session.worktree_path);
-
         let binary_path = self.utils.get_effective_binary_path_with_override(
             &agent_type,
             binary_paths.get(&agent_type).map(|s| s.as_str()),
@@ -3579,8 +3571,13 @@ impl SessionManager {
         let prompt_to_use = if session_id.is_some() {
             None
         } else {
-            session.initial_prompt.as_deref()
+            effective_initial_prompt
         };
+
+        if prompt_to_use.is_some() {
+            self.cache_manager
+                .mark_session_prompted(&session.worktree_path);
+        }
 
         if let Some(spec) = registry.build_launch_spec(
             &agent_type,
