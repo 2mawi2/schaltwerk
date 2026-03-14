@@ -20,7 +20,7 @@ describe('codexModelCatalog', () => {
             models: [
                 {
                     id: 'gpt-5.3-codex',
-                    label: 'GPT-5.3 Codex',
+                    label: 'GPT-5.4 Codex',
                     description: 'General purpose',
                     defaultReasoning: 'high',
                     reasoningOptions: [

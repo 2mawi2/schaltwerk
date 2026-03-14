@@ -158,9 +158,48 @@
         ]
       },
       {
+        "id": "gpt-5.4",
+        "label": "GPT-5.4",
+        "description": "Latest frontier model with top-tier knowledge, reasoning and coding.",
+        "defaultReasoning": "medium",
+        "isDefault": false,
+        "reasoningOptions": [
+          {
+            "id": "none",
+            "label": "None",
+            "description": "Bypasses deliberate reasoning for the fastest lightweight turns"
+          },
+          {
+            "id": "minimal",
+            "label": "Minimal",
+            "description": "Very fast responses with minimal deliberate reasoning"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced speed and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Deep reasoning for complex problems"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the most difficult tasks"
+          }
+        ]
+      },
+      {
         "id": "gpt-5.2",
         "label": "GPT-5.2",
-        "description": "Latest frontier model with improvements across knowledge, reasoning and coding.",
+        "description": "Frontier model with improvements across knowledge, reasoning and coding.",
         "defaultReasoning": "medium",
         "isDefault": false,
         "reasoningOptions": [
