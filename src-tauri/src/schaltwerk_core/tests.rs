@@ -31,8 +31,6 @@ use crate::domains::sessions::entity::SessionState;
 #[cfg(test)]
 use crate::infrastructure::database::db_archived_specs::ArchivedSpecMethods;
 #[cfg(test)]
-use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
-#[cfg(test)]
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
 
 #[cfg(test)]
@@ -957,36 +955,30 @@ fn test_list_enriched_sessions_performance_caching() {
 }
 
 #[test]
-fn test_list_enriched_sessions_caches_to_db_and_refreshes_when_stale() {
-    use chrono::{Duration as ChronoDuration, Utc};
-
+fn test_list_enriched_sessions_computes_fresh_git_stats() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
 
-    // Create some sessions
-    let s1 = manager.create_session("cache-a", None, None).unwrap();
-    let s2 = manager.create_session("cache-b", None, None).unwrap();
+    let s1 = manager.create_session("stats-a", None, None).unwrap();
+    let _s2 = manager.create_session("stats-b", None, None).unwrap();
 
-    // Trigger caching by listing
-    let _ = manager.list_enriched_sessions().unwrap();
+    std::fs::write(s1.worktree_path.join("new_file.txt"), "hello\n").unwrap();
 
-    // Verify stats exist in DB
-    let stats1 = manager.db_ref().get_git_stats(&s1.id).unwrap();
-    let stats2 = manager.db_ref().get_git_stats(&s2.id).unwrap();
-    assert!(stats1.is_some());
-    assert!(stats2.is_some());
+    let enriched = manager.list_enriched_sessions().unwrap();
+    let session_a = enriched
+        .iter()
+        .find(|e| e.info.session_id == "stats-a")
+        .expect("stats-a present");
 
-    // Force stats to be stale by overwriting with an older timestamp
-    let mut stale1 = stats1.unwrap();
-    stale1.calculated_at = Utc::now() - ChronoDuration::seconds(61);
-    manager.db_ref().save_git_stats(&stale1).unwrap();
-
-    // Call listing again to trigger refresh for stale session
-    let _ = manager.list_enriched_sessions().unwrap();
-
-    // New timestamp should be fresher than the stale timestamp
-    let refreshed1 = manager.db_ref().get_git_stats(&s1.id).unwrap().unwrap();
-    assert!(refreshed1.calculated_at > stale1.calculated_at);
+    let diff = session_a
+        .info
+        .diff_stats
+        .as_ref()
+        .expect("diff_stats present for session with changes");
+    assert!(
+        diff.additions > 0,
+        "should report additions for new file"
+    );
 }
 
 #[test]

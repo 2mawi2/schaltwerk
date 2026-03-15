@@ -5,9 +5,6 @@ use crate::domains::sessions::repository::SessionDbManager;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use log::{info, warn};
-use std::path::Path;
-
-const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
 
 pub struct SessionFinalizer<'a> {
     db_manager: &'a SessionDbManager,
@@ -40,7 +37,7 @@ impl<'a> SessionFinalizer<'a> {
             .with_context(|| format!("Failed to persist session '{}'", config.session.name))?;
 
         let git_stats = if config.compute_git_stats {
-            self.compute_and_save_git_stats(&config.session, &config.session.parent_branch)
+            self.compute_git_stats(&config.session, &config.session.parent_branch)
                 .unwrap_or_else(|e| {
                     warn!(
                         "Failed to compute git stats for '{}': {}",
@@ -88,7 +85,7 @@ impl<'a> SessionFinalizer<'a> {
         Ok(())
     }
 
-    pub fn compute_and_save_git_stats(
+    pub fn compute_git_stats(
         &self,
         session: &Session,
         parent_branch: &str,
@@ -105,22 +102,18 @@ impl<'a> SessionFinalizer<'a> {
             return Ok(None);
         }
 
-        let cached_stats = self.db_manager.get_git_stats(&session.id).ok().flatten();
+        let mut stats =
+            git::calculate_git_stats_fast(&session.worktree_path, parent_branch).with_context(
+                || {
+                    format!(
+                        "Failed to calculate git stats for worktree at {}",
+                        session.worktree_path.display()
+                    )
+                },
+            )?;
 
-        let stats = self.get_or_compute_git_stats(
-            &session.id,
-            &session.worktree_path,
-            parent_branch,
-            cached_stats.as_ref(),
-        )?;
-
-        if let Some(ref s) = stats {
-            self.db_manager
-                .save_git_stats(s)
-                .with_context(|| format!("Failed to save git stats for '{}'", session.name))?;
-        }
-
-        Ok(stats)
+        stats.session_id = session.id.clone();
+        Ok(Some(stats))
     }
 
     pub fn update_activity(&self, session_id: &str) -> Result<()> {
@@ -140,46 +133,6 @@ impl<'a> SessionFinalizer<'a> {
         Ok(())
     }
 
-    fn get_or_compute_git_stats(
-        &self,
-        session_id: &str,
-        worktree_path: &Path,
-        parent_branch: &str,
-        cached_stats: Option<&GitStats>,
-    ) -> Result<Option<GitStats>> {
-        match cached_stats {
-            Some(existing) => {
-                let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp()
-                    > GIT_STATS_STALE_THRESHOLD_SECS;
-                if is_stale {
-                    let updated =
-                        self.compute_fresh_git_stats(session_id, worktree_path, parent_branch)?;
-                    Ok(Some(updated.unwrap_or_else(|| existing.clone())))
-                } else {
-                    Ok(Some(existing.clone()))
-                }
-            }
-            None => self.compute_fresh_git_stats(session_id, worktree_path, parent_branch),
-        }
-    }
-
-    fn compute_fresh_git_stats(
-        &self,
-        session_id: &str,
-        worktree_path: &Path,
-        parent_branch: &str,
-    ) -> Result<Option<GitStats>> {
-        let mut stats =
-            git::calculate_git_stats_fast(worktree_path, parent_branch).with_context(|| {
-                format!(
-                    "Failed to calculate git stats for worktree at {}",
-                    worktree_path.display()
-                )
-            })?;
-
-        stats.session_id = session_id.to_string();
-        Ok(Some(stats))
-    }
 }
 
 #[cfg(test)]
@@ -321,7 +274,7 @@ mod tests {
         session.session_state = SessionState::Spec;
 
         let result = finalizer
-            .compute_and_save_git_stats(&session, "main")
+            .compute_git_stats(&session, "main")
             .unwrap();
         assert!(result.is_none());
     }
@@ -338,7 +291,7 @@ mod tests {
         let session = create_test_session(PathBuf::from("/nonexistent/worktree"));
 
         let result = finalizer
-            .compute_and_save_git_stats(&session, "main")
+            .compute_git_stats(&session, "main")
             .unwrap();
         assert!(result.is_none());
     }

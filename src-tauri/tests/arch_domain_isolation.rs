@@ -18,11 +18,6 @@ const LEGACY_EXCEPTION_LIST: &[(&str, &str)] = &[
         "schaltwerk_core::database::Database",
     ),
     ("domains/agents/naming.rs", "schaltwerk_core::{"),
-    // Git domain persists stats through the legacy database layer
-    (
-        "domains/git/db_git_stats.rs",
-        "schaltwerk_core::database::Database",
-    ),
     // Merge service writes merge state snapshots through legacy DB plumbing
     (
         "domains/merge/service.rs",

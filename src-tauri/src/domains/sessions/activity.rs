@@ -1,8 +1,8 @@
 use crate::infrastructure::events::{SchaltEvent, emit_event};
 use crate::shared::merge_snapshot_gateway::MergeSnapshotGateway;
 use crate::{
-    domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
-    domains::sessions::db_sessions::SessionMethods, infrastructure::database::Database,
+    domains::git::service as git, domains::sessions::db_sessions::SessionMethods,
+    infrastructure::database::Database,
 };
 use anyhow::Result;
 #[cfg(test)]
@@ -73,7 +73,6 @@ impl<E: EventEmitter> ActivityTracker<E> {
         &self,
         session: &crate::domains::sessions::entity::Session,
     ) -> Result<bool> {
-        // Prefer diff-aware last change time via git stats; fall back to filesystem walk only if unavailable
         let mut emitted_activity = false;
 
         if session.worktree_path.exists() {
@@ -81,80 +80,69 @@ impl<E: EventEmitter> ActivityTracker<E> {
                 Ok(mut stats) => {
                     stats.session_id = session.id.clone();
 
-                    // Update DB stats periodically as before
-                    if self.db.should_update_stats(&session.id)? {
-                        let has_conflicts = match git::has_conflicts(&session.worktree_path) {
-                            Ok(value) => value,
-                            Err(err) => {
-                                log::warn!(
-                                    "Failed to detect conflicts for {}: {err}",
-                                    session.name
-                                );
-                                false
-                            }
-                        };
-
-                        let merge_snapshot = Repository::open(&session.repository_path)
-                            .ok()
-                            .and_then(|repo| {
-                                let session_oid = MergeSnapshotGateway::resolve_branch_oid(
-                                    &repo,
-                                    &session.branch,
-                                )
-                                .ok()?;
-                                let parent_oid = MergeSnapshotGateway::resolve_branch_oid(
-                                    &repo,
-                                    &session.parent_branch,
-                                )
-                                .ok()?;
-                                MergeSnapshotGateway::compute(
-                                    &repo,
-                                    session_oid,
-                                    parent_oid,
-                                    &session.branch,
-                                    &session.parent_branch,
-                                )
-                                .map_err(|err| {
-                                    log::warn!(
-                                        "Merge assessment failed for session '{}': {}",
-                                        session.name,
-                                        err
-                                    );
-                                })
-                                .ok()
-                            })
-                            .unwrap_or_default();
-
-                        if let Err(e) = self.db.save_git_stats(&stats) {
-                            log::warn!("Failed to save git stats for {}: {}", session.name, e);
-                        } else {
-                            // Emit git stats update event
-                            let payload = SessionGitStatsUpdated {
-                                session_id: session.id.clone(),
-                                session_name: session.name.clone(),
-                                files_changed: stats.files_changed,
-                                lines_added: stats.lines_added,
-                                lines_removed: stats.lines_removed,
-                                has_uncommitted: stats.has_uncommitted,
-                                has_conflicts,
-                                top_uncommitted_paths: None,
-                                merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                                merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                                merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                            };
-                            let _ = self.emitter.emit_session_git_stats(payload);
+                    let has_conflicts = match git::has_conflicts(&session.worktree_path) {
+                        Ok(value) => value,
+                        Err(err) => {
+                            log::warn!(
+                                "Failed to detect conflicts for {}: {err}",
+                                session.name
+                            );
+                            false
                         }
-                    }
+                    };
+
+                    let merge_snapshot = Repository::open(&session.repository_path)
+                        .ok()
+                        .and_then(|repo| {
+                            let session_oid = MergeSnapshotGateway::resolve_branch_oid(
+                                &repo,
+                                &session.branch,
+                            )
+                            .ok()?;
+                            let parent_oid = MergeSnapshotGateway::resolve_branch_oid(
+                                &repo,
+                                &session.parent_branch,
+                            )
+                            .ok()?;
+                            MergeSnapshotGateway::compute(
+                                &repo,
+                                session_oid,
+                                parent_oid,
+                                &session.branch,
+                                &session.parent_branch,
+                            )
+                            .map_err(|err| {
+                                log::warn!(
+                                    "Merge assessment failed for session '{}': {}",
+                                    session.name,
+                                    err
+                                );
+                            })
+                            .ok()
+                        })
+                        .unwrap_or_default();
+
+                    let payload = SessionGitStatsUpdated {
+                        session_id: session.id.clone(),
+                        session_name: session.name.clone(),
+                        files_changed: stats.files_changed,
+                        lines_added: stats.lines_added,
+                        lines_removed: stats.lines_removed,
+                        has_uncommitted: stats.has_uncommitted,
+                        has_conflicts,
+                        top_uncommitted_paths: None,
+                        merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+                        merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+                        merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+                    };
+                    let _ = self.emitter.emit_session_git_stats(payload);
 
                     if let Some(mut ts) = stats.last_diff_change_ts {
-                        // Clamp future timestamps to now to avoid monotonic lock-in from clock skew
                         let now = Utc::now().timestamp();
                         if ts > now + 120 {
                             ts = now;
                         }
-                        // Persist as last_activity if monotonically newer
                         if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                            // Use strict set to ensure UI reflects the new diff-aware time (even if earlier/later)
                             self.db.set_session_activity(&session.id, dt)?;
                             let session_info = self.db.get_session_by_id(&session.id)?;
                             let payload = SessionActivityUpdated {
@@ -162,8 +150,8 @@ impl<E: EventEmitter> ActivityTracker<E> {
                                 session_name: session.name.clone(),
                                 last_activity_ts: dt.timestamp(),
                                 current_task: session_info.initial_prompt.clone(),
-                                todo_percentage: None, // Not available in Session
-                                is_blocked: None,      // Not available in Session
+                                todo_percentage: None,
+                                is_blocked: None,
                             };
                             let _ = self.emitter.emit_session_activity(payload);
                             emitted_activity = true;
@@ -179,8 +167,6 @@ impl<E: EventEmitter> ActivityTracker<E> {
                 }
             }
         }
-
-        // No filesystem walk fallback: if diff timestamp was not derived, do not emit or set last_activity
 
         Ok(emitted_activity)
     }

@@ -231,6 +231,13 @@ pub fn clear_stats_cache() {
     }
 }
 
+pub fn invalidate_stats_cache_for(worktree_path: &Path, parent_branch: &str) {
+    if let Some(cache) = STATS_CACHE.get() {
+        let key = (worktree_path.to_path_buf(), parent_branch.to_string());
+        cache.lock().unwrap().remove(&key);
+    }
+}
+
 #[inline]
 fn is_internal_tooling_path(path: &str) -> bool {
     path == ".schaltwerk" || path.starts_with(".schaltwerk/")
@@ -446,36 +453,40 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
         });
     }
 
-    let mut files: HashSet<String> = HashSet::new();
     let mut files_for_mtime: HashSet<String> = HashSet::new();
     let mut insertions: u32 = 0;
     let mut deletions: u32 = 0;
+    let mut files_changed: u32 = 0;
     let mut saw_schema_change: bool = false;
 
     let mut opts = DiffOptions::new();
-    opts.include_untracked(true).recurse_untracked_dirs(true);
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .show_untracked_content(true)
+        .show_binary(true)
+        .ignore_submodules(true);
 
     if let Some(ref bt) = base_tree
         && let Ok(mut diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts))
     {
         let mut find_opts = DiffFindOptions::new();
         diff.find_similar(Some(&mut find_opts)).ok();
+
+        let mut delta_count: usize = 0;
         for delta in diff.deltas() {
             if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path())
                 && let Some(path_str) = path.to_str()
             {
-                files.insert(path_str.to_string());
                 files_for_mtime.insert(path_str.to_string());
             }
 
-            if files.len() >= VERY_LARGE_SESSION_THRESHOLD {
+            delta_count += 1;
+            if delta_count >= VERY_LARGE_SESSION_THRESHOLD {
                 log::info!(
-                    "Session has {} files (>= {VERY_LARGE_SESSION_THRESHOLD}), skipping stats calculation",
-                    files.len()
+                    "Session has {delta_count} files (>= {VERY_LARGE_SESSION_THRESHOLD}), skipping stats calculation",
                 );
                 return Err(anyhow::anyhow!(
-                    "Session too large ({} files) for stats calculation",
-                    files.len()
+                    "Session too large ({delta_count} files) for stats calculation",
                 ));
             }
 
@@ -488,16 +499,18 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             }
         }
 
-        if files.len() >= LARGE_SESSION_THRESHOLD {
+        if delta_count >= LARGE_SESSION_THRESHOLD {
             log::info!(
-                "Session has {} files (>= {LARGE_SESSION_THRESHOLD}), stats calculation may be slow",
-                files.len()
+                "Session has {delta_count} files (>= {LARGE_SESSION_THRESHOLD}), stats calculation may be slow",
             );
         }
 
-        if let Ok(stats) = diff.stats() {
-            insertions = stats.insertions() as u32;
-            deletions = stats.deletions() as u32;
+        if let Ok(changed_files) = build_changed_files_from_diff(&diff) {
+            files_changed = changed_files.len() as u32;
+            for file in &changed_files {
+                insertions += file.additions;
+                deletions += file.deletions;
+            }
         }
     }
 
@@ -549,7 +562,7 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
     let stats = GitStats {
         session_id: String::new(),
-        files_changed: files.len() as u32,
+        files_changed,
         lines_added: insertions,
         lines_removed: deletions,
         has_uncommitted: has_uncommitted_filtered,

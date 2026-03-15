@@ -5,45 +5,7 @@ use chrono::Utc;
 use log::{info, warn};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 use which::which;
-
-#[cfg(test)]
-const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
-
-#[cfg(test)]
-fn get_or_compute_git_stats(
-    session_id: &str,
-    worktree_path: &Path,
-    parent_branch: &str,
-    cached_stats: Option<&GitStats>,
-    save_fn: impl FnOnce(&GitStats) -> Result<()>,
-) -> Option<GitStats> {
-    match cached_stats {
-        Some(existing) => {
-            let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp()
-                > GIT_STATS_STALE_THRESHOLD_SECS;
-            if is_stale {
-                let mut updated = git::calculate_git_stats_fast(worktree_path, parent_branch).ok();
-                if let Some(ref mut s) = updated {
-                    s.session_id = session_id.to_string();
-                    let _ = save_fn(s);
-                }
-                updated.or_else(|| Some(existing.clone()))
-            } else {
-                Some(existing.clone())
-            }
-        }
-        None => {
-            let mut computed = git::calculate_git_stats_fast(worktree_path, parent_branch).ok();
-            if let Some(ref mut s) = computed {
-                s.session_id = session_id.to_string();
-                let _ = save_fn(s);
-            }
-            computed
-        }
-    }
-}
 
 fn normalize_binary_path(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
@@ -163,8 +125,6 @@ pub struct AgentLaunchParams<'a> {
     pub skip_permissions_override: Option<bool>,
 }
 
-#[cfg(test)]
-use crate::domains::sessions::entity::GitStats;
 use crate::{
     domains::git::service as git,
     domains::sessions::cache::SessionCacheManager,
@@ -1847,168 +1807,6 @@ mod service_unified_tests {
         );
     }
 
-    #[test]
-    fn test_get_or_compute_git_stats_returns_cached_when_fresh() {
-        let temp_dir = TempDir::new().unwrap();
-        let worktree = temp_dir.path().join("worktree");
-        std::fs::create_dir_all(&worktree).unwrap();
-
-        let fresh_stats = GitStats {
-            session_id: "test-session".to_string(),
-            files_changed: 5,
-            lines_added: 100,
-            lines_removed: 50,
-            has_uncommitted: false,
-            calculated_at: Utc::now(),
-            last_diff_change_ts: None,
-        };
-
-        let mut save_called = false;
-        let result = get_or_compute_git_stats(
-            "test-session",
-            &worktree,
-            "main",
-            Some(&fresh_stats),
-            |_| {
-                save_called = true;
-                Ok(())
-            },
-        );
-
-        assert!(result.is_some());
-        assert!(!save_called);
-        let stats = result.unwrap();
-        assert_eq!(stats.files_changed, 5);
-    }
-
-    #[test]
-    fn test_get_or_compute_git_stats_recomputes_when_stale() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo = temp_dir.path().join("repo");
-        std::fs::create_dir_all(&repo).unwrap();
-
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["config", "user.email", "test@test.com"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["config", "user.name", "Test"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::fs::write(repo.join("test.txt"), "content").unwrap();
-        std::process::Command::new("git")
-            .args(["add", "."])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["commit", "-m", "init"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-
-        let stale_stats = GitStats {
-            session_id: "test-session".to_string(),
-            files_changed: 999,
-            lines_added: 999,
-            lines_removed: 999,
-            has_uncommitted: false,
-            calculated_at: Utc::now() - chrono::Duration::seconds(120),
-            last_diff_change_ts: None,
-        };
-
-        let mut save_called = false;
-        let result =
-            get_or_compute_git_stats("test-session", &repo, "main", Some(&stale_stats), |stats| {
-                save_called = true;
-                assert_eq!(stats.session_id, "test-session");
-                Ok(())
-            });
-
-        assert!(result.is_some());
-        assert!(save_called);
-    }
-
-    #[test]
-    fn test_get_or_compute_git_stats_returns_cached_when_refresh_fails() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo = temp_dir.path().join("not-a-repo"); // no git init
-        std::fs::create_dir_all(&repo).unwrap();
-
-        let stale_stats = GitStats {
-            session_id: "s".into(),
-            calculated_at: Utc::now() - chrono::Duration::seconds(120),
-            files_changed: 0,
-            lines_added: 0,
-            lines_removed: 0,
-            has_uncommitted: false,
-            last_diff_change_ts: None,
-        };
-
-        let result = get_or_compute_git_stats("s", &repo, "main", Some(&stale_stats), |_s| Ok(()));
-
-        assert!(
-            result.is_some(),
-            "should return cached stats on refresh failure"
-        );
-        let returned = result.unwrap();
-        assert_eq!(returned.session_id, "s");
-        assert_eq!(
-            returned.calculated_at, stale_stats.calculated_at,
-            "timestamp remains when refresh fails"
-        );
-    }
-
-    #[test]
-    fn test_get_or_compute_git_stats_computes_when_no_cache() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo = temp_dir.path().join("repo");
-        std::fs::create_dir_all(&repo).unwrap();
-
-        std::process::Command::new("git")
-            .args(["init"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["config", "user.email", "test@test.com"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["config", "user.name", "Test"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::fs::write(repo.join("test.txt"), "content").unwrap();
-        std::process::Command::new("git")
-            .args(["add", "."])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-        std::process::Command::new("git")
-            .args(["commit", "-m", "init"])
-            .current_dir(&repo)
-            .output()
-            .unwrap();
-
-        let mut save_called = false;
-        let result = get_or_compute_git_stats("test-session", &repo, "main", None, |stats| {
-            save_called = true;
-            assert_eq!(stats.session_id, "test-session");
-            Ok(())
-        });
-
-        assert!(result.is_some());
-        assert!(save_called);
-    }
 }
 
 pub struct SessionManager {
@@ -2726,35 +2524,8 @@ impl SessionManager {
         // Fetch global defaults once to avoid per-row DB hits
         let default_agent_type = self.db_manager.get_agent_type().ok();
 
-        let bulk_stats_start = std::time::Instant::now();
-        let session_ids: Vec<String> = sessions
-            .iter()
-            .filter(|s| {
-                s.status != SessionStatus::Cancelled && s.session_state != SessionState::Spec
-            })
-            .map(|s| s.id.clone())
-            .collect();
-        let all_stats = self
-            .db_manager
-            .get_git_stats_bulk(&session_ids)
-            .unwrap_or_else(|_| Vec::new());
-        let stats_by_id: std::collections::HashMap<
-            String,
-            crate::domains::sessions::entity::GitStats,
-        > = all_stats
-            .into_iter()
-            .map(|s| (s.session_id.clone(), s))
-            .collect();
-        let bulk_stats_time = bulk_stats_start.elapsed();
-        log::info!(
-            "list_enriched_sessions: stage=after_git_stats_bulk stats_loaded={} requested={} elapsed={}ms",
-            stats_by_id.len(),
-            session_ids.len(),
-            bulk_stats_time.as_millis()
-        );
-
         let mut enriched = Vec::new();
-        let git_stats_total_time = std::time::Duration::ZERO;
+        let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
         let mut session_count = 0;
 
@@ -2807,8 +2578,6 @@ impl SessionManager {
                 attention_required: None,
             });
         }
-
-        let mut stale_refresh_queue: Vec<(String, PathBuf, String)> = Vec::new();
 
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
@@ -2910,35 +2679,17 @@ impl SessionManager {
             }
 
             let (git_stats, has_conflicts) = if worktree_exists {
-                let mut cached_stats = stats_by_id.get(&session.id).cloned();
-                let stale = cached_stats
-                    .as_ref()
-                    .map(|existing| {
-                        // consider stats stale after 60s
-                        const STALE_SECS: i64 = 60;
-                        (chrono::Utc::now().timestamp() - existing.calculated_at.timestamp())
-                            > STALE_SECS
-                    })
-                    .unwrap_or(true);
-                // Serve cached stats immediately; queue stale ones for background refresh
-                if stale {
-                    if cfg!(test) {
-                        if let Ok(mut fresh) = git::calculate_git_stats_fast(
-                            &session.worktree_path,
-                            &session.parent_branch,
-                        ) {
-                            fresh.session_id = session.id.clone();
-                            let _ = self.db_manager.save_git_stats(&fresh);
-                            cached_stats = Some(fresh);
-                        }
-                    } else {
-                        stale_refresh_queue.push((
-                            session.id.clone(),
-                            session.worktree_path.clone(),
-                            session.parent_branch.clone(),
-                        ));
-                    }
-                }
+                let git_stats_start = std::time::Instant::now();
+                let computed_stats = git::calculate_git_stats_fast(
+                    &session.worktree_path,
+                    &session.parent_branch,
+                )
+                .ok()
+                .map(|mut s| {
+                    s.session_id = session.id.clone();
+                    s
+                });
+                git_stats_total_time += git_stats_start.elapsed();
 
                 let has_conflicts = match git::has_conflicts(&session.worktree_path) {
                     Ok(value) => value,
@@ -2951,7 +2702,7 @@ impl SessionManager {
                     }
                 };
 
-                (cached_stats, Some(has_conflicts))
+                (computed_stats, Some(has_conflicts))
             } else {
                 (None, None)
             };
@@ -3045,46 +2796,6 @@ impl SessionManager {
                     session_elapsed.as_millis()
                 );
             }
-        }
-
-        if !stale_refresh_queue.is_empty() {
-            let db = self.db_manager.clone();
-            tauri::async_runtime::spawn(async move {
-                for (session_id, worktree, parent_branch) in stale_refresh_queue {
-                    let refresh_start = Instant::now();
-                    let result = tokio::task::spawn_blocking(move || {
-                        git::calculate_git_stats_fast(&worktree, &parent_branch)
-                    })
-                    .await;
-
-                    match result {
-                        Ok(Ok(mut stats)) => {
-                            stats.session_id = session_id.clone();
-                            let _ = db.save_git_stats(&stats);
-                            let elapsed = refresh_start.elapsed().as_millis();
-                            if elapsed > 250 {
-                                log::warn!(
-                                    "Background git stats refresh for '{session_id}' took {elapsed}ms"
-                                );
-                            } else {
-                                log::debug!(
-                                    "Background git stats refresh for '{session_id}' completed in {elapsed}ms"
-                                );
-                            }
-                        }
-                        Ok(Err(err)) => {
-                            log::warn!(
-                                "Background git stats refresh failed for '{session_id}': {err}"
-                            );
-                        }
-                        Err(join_err) => {
-                            log::warn!(
-                                "Background git stats task join failed for '{session_id}': {join_err}"
-                            );
-                        }
-                    }
-                }
-            });
         }
 
         let total_elapsed = start_time.elapsed();

@@ -1,8 +1,7 @@
 use crate::{
-    domains::git::db_git_stats::GitStatsMethods,
     domains::git::service as git,
     domains::sessions::db_sessions::SessionMethods,
-    domains::sessions::entity::{Epic, GitStats, Session, SessionState, SessionStatus, Spec},
+    domains::sessions::entity::{Epic, Session, SessionState, SessionStatus, Spec},
     infrastructure::database::{AppConfigMethods, Database, EpicMethods, ProjectConfigMethods, SpecMethods},
 };
 use anyhow::{Context, Result, anyhow};
@@ -454,36 +453,9 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to delete session '{session_id}': {e}"))
     }
 
-    pub fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
-        self.db
-            .save_git_stats(stats)
-            .map_err(|e| anyhow!("Failed to save git stats: {e}"))
-    }
-
-    pub fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>> {
-        self.db
-            .get_git_stats(session_id)
-            .map_err(|e| anyhow!("Failed to get git stats: {e}"))
-    }
-
-    pub fn get_all_git_stats(&self) -> Result<Vec<GitStats>> {
-        self.db
-            .get_all_git_stats()
-            .map_err(|e| anyhow!("Failed to get all git stats: {e}"))
-    }
-
-    pub fn get_git_stats_bulk(&self, session_ids: &[String]) -> Result<Vec<GitStats>> {
-        self.db
-            .get_git_stats_bulk(session_ids)
-            .map_err(|e| anyhow!("Failed to get bulk git stats: {e}"))
-    }
-
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
         let session = self.get_session_by_id(session_id)?;
-        let mut stats =
-            git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)?;
-        stats.session_id = session_id.to_string();
-        self.save_git_stats(&stats)?;
+        git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)?;
         Ok(())
     }
 
@@ -539,38 +511,6 @@ impl SessionDbManager {
         self.db
             .set_orchestrator_agent_type(agent_type)
             .map_err(|e| anyhow!("Failed to set orchestrator agent type: {e}"))
-    }
-
-    pub fn get_enriched_git_stats(&self, session: &Session) -> Result<Option<GitStats>> {
-        match self.get_git_stats(&session.id)? {
-            Some(existing) => {
-                let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp() > 60;
-                if is_stale {
-                    let mut updated = git::calculate_git_stats_fast(
-                        &session.worktree_path,
-                        &session.parent_branch,
-                    )
-                    .ok();
-                    if let Some(ref mut s) = updated {
-                        s.session_id = session.id.clone();
-                        let _ = self.save_git_stats(s);
-                    }
-                    Ok(updated.or(Some(existing)))
-                } else {
-                    Ok(Some(existing))
-                }
-            }
-            None => {
-                let mut computed =
-                    git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)
-                        .ok();
-                if let Some(ref mut s) = computed {
-                    s.session_id = session.id.clone();
-                    let _ = self.save_git_stats(s);
-                }
-                Ok(computed)
-            }
-        }
     }
 
     pub fn session_exists(&self, name: &str) -> bool {
