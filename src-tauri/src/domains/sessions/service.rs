@@ -2269,6 +2269,11 @@ impl SessionManager {
             }
         }
 
+        let worktree_base_directory = self
+            .db_manager
+            .db
+            .get_project_worktree_base_directory(&self.repo_path)?;
+
         let (unique_name, branch, worktree_path) = if let Some(custom_branch) = params.custom_branch
         {
             if !git::is_valid_branch_name(custom_branch) {
@@ -2285,15 +2290,16 @@ impl SessionManager {
                 custom_branch.to_string()
             };
 
-            let worktree_path = self
-                .repo_path
-                .join(".schaltwerk")
-                .join("worktrees")
-                .join(params.name);
+            let worktree_base = crate::domains::sessions::utils::resolve_worktree_base(
+                &self.repo_path,
+                worktree_base_directory.as_deref(),
+            );
+            let worktree_path = worktree_base.join(params.name);
 
             (params.name.to_string(), final_branch, worktree_path)
         } else {
-            self.utils.find_unique_session_paths(params.name)?
+            self.utils
+                .find_unique_session_paths(params.name, worktree_base_directory.as_deref())?
         };
 
         let session_id = SessionUtils::generate_session_id();
@@ -3927,7 +3933,7 @@ impl SessionManager {
         }
 
         // Reuse session name uniqueness logic to avoid future branch/worktree collisions
-        let (unique_name, _, _) = self.utils.find_unique_session_paths(name)?;
+        let (unique_name, _, _) = self.utils.find_unique_session_paths(name, None)?;
 
         let spec_id = SessionUtils::generate_session_id();
         let repo_name = self.utils.get_repo_name()?;

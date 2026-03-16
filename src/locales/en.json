@@ -185,6 +185,8 @@
     "projectGeneral": {
       "branchPrefix": "Branch Prefix",
       "branchPrefixDesc": "Configure the default Git branch prefix used when creating new Schaltwerk sessions. Leave empty to use session names directly as branch names. Use slashes to nest groups. Spaces will be converted to hyphens automatically.",
+      "worktreeBaseDirectory": "Worktree Base Directory",
+      "worktreeBaseDirectoryDesc": "Override where new session worktrees are created. Accepts absolute paths or paths relative to the repository root. Leave empty to use the default (.schaltwerk/worktrees/).",
       "mergeDefaults": "Merge Defaults",
       "mergeDefaultsDesc": "Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.",
       "autoCancelAfterMerge": "Auto-cancel sessions after successful merge",
