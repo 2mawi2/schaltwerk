@@ -2,8 +2,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { vi, type MockedFunction } from 'vitest'
-import { createChangedFile } from '../../tests/test-utils'
+import { createChangedFile, renderWithProviders } from '../../tests/test-utils'
 import { TestProviders } from '../../tests/test-utils'
+import { useAtomValue, useSetAtom } from 'jotai'
+import { useEffect } from 'react'
+import { rightPanelTabAtom } from '../../store/atoms/rightPanelTab'
+import { previewStateAtom } from '../../store/atoms/preview'
+import { projectPathAtom } from '../../store/atoms/project'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -28,6 +33,24 @@ vi.mock('../../hooks/useSelection', async () => {
       setSelection: mockSetSelection,
       clearTerminalTracking: mockClearTerminalTracking,
     })
+  }
+})
+
+let mockSessions: unknown[] = []
+const mockReloadSessions = vi.fn(async () => {})
+vi.mock('../../hooks/useSessions', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('../../hooks/useSessions')
+  return {
+    ...actual,
+    useSessions: () => ({
+      sessions: mockSessions,
+      allSessions: mockSessions,
+      filteredSessions: mockSessions,
+      sortedSessions: mockSessions,
+      loading: false,
+      reloadSessions: mockReloadSessions,
+      getSessionsByState: vi.fn(() => []),
+    }),
   }
 })
 
@@ -64,7 +87,9 @@ describe('SimpleDiffPanel', () => {
     invoke.mockReset()
     mockSetSelection.mockReset()
     mockClearTerminalTracking.mockReset()
+    mockReloadSessions.mockReset()
     mockTerminals.top = 'orchestrator-top'
+    mockSessions = []
     setupInvoke()
     // default clipboard: prefer spying if exists; else define property
     try {
@@ -205,5 +230,69 @@ describe('SimpleDiffPanel', () => {
     expect(onActiveFileChange).toHaveBeenCalledWith('src/a/file1.txt')
     expect(onModeChange).toHaveBeenCalledWith('review')
 
+  })
+
+  it('renders open-in-preview button for session with linked PR', async () => {
+    currentSelection = { kind: 'session', payload: 'pr-session' }
+    mockSessions = [{
+      info: {
+        session_id: 'pr-session',
+        display_name: 'PR Session',
+        branch: 'feature/pr',
+        worktree_path: '/tmp/pr',
+        base_branch: 'main',
+        status: 'active',
+        is_current: true,
+        session_type: 'worktree',
+        session_state: 'running',
+        ready_to_merge: false,
+        has_uncommitted_changes: false,
+        pr_number: 42,
+        pr_url: 'https://github.com/org/repo/pull/42',
+      },
+      status: undefined,
+      terminals: [],
+    }]
+
+    invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return []
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/pr'
+      if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+      if (cmd === TauriCommands.GetCommitComparisonInfo) return []
+      if (cmd === TauriCommands.GetDiffViewPreferences) return defaultDiffPrefs
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { initial_prompt: '' }
+      if (cmd === TauriCommands.SchaltwerkCoreGetPrDetails) return null
+      return null
+    })
+
+    const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
+
+    const TestSetup = () => {
+      const setProjectPath = useSetAtom(projectPathAtom)
+      const tab = useAtomValue(rightPanelTabAtom)
+      useEffect(() => { setProjectPath('/test/project') }, [setProjectPath])
+      return <div data-testid="tab">{tab}</div>
+    }
+
+    renderWithProviders(
+      <>
+        <TestSetup />
+        <SimpleDiffPanel
+          mode="list"
+          onModeChange={vi.fn()}
+          activeFile={null}
+          onActiveFileChange={vi.fn()}
+        />
+      </>
+    )
+
+    const previewButton = await screen.findByTitle('Open PR #42 in app preview')
+    expect(previewButton).toBeInTheDocument()
+
+    await user.click(previewButton)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tab').textContent).toBe('preview')
+    })
   })
 })
