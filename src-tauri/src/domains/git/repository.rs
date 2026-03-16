@@ -1,7 +1,41 @@
 use anyhow::{Result, anyhow};
 use git2::Repository;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ForgeType {
+    GitHub,
+    GitLab,
+    Unknown,
+}
+
+pub fn detect_forge(repo_path: &Path) -> ForgeType {
+    let repo = match Repository::open(repo_path) {
+        Ok(r) => r,
+        Err(_) => return ForgeType::Unknown,
+    };
+
+    let remote = match repo.find_remote("origin") {
+        Ok(r) => r,
+        Err(_) => return ForgeType::Unknown,
+    };
+
+    let url = match remote.url() {
+        Some(u) => u.to_lowercase(),
+        None => return ForgeType::Unknown,
+    };
+
+    if url.contains("github.com") {
+        ForgeType::GitHub
+    } else if url.contains("gitlab.") || url.contains("/gitlab/") {
+        ForgeType::GitLab
+    } else {
+        ForgeType::Unknown
+    }
+}
 
 pub const INITIAL_COMMIT_MESSAGE: &str = "Initial commit";
 
@@ -522,5 +556,61 @@ mod tests {
         let hash =
             get_commit_hash(temp_dir.path(), short_hash).expect("Should get hash from short hash");
         assert_eq!(hash, commit_id.to_string());
+    }
+
+    fn create_repo_with_remote(url: &str) -> TempDir {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
+        repo.remote("origin", url).expect("Failed to add remote");
+        temp_dir
+    }
+
+    #[test]
+    fn test_detect_forge_github_https() {
+        let temp_dir = create_repo_with_remote("https://github.com/user/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::GitHub);
+    }
+
+    #[test]
+    fn test_detect_forge_github_ssh() {
+        let temp_dir = create_repo_with_remote("git@github.com:user/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::GitHub);
+    }
+
+    #[test]
+    fn test_detect_forge_gitlab_https() {
+        let temp_dir = create_repo_with_remote("https://gitlab.com/user/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::GitLab);
+    }
+
+    #[test]
+    fn test_detect_forge_gitlab_ssh() {
+        let temp_dir = create_repo_with_remote("git@gitlab.com:user/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::GitLab);
+    }
+
+    #[test]
+    fn test_detect_forge_self_hosted_gitlab() {
+        let temp_dir = create_repo_with_remote("https://gitlab.example.com/group/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::GitLab);
+    }
+
+    #[test]
+    fn test_detect_forge_unknown() {
+        let temp_dir = create_repo_with_remote("https://bitbucket.org/user/repo.git");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::Unknown);
+    }
+
+    #[test]
+    fn test_detect_forge_no_remote() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        Repository::init(temp_dir.path()).expect("Failed to init repo");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::Unknown);
+    }
+
+    #[test]
+    fn test_detect_forge_not_a_repo() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        assert_eq!(detect_forge(temp_dir.path()), ForgeType::Unknown);
     }
 }

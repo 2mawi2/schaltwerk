@@ -111,10 +111,31 @@ vi.mock('./CopyContextBar', () => ({
   CopyContextBar: () => <div data-testid="copy-bundle-bar">CopyContextBar</div>
 }))
 
+vi.mock('../../contexts/GitlabIntegrationContext', () => ({
+  useGitlabIntegrationContext: () => ({
+    status: null,
+    sources: [],
+    loading: false,
+    isGlabMissing: false,
+    hasSources: false,
+    refreshStatus: vi.fn(),
+    loadSources: vi.fn(),
+    saveSources: vi.fn(),
+  })
+}))
+
 vi.mock('../specs/SpecWorkspacePanel', () => ({
   SpecWorkspacePanel: ({ openTabs }: { openTabs: string[] }) => (
     <div data-testid="spec-workspace-panel" data-open-tabs={openTabs.join(',')} />
   )
+}))
+
+vi.mock('./GitlabIssuesTab', () => ({
+  GitlabIssuesTab: () => <div data-testid="gitlab-issues-tab" />
+}))
+
+vi.mock('./GitlabMrsTab', () => ({
+  GitlabMrsTab: () => <div data-testid="gitlab-mrs-tab" />
 }))
 
 function renderWithProject(ui: ReactElement, projectPath: string | null = '/tmp/project') {

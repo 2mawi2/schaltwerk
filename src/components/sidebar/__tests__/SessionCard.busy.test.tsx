@@ -3,6 +3,8 @@ import { vi } from 'vitest'
 import { SessionCard } from '../SessionCard'
 import type { ComponentProps } from 'react'
 import { GithubIntegrationProvider } from '../../../contexts/GithubIntegrationContext'
+import { GitlabIntegrationContext } from '../../../contexts/GitlabIntegrationContext'
+import type { GitlabIntegrationValue } from '../../../hooks/useGitlabIntegration'
 import { ToastProvider } from '../../../common/toast/ToastProvider'
 
 vi.mock('../../../hooks/usePrComments', () => ({
@@ -44,6 +46,17 @@ const baseSession: SessionCardProps['session'] = {
   terminals: []
 }
 
+const defaultGitlabValue: GitlabIntegrationValue = {
+  status: null,
+  sources: [],
+  loading: false,
+  isGlabMissing: false,
+  hasSources: false,
+  refreshStatus: async () => {},
+  loadSources: async () => {},
+  saveSources: async () => {},
+}
+
 function renderButton(overrides: Partial<SessionCardProps> = {}) {
   const props: SessionCardProps = {
     session: baseSession,
@@ -58,11 +71,13 @@ function renderButton(overrides: Partial<SessionCardProps> = {}) {
   }
 
   return render(
-    <GithubIntegrationProvider>
-      <ToastProvider>
-        <SessionCard {...props} />
-      </ToastProvider>
-    </GithubIntegrationProvider>
+    <GitlabIntegrationContext.Provider value={defaultGitlabValue}>
+      <GithubIntegrationProvider>
+        <ToastProvider>
+          <SessionCard {...props} />
+        </ToastProvider>
+      </GithubIntegrationProvider>
+    </GitlabIntegrationContext.Provider>
   )
 }
 

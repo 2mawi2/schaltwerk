@@ -35,6 +35,7 @@ import {
   initializeSelectionEventsActionAtom,
   setProjectPathActionAtom,
 } from './store/atoms/selection'
+import { refreshForgeAtom } from './store/atoms/forge'
 import {
   projectPathAtom,
   projectTabsAtom,
@@ -70,7 +71,7 @@ import { useAttentionNotifications } from './hooks/useAttentionNotifications'
 import { useAgentBinarySnapshot } from './hooks/useAgentBinarySnapshot'
 import { useDiffPreloader } from './hooks/useDiffPreloader'
 import { theme } from './common/theme'
-import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
+import { useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
 import { validatePanelPercentage } from './utils/panel'
@@ -136,6 +137,7 @@ function AppContent() {
   const refreshSessions = useSetAtom(refreshSessionsActionAtom)
   const refreshKeepAwakeState = useSetAtom(refreshKeepAwakeStateActionAtom)
   const registerKeepAwakeListener = useSetAtom(registerKeepAwakeEventListenerActionAtom)
+  const refreshForge = useSetAtom(refreshForgeAtom)
   const expectSession = useSetAtom(expectSessionActionAtom)
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -212,6 +214,12 @@ function AppContent() {
   useEffect(() => {
     void setSelectionProjectPath(projectPath ?? null)
   }, [projectPath, setSelectionProjectPath])
+
+  useEffect(() => {
+    if (projectPath) {
+      void refreshForge()
+    }
+  }, [projectPath, refreshForge])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -2192,9 +2200,7 @@ function AppContent() {
 export default function App() {
   return (
     <PierreDiffProvider>
-      <GithubIntegrationProvider>
-        <AppContent />
-      </GithubIntegrationProvider>
+      <AppContent />
     </PierreDiffProvider>
   )
 }

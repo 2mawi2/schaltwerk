@@ -1,7 +1,7 @@
 // Re-export all the functions from the git domain modules
 pub use super::repository::{
-    INITIAL_COMMIT_MESSAGE, create_initial_commit, discover_repository, get_default_branch,
-    init_repository, repository_has_commits,
+    ForgeType, INITIAL_COMMIT_MESSAGE, create_initial_commit, detect_forge, discover_repository,
+    get_default_branch, init_repository, repository_has_commits,
 };
 
 pub use super::branches::{
@@ -27,6 +27,12 @@ pub use super::operations::{
 pub use super::stats::{
     calculate_git_stats_fast, get_changed_files, get_changed_files_with_mode,
     has_remote_tracking_branch, DiffCompareMode,
+};
+
+pub use super::gitlab_cli::{
+    CreateMrParams, CreateSessionMrOptions, GitlabCli, GitlabCliError, GitlabIssueDetails,
+    GitlabIssueSummary, GitlabMrDetails, GitlabMrSummary, GitlabNote, GitlabPipelineDetails,
+    MrCommitMode, format_cli_error,
 };
 #[cfg(test)]
 pub use super::worktrees::is_worktree_registered;
