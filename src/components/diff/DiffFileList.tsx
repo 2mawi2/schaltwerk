@@ -746,6 +746,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander, g
     void setup()
 
     return () => {
+      isCancelled = true
       // Stop file watcher
       if (currentSession && watcherStarted) {
         invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession }).catch(err => logger.error("Error:", err))

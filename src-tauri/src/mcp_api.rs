@@ -2562,7 +2562,7 @@ async fn get_session_pr_feedback(
     let project_manager = crate::get_project_manager().await;
     let cli = schaltwerk::services::GitHubCli::new();
 
-    match github_get_pr_feedback_impl(project_manager, &cli, pr_number).await {
+    match github_get_pr_feedback_impl(project_manager, cli, pr_number).await {
         Ok(payload) => {
             let json = serde_json::to_string(&payload).unwrap_or_default();
             Ok(json_response(StatusCode::OK, json))
