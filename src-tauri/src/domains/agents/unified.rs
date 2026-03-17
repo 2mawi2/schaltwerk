@@ -1,4 +1,4 @@
-use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
+use super::adapter::{AgentAdapter, AgentLaunchContext, AgentSessionInfo, DefaultAdapter};
 use super::amp;
 use super::copilot;
 use super::droid;
@@ -13,8 +13,11 @@ use std::path::Path;
 pub struct ClaudeAdapter;
 
 impl AgentAdapter for ClaudeAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::claude::find_resumable_claude_session_fast(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        super::claude::find_resumable_claude_session_fast(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -39,8 +42,8 @@ impl AgentAdapter for ClaudeAdapter {
 pub struct CodexAdapter;
 
 impl AgentAdapter for CodexAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        if let Some(p) = super::codex::find_codex_resume_path(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        let id = if let Some(p) = super::codex::find_codex_resume_path(path)
             && let Some(id) = super::codex::extract_session_id_from_path(&p)
         {
             let trimmed = id.trim();
@@ -50,11 +53,17 @@ impl AgentAdapter for CodexAdapter {
                     id,
                     p.display()
                 );
-                return super::codex::find_codex_session(path);
+                super::codex::find_codex_session(path)
+            } else {
+                Some(id)
             }
-            return Some(id);
-        }
-        super::codex::find_codex_session(path)
+        } else {
+            super::codex::find_codex_session(path)
+        };
+        id.map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -90,8 +99,11 @@ impl AgentAdapter for CodexAdapter {
 pub struct GeminiAdapter;
 
 impl AgentAdapter for GeminiAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::gemini::find_resumable_gemini_session_fast(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        super::gemini::find_resumable_gemini_session_fast(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -116,8 +128,11 @@ impl AgentAdapter for GeminiAdapter {
 pub struct KilocodeAdapter;
 
 impl AgentAdapter for KilocodeAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::kilo::find_kilo_session(path).map(|info| info.id)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        super::kilo::find_kilo_session(path).map(|info| AgentSessionInfo {
+            id: info.id,
+            has_history: info.has_history,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -156,8 +171,11 @@ fn build_droid_prompt_arg(prompt: &str) -> String {
 pub struct DroidAdapter;
 
 impl AgentAdapter for DroidAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        droid::find_droid_session_for_worktree(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        droid::find_droid_session_for_worktree(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -204,8 +222,11 @@ impl AgentAdapter for DroidAdapter {
 }
 
 impl AgentAdapter for OpenCodeAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::opencode::find_opencode_session(path).map(|info| info.id)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        super::opencode::find_opencode_session(path).map(|info| AgentSessionInfo {
+            id: info.id,
+            has_history: info.has_history,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -237,8 +258,11 @@ impl AgentAdapter for OpenCodeAdapter {
 pub struct QwenAdapter;
 
 impl AgentAdapter for QwenAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        qwen::find_qwen_session(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        qwen::find_qwen_session(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
@@ -263,8 +287,11 @@ impl AgentAdapter for QwenAdapter {
 pub struct AmpAdapter;
 
 impl AgentAdapter for AmpAdapter {
-    fn find_session(&self, path: &Path) -> Option<String> {
-        amp::find_amp_session(path)
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        amp::find_amp_session(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
     }
 
     fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {

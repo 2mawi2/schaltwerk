@@ -20,7 +20,7 @@ use std::path::PathBuf;
 #[cfg(windows)]
 use crate::shared::resolve_windows_executable;
 
-pub use adapter::{AgentAdapter, AgentLaunchContext};
+pub use adapter::{AgentAdapter, AgentLaunchContext, AgentSessionInfo};
 pub use command_parser::parse_agent_command;
 pub use launch_spec::AgentLaunchSpec;
 

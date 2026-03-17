@@ -3,6 +3,12 @@ use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentDefinition;
 use std::path::Path;
 
+#[derive(Debug, Clone)]
+pub struct AgentSessionInfo {
+    pub id: String,
+    pub has_history: bool,
+}
+
 pub struct AgentLaunchContext<'a> {
     pub worktree_path: &'a Path,
     pub session_id: Option<&'a str>,
@@ -13,7 +19,7 @@ pub struct AgentLaunchContext<'a> {
 }
 
 pub trait AgentAdapter: Send + Sync {
-    fn find_session(&self, path: &Path) -> Option<String> {
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
         let _ = path;
         None
     }

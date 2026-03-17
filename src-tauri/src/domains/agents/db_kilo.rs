@@ -140,15 +140,6 @@ fn find_by_project(
             }
         }
 
-        if let Some((id, _, msg_count)) = sessions.first() {
-            log::info!(
-                "Kilo DB: no directory match for project '{project_id}', returning latest session '{id}' ({msg_count} messages)"
-            );
-            return Some(KilocodeSessionInfo {
-                id: id.clone(),
-                has_history: *msg_count > 2,
-            });
-        }
     }
 
     log::debug!(
@@ -271,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_db_find_by_project_fallback() {
+    fn test_db_no_fallback_to_unrelated_worktree() {
         let temp = TempDir::new().unwrap();
         let conn = create_test_db(temp.path());
 
@@ -285,9 +276,10 @@ mod tests {
 
         let worktree_path = std::path::PathBuf::from(worktree);
         let result = find_kilo_session_in_db(&worktree_path, temp.path());
-        let info = result.expect("expected session via project fallback");
-        assert_eq!(info.id, "ses1");
-        assert!(info.has_history);
+        assert!(
+            result.is_none(),
+            "should not return sessions from unrelated worktrees"
+        );
     }
 
     #[test]

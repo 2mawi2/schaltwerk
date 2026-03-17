@@ -696,6 +696,51 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn test_kilo_new_session_uses_prompt_not_resume() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let mut session = create_test_session(&temp_dir, "kilo", "new");
+        session.resume_allowed = false;
+        manager.db_manager.create_session(&session).unwrap();
+
+        std::fs::create_dir_all(temp_dir.path().join("repo").join(".git")).unwrap();
+
+        let cmd = manager
+            .start_claude_in_session_with_restart_and_binary(AgentLaunchParams {
+                session_name: &session.name,
+                force_restart: false,
+                binary_paths: &HashMap::new(),
+                amp_mcp_servers: None,
+                agent_type_override: None,
+                skip_prompt: false,
+                skip_permissions_override: None,
+            })
+            .expect("expected Kilo command");
+        let shell = &cmd.shell_command;
+
+        assert!(
+            shell.contains("kilo"),
+            "expected kilo binary: {shell}"
+        );
+        assert!(
+            shell.contains("--prompt"),
+            "new session should start with --prompt: {shell}"
+        );
+        assert!(
+            !shell.contains("--session"),
+            "new session should not resume: {shell}"
+        );
+
+        let refreshed = manager
+            .db_manager
+            .get_session_by_name(&session.name)
+            .expect("session should exist");
+        assert!(
+            refreshed.resume_allowed,
+            "resume_allowed should flip true after first fresh start"
+        );
+    }
+
+    #[test]
     fn list_enriched_sessions_retains_missing_worktree_entries() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "claude", "missing");
@@ -2201,7 +2246,7 @@ impl SessionManager {
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
             session_state: SessionState::Running,
-            resume_allowed: true,
+            resume_allowed: false,
             amp_thread_id: None,
             pr_number: None,
             pr_url: None,
@@ -3269,7 +3314,7 @@ impl SessionManager {
             binary_paths.get(&agent_type).map(|s| s.as_str()),
         );
 
-        let session_id = if !force_restart && session.resume_allowed {
+        let session_info = if !force_restart && session.resume_allowed {
             registry
                 .get(&agent_type)
                 .and_then(|adapter| adapter.find_session(&session.worktree_path))
@@ -3277,12 +3322,15 @@ impl SessionManager {
             None
         };
 
-        let did_start_fresh = session_id.is_none();
+        let resumable = session_info
+            .as_ref()
+            .filter(|info| info.has_history);
+        let did_start_fresh = resumable.is_none();
 
-        let prompt_to_use = if session_id.is_some() {
-            None
+        let (session_id_to_use, prompt_to_use) = if let Some(info) = resumable {
+            (Some(info.id.clone()), None)
         } else {
-            effective_initial_prompt
+            (None, effective_initial_prompt)
         };
 
         if prompt_to_use.is_some() {
@@ -3293,7 +3341,7 @@ impl SessionManager {
         if let Some(spec) = registry.build_launch_spec(
             &agent_type,
             &session.worktree_path,
-            session_id.as_deref(),
+            session_id_to_use.as_deref(),
             prompt_to_use,
             skip_permissions,
             Some(&binary_path),
@@ -3464,13 +3512,18 @@ impl SessionManager {
             binary_paths.get(agent_type).map(|s| s.as_str()),
         );
 
-        let session_id = if resume_session {
+        let session_info = if resume_session {
             registry
                 .get(agent_type)
                 .and_then(|a| a.find_session(&self.repo_path))
         } else {
             None
         };
+
+        let session_id = session_info
+            .as_ref()
+            .filter(|info| info.has_history)
+            .map(|info| info.id.clone());
 
         if let Some(spec) = registry.build_launch_spec(
             agent_type,
