@@ -663,7 +663,7 @@ impl GlobalInhibitorService {
 
             let mut guard = self.state.lock().await;
             if !running {
-                warn!("Inhibitor pid {} not running; clearing state", pid);
+                warn!("Inhibitor pid {pid} not running; clearing state");
                 guard.process_info = None;
                 guard.child = None;
                 self.security.delete_pid_file()?;
@@ -683,9 +683,11 @@ impl GlobalInhibitorService {
                     self.emit_state(next, active_count);
                 }
                 return Ok(());
-            } else if let Some(actual) = cmdline_result {
-                if !actual.contains("caffeinate") && !actual.contains("systemd-inhibit") {
-                    warn!("PID {} reused by other process: {}", pid, actual);
+            } else if let Some(actual) = cmdline_result
+                && !actual.contains("caffeinate")
+                && !actual.contains("systemd-inhibit")
+            {
+                    warn!("PID {pid} reused by other process: {actual}");
                     guard.process_info = None;
                     guard.child = None;
                     self.security.delete_pid_file()?;
@@ -705,7 +707,6 @@ impl GlobalInhibitorService {
                         self.emit_state(next, active_count);
                     }
                     return Ok(());
-                }
             }
         } else if guard.user_enabled && !guard.active_sessions.is_empty() {
             self.spawn_inhibitor_locked(&mut guard).await?;

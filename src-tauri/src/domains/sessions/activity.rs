@@ -72,12 +72,10 @@ impl<E: EventEmitter> ActivityTracker<E> {
         .await
         .map_err(|e| anyhow::anyhow!("Task join error: {e}"))??;
 
-        for result in results {
-            if let Some((git_payload, activity_payload)) = result {
-                let _ = self.emitter.emit_session_git_stats(git_payload);
-                if let Some(activity) = activity_payload {
-                    let _ = self.emitter.emit_session_activity(activity);
-                }
+        for (git_payload, activity_payload) in results.into_iter().flatten() {
+            let _ = self.emitter.emit_session_git_stats(git_payload);
+            if let Some(activity) = activity_payload {
+                let _ = self.emitter.emit_session_activity(activity);
             }
         }
 
