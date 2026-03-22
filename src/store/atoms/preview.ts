@@ -99,6 +99,17 @@ export const resetPreviewZoomActionAtom = atom(
 
 export const PREVIEW_ZOOM_STEP = ZOOM_STEP
 
+export const clearPreviewStateActionAtom = atom(
+  null,
+  (get, set, key: string) => {
+    const states = get(previewStatesAtom)
+    if (!states.has(key)) return
+    const updated = new Map(states)
+    updated.delete(key)
+    set(previewStatesAtom, updated)
+  }
+)
+
 const elementPickerActiveKeysAtom = atom<Set<string>>(new Set<string>())
 
 export const isElementPickerActiveAtom = atom(
