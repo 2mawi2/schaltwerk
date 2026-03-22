@@ -16,6 +16,8 @@ import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 import { isTerminalStartingOrStarted, clearTerminalStartState, markTerminalStarted } from '../../common/terminalStartState'
 import { startSessionTop, computeProjectOrchestratorId } from '../../common/agentSpawn'
 import { releaseSessionTerminals } from '../../terminal/registry/terminalRegistry'
+import { closePreview } from '../../features/preview/previewIframeRegistry'
+import { buildPreviewKey, clearPreviewStateActionAtom } from '../atoms/preview'
 import { logger } from '../../utils/logger'
 import { getErrorMessage } from '../../types/errors'
 
@@ -1702,6 +1704,13 @@ export const initializeSessionsEventsActionAtom = atom(
                     next.delete(event.session_name)
                     return next
                 })
+
+                const projectPath = get(projectPathAtom)
+                if (projectPath) {
+                    const previewKey = buildPreviewKey(projectPath, 'session', event.session_name)
+                    closePreview(previewKey)
+                    set(clearPreviewStateActionAtom, previewKey)
+                }
             }
 
             previousSessionStates.delete(event.session_name)
