@@ -60,115 +60,137 @@ impl<E: EventEmitter> ActivityTracker<E> {
     }
 
     async fn update_all_activities(&self) -> Result<()> {
-        let active_sessions = self.db.list_all_active_sessions()?;
+        let db = Arc::clone(&self.db);
+        let results = tokio::task::spawn_blocking(move || -> Result<Vec<_>> {
+            let active_sessions = db.list_all_active_sessions()?;
+            let mut results = Vec::new();
+            for session in active_sessions {
+                results.push(Self::compute_stats_for_session(&db, &session));
+            }
+            Ok(results)
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("Task join error: {e}"))??;
 
-        for session in active_sessions {
-            self.refresh_stats_and_activity_for_session(&session)?;
+        for result in results {
+            if let Some((git_payload, activity_payload)) = result {
+                let _ = self.emitter.emit_session_git_stats(git_payload);
+                if let Some(activity) = activity_payload {
+                    let _ = self.emitter.emit_session_activity(activity);
+                }
+            }
         }
 
         Ok(())
     }
 
-    fn refresh_stats_and_activity_for_session(
-        &self,
+    fn compute_stats_for_session(
+        db: &Database,
         session: &crate::domains::sessions::entity::Session,
-    ) -> Result<bool> {
-        let mut emitted_activity = false;
+    ) -> Option<(SessionGitStatsUpdated, Option<SessionActivityUpdated>)> {
+        if !session.worktree_path.exists() {
+            return None;
+        }
 
-        if session.worktree_path.exists() {
+        let mut stats =
             match git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch) {
-                Ok(mut stats) => {
-                    stats.session_id = session.id.clone();
-
-                    let has_conflicts = match git::has_conflicts(&session.worktree_path) {
-                        Ok(value) => value,
-                        Err(err) => {
-                            log::warn!(
-                                "Failed to detect conflicts for {}: {err}",
-                                session.name
-                            );
-                            false
-                        }
-                    };
-
-                    let merge_snapshot = Repository::open(&session.repository_path)
-                        .ok()
-                        .and_then(|repo| {
-                            let session_oid = MergeSnapshotGateway::resolve_branch_oid(
-                                &repo,
-                                &session.branch,
-                            )
-                            .ok()?;
-                            let parent_oid = MergeSnapshotGateway::resolve_branch_oid(
-                                &repo,
-                                &session.parent_branch,
-                            )
-                            .ok()?;
-                            MergeSnapshotGateway::compute(
-                                &repo,
-                                session_oid,
-                                parent_oid,
-                                &session.branch,
-                                &session.parent_branch,
-                            )
-                            .map_err(|err| {
-                                log::warn!(
-                                    "Merge assessment failed for session '{}': {}",
-                                    session.name,
-                                    err
-                                );
-                            })
-                            .ok()
-                        })
-                        .unwrap_or_default();
-
-                    let payload = SessionGitStatsUpdated {
-                        session_id: session.id.clone(),
-                        session_name: session.name.clone(),
-                        files_changed: stats.files_changed,
-                        lines_added: stats.lines_added,
-                        lines_removed: stats.lines_removed,
-                        has_uncommitted: stats.has_uncommitted,
-                        has_conflicts,
-                        top_uncommitted_paths: None,
-                        merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                        merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                        merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                    };
-                    let _ = self.emitter.emit_session_git_stats(payload);
-
-                    if let Some(mut ts) = stats.last_diff_change_ts {
-                        let now = Utc::now().timestamp();
-                        if ts > now + 120 {
-                            ts = now;
-                        }
-                        if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
-                            self.db.set_session_activity(&session.id, dt)?;
-                            let session_info = self.db.get_session_by_id(&session.id)?;
-                            let payload = SessionActivityUpdated {
-                                session_id: session.id.clone(),
-                                session_name: session.name.clone(),
-                                last_activity_ts: dt.timestamp(),
-                                current_task: session_info.initial_prompt.clone(),
-                                todo_percentage: None,
-                                is_blocked: None,
-                            };
-                            let _ = self.emitter.emit_session_activity(payload);
-                            emitted_activity = true;
-                        }
-                    }
-                }
+                Ok(s) => s,
                 Err(e) => {
                     log::warn!(
                         "Failed to compute fast git stats for {}: {}",
                         session.name,
                         e
                     );
+                    return None;
                 }
-            }
-        }
+            };
+        stats.session_id = session.id.clone();
 
-        Ok(emitted_activity)
+        let has_conflicts = match git::has_conflicts(&session.worktree_path) {
+            Ok(value) => value,
+            Err(err) => {
+                log::warn!("Failed to detect conflicts for {}: {err}", session.name);
+                false
+            }
+        };
+
+        let merge_snapshot = Repository::open(&session.repository_path)
+            .ok()
+            .and_then(|repo| {
+                let session_oid =
+                    MergeSnapshotGateway::resolve_branch_oid(&repo, &session.branch).ok()?;
+                let parent_oid =
+                    MergeSnapshotGateway::resolve_branch_oid(&repo, &session.parent_branch).ok()?;
+                MergeSnapshotGateway::compute(
+                    &repo,
+                    session_oid,
+                    parent_oid,
+                    &session.branch,
+                    &session.parent_branch,
+                )
+                .map_err(|err| {
+                    log::warn!(
+                        "Merge assessment failed for session '{}': {}",
+                        session.name,
+                        err
+                    );
+                })
+                .ok()
+            })
+            .unwrap_or_default();
+
+        let git_payload = SessionGitStatsUpdated {
+            session_id: session.id.clone(),
+            session_name: session.name.clone(),
+            files_changed: stats.files_changed,
+            lines_added: stats.lines_added,
+            lines_removed: stats.lines_removed,
+            has_uncommitted: stats.has_uncommitted,
+            has_conflicts,
+            top_uncommitted_paths: None,
+            merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+            merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+            merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+        };
+
+        let activity_payload = stats.last_diff_change_ts.and_then(|mut ts| {
+            let now = Utc::now().timestamp();
+            if ts > now + 120 {
+                ts = now;
+            }
+            Utc.timestamp_opt(ts, 0).single().and_then(|dt| {
+                db.set_session_activity(&session.id, dt).ok()?;
+                let session_info = db.get_session_by_id(&session.id).ok()?;
+                Some(SessionActivityUpdated {
+                    session_id: session.id.clone(),
+                    session_name: session.name.clone(),
+                    last_activity_ts: dt.timestamp(),
+                    current_task: session_info.initial_prompt.clone(),
+                    todo_percentage: None,
+                    is_blocked: None,
+                })
+            })
+        });
+
+        Some((git_payload, activity_payload))
+    }
+
+    #[cfg(test)]
+    fn refresh_stats_and_activity_for_session(
+        &self,
+        session: &crate::domains::sessions::entity::Session,
+    ) -> Result<bool> {
+        match Self::compute_stats_for_session(&self.db, session) {
+            Some((git_payload, activity_payload)) => {
+                let _ = self.emitter.emit_session_git_stats(git_payload);
+                if let Some(activity) = activity_payload {
+                    let _ = self.emitter.emit_session_activity(activity);
+                    return Ok(true);
+                }
+                Ok(false)
+            }
+            None => Ok(false),
+        }
     }
 
     #[cfg(test)]
