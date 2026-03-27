@@ -1243,8 +1243,12 @@ export function UnifiedDiffView({
 
   const prevFilePathForScrollRef = useRef<string | null>(filePath);
   const pendingScrollRef = useRef<string | null>(null);
+  const wasOpenRef = useRef(isOpen);
 
   useLayoutEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+
     if (viewMode !== "sidebar" || !isOpen || !filePath) {
       prevFilePathForScrollRef.current = filePath;
       pendingScrollRef.current = null;
@@ -1253,7 +1257,11 @@ export function UnifiedDiffView({
     const prevPath = prevFilePathForScrollRef.current;
     prevFilePathForScrollRef.current = filePath;
 
-    if (prevPath === filePath) {
+    // Skip scroll only if both the path AND open state are unchanged.
+    // When opening for the first time (wasOpen=false -> isOpen=true),
+    // we must scroll even if prevPath matches filePath.
+    const isFirstOpen = !wasOpen && isOpen;
+    if (prevPath === filePath && !isFirstOpen) {
       return;
     }
 
