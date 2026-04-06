@@ -26,13 +26,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
 tauri = { version = "2", features = ["devtools", "unstable"] }
-tauri-plugin-dialog = "2.6"
+tauri-plugin-dialog = "2.7"
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 portable-pty = "0.9.0"
 anyhow = "1.0.102"
-tokio = { version = "1.50.0", features = ["macros", "rt", "process", "sync", "io-util", "time", "net"] }
+tokio = { version = "1.51.0", features = ["macros", "rt", "process", "sync", "io-util", "time", "net"] }
 async-trait = "0.1"
 log = "0.4"
 env_logger = "0.11"
