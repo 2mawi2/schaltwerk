@@ -15,7 +15,7 @@
   "author": "Schaltwerk Team",
   "license": "MIT",
   "devDependencies": {
-    "mintlify": "^4.2.257"
+    "mintlify": "^4.2.504"
   },
   "overrides": {
     "qs": "^6.14.1",
