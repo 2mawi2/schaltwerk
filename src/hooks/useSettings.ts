@@ -31,6 +31,7 @@ type AgentPreferenceState = Record<AgentType, AgentPreferenceConfig>
 interface ProjectSettings {
     setupScript: string
     branchPrefix: string
+    worktreeBaseDirectory: string
     environmentVariables: Array<{key: string, value: string}>
 }
 
@@ -136,10 +137,12 @@ export const useSettings = () => {
         const trimmed = projectSettings.branchPrefix.trim()
         const withoutWhitespace = trimmed.replace(/\s+/g, '-')
         const branchPrefix = withoutWhitespace.replace(/^\/+|\/+$/g, '')
+        const worktreeBaseDirectory = projectSettings.worktreeBaseDirectory.trim() || null
         await invoke(TauriCommands.SetProjectSettings, {
             settings: {
                 setupScript: projectSettings.setupScript,
                 branchPrefix,
+                worktreeBaseDirectory,
             }
         })
         
@@ -211,14 +214,24 @@ export const useSettings = () => {
             await saveProjectSettings(projectSettings)
             savedSettings.push('project settings')
         } catch (error) {
-            logger.info('Project settings not saved - requires active project', error)
+            if (isProjectUnavailableError(error)) {
+                logger.info('Project settings not saved - requires active project', error)
+            } else {
+                logger.error('Failed to save project settings:', error)
+                failedSettings.push('project settings')
+            }
         }
-        
+
         try {
             await saveTerminalSettings(terminalSettings)
             savedSettings.push('terminal settings')
         } catch (error) {
-            logger.info('Terminal settings not saved - requires active project', error)
+            if (isProjectUnavailableError(error)) {
+                logger.info('Terminal settings not saved - requires active project', error)
+            } else {
+                logger.error('Failed to save terminal settings:', error)
+                failedSettings.push('terminal settings')
+            }
         }
         
         try {
@@ -312,6 +325,7 @@ export const useSettings = () => {
             return {
                 setupScript: settings?.setupScript || '',
                 branchPrefix: settings?.branchPrefix ?? DEFAULT_BRANCH_PREFIX,
+                worktreeBaseDirectory: settings?.worktreeBaseDirectory || '',
                 environmentVariables: envVarArray,
             }
         } catch (error) {
@@ -320,7 +334,7 @@ export const useSettings = () => {
             } else {
                 logger.error('Failed to load project settings:', error)
             }
-            return { setupScript: '', branchPrefix: DEFAULT_BRANCH_PREFIX, environmentVariables: [] }
+            return { setupScript: '', branchPrefix: DEFAULT_BRANCH_PREFIX, worktreeBaseDirectory: '', environmentVariables: [] }
         }
     }, [])
     
