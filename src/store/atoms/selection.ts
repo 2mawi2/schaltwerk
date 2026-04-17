@@ -247,6 +247,7 @@ const lastKnownSessionState = new Map<string, NormalizedSessionState>()
 // const ignoredSpecReverts = new Set<string>() // Removed as part of fix
 const lastSelectionByProject = new Map<string, Selection>()
 let pendingAsyncEffect: Promise<void> | null = null
+let intentionalSwitchInProgress = false
 
 function getOrchestratorTerminalIds(projectPath: string | null): string[] {
   const tracked = terminalsCache.get(selectionCacheKey({ kind: 'orchestrator' }, projectPath))
@@ -336,7 +337,11 @@ async function validateSessionTerminalCreation(selection: Selection, cwd: string
   }
 
   try {
-    const worktreeExists = await invoke<boolean>(TauriCommands.PathExists, { path: cwd })
+    const [worktreeExists, gitDirExists] = await Promise.all([
+      invoke<boolean>(TauriCommands.PathExists, { path: cwd }),
+      invoke<boolean>(TauriCommands.PathExists, { path: `${cwd}/.git` }),
+    ])
+
     if (!worktreeExists) {
       logger.warn('[selection] Worktree path does not exist; skipping terminal creation', {
         sessionId: selection.payload,
@@ -345,7 +350,6 @@ async function validateSessionTerminalCreation(selection: Selection, cwd: string
       return { shouldCreateTerminals: false, cleanupMissingWorktree: true }
     }
 
-    const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${cwd}/.git` })
     if (!gitDirExists) {
       logger.warn('[selection] Worktree missing git metadata; skipping terminal creation', {
         sessionId: selection.payload,
@@ -499,101 +503,116 @@ export const setSelectionActionAtom = atom(
       remember,
       rememberProjectPath,
     } = payload
-    const current = get(selectionAtom)
-    let resolvedSelection: Selection = selection
-    const projectPath = get(projectPathAtom)
-    const rememberTargetProject = (rememberProjectPath ?? projectPath) ?? undefined
-    const shouldRemember = (remember ?? true) && Boolean(rememberTargetProject)
-    let rememberApplied = false
-    if (selection.kind === 'session' && selection.payload) {
-      const needsSnapshot = !selection.worktreePath || !selection.sessionState
-      if (needsSnapshot) {
-        const snapshot = await set(getSessionSnapshotActionAtom, { sessionId: selection.payload })
-        if (snapshot) {
-          resolvedSelection = {
-            ...selection,
-            worktreePath: snapshot.worktreePath,
-            sessionState: snapshot.sessionState,
+
+    if (intentionalSwitchInProgress && !isIntentional) {
+      return
+    }
+    const wasIntentional = isIntentional
+    if (wasIntentional) {
+      intentionalSwitchInProgress = true
+    }
+
+    try {
+      const current = get(selectionAtom)
+      let resolvedSelection: Selection = selection
+      const projectPath = get(projectPathAtom)
+      const rememberTargetProject = (rememberProjectPath ?? projectPath) ?? undefined
+      const shouldRemember = (remember ?? true) && Boolean(rememberTargetProject)
+      let rememberApplied = false
+      if (selection.kind === 'session' && selection.payload) {
+        const needsSnapshot = !selection.worktreePath || !selection.sessionState
+        if (needsSnapshot) {
+          const snapshot = await set(getSessionSnapshotActionAtom, { sessionId: selection.payload })
+          if (snapshot) {
+            resolvedSelection = {
+              ...selection,
+              worktreePath: snapshot.worktreePath,
+              sessionState: snapshot.sessionState,
+            }
           }
         }
       }
-    }
 
-    const assignedProjectPath = rememberTargetProject ?? projectPath ?? null
-    const enrichedSelection = withProjectPath(resolvedSelection, assignedProjectPath)
+      const assignedProjectPath = rememberTargetProject ?? projectPath ?? null
+      const enrichedSelection = withProjectPath(resolvedSelection, assignedProjectPath)
 
-    const rememberSelectionIfNeeded = () => {
-      if (!shouldRemember || rememberApplied || !rememberTargetProject) {
+      const rememberSelectionIfNeeded = () => {
+        if (!shouldRemember || rememberApplied || !rememberTargetProject) {
+          return
+        }
+        rememberApplied = true
+        rememberSelectionForProject(rememberTargetProject, enrichedSelection)
+      }
+
+      const terminals = computeTerminals(enrichedSelection, projectPath)
+      const cacheKey = selectionCacheKey(enrichedSelection, projectPath)
+      const pendingRecreate = selectionsNeedingRecreate.has(cacheKey)
+      const trackedTopCwd = terminalWorkingDirectory.get(terminals.top)
+      const trackedBottomCwd = terminalWorkingDirectory.get(terminals.bottomBase)
+      const workingDirectoryChanged = Boolean(
+        terminals.workingDirectory &&
+        ((trackedTopCwd && trackedTopCwd !== terminals.workingDirectory) ||
+          (trackedBottomCwd && trackedBottomCwd !== terminals.workingDirectory))
+      )
+      let effectiveForceRecreate = forceRecreate || pendingRecreate || workingDirectoryChanged
+      let tracked = terminalsCache.get(cacheKey)
+      if (!tracked) {
+        tracked = new Set<string>()
+        terminalsCache.set(cacheKey, tracked)
+      }
+      let missingTop = !tracked.has(terminals.top)
+      let missingBottom = !tracked.has(terminals.bottomBase)
+
+      const unchanged = !forceRecreate && selectionEquals(current, enrichedSelection)
+
+      if (!unchanged) {
+        set(selectionAtom, enrichedSelection)
+      }
+
+      if (unchanged && !effectiveForceRecreate && !missingTop && !missingBottom) {
+        rememberSelectionIfNeeded()
+        if (isIntentional) {
+          emitUiEvent(UiEvent.SelectionChanged, enrichedSelection)
+        }
         return
       }
-      rememberApplied = true
-      rememberSelectionForProject(rememberTargetProject, enrichedSelection)
-    }
 
-    const terminals = computeTerminals(enrichedSelection, projectPath)
-    const cacheKey = selectionCacheKey(enrichedSelection, projectPath)
-    const pendingRecreate = selectionsNeedingRecreate.has(cacheKey)
-    const trackedTopCwd = terminalWorkingDirectory.get(terminals.top)
-    const trackedBottomCwd = terminalWorkingDirectory.get(terminals.bottomBase)
-    const workingDirectoryChanged = Boolean(
-      terminals.workingDirectory &&
-      ((trackedTopCwd && trackedTopCwd !== terminals.workingDirectory) ||
-        (trackedBottomCwd && trackedBottomCwd !== terminals.workingDirectory))
-    )
-    let effectiveForceRecreate = forceRecreate || pendingRecreate || workingDirectoryChanged
-    let tracked = terminalsCache.get(cacheKey)
-    if (!tracked) {
-      tracked = new Set<string>()
-      terminalsCache.set(cacheKey, tracked)
-    }
-    let missingTop = !tracked.has(terminals.top)
-    let missingBottom = !tracked.has(terminals.bottomBase)
+      let cleanupTerminalsDueToMissingWorktree = false
 
-    const unchanged = !forceRecreate && selectionEquals(current, enrichedSelection)
+      const { shouldCreateTerminals, cleanupMissingWorktree } = await evaluateTerminalCreation(enrichedSelection, terminals)
+      cleanupTerminalsDueToMissingWorktree = cleanupMissingWorktree
 
-    let cleanupTerminalsDueToMissingWorktree = false
+      const shouldTouchTerminals = effectiveForceRecreate || missingTop || missingBottom || cleanupTerminalsDueToMissingWorktree
 
-    if (!unchanged) {
-      set(selectionAtom, enrichedSelection)
-    }
+      if (shouldTouchTerminals) {
+        if (shouldCreateTerminals) {
+          await Promise.all([
+            ensureTerminal(terminals.top, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
+            ensureTerminal(terminals.bottomBase, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
+          ])
+        }
 
-    const { shouldCreateTerminals, cleanupMissingWorktree } = await evaluateTerminalCreation(enrichedSelection, terminals)
-    cleanupTerminalsDueToMissingWorktree = cleanupMissingWorktree
-
-    const shouldTouchTerminals = effectiveForceRecreate || missingTop || missingBottom || cleanupTerminalsDueToMissingWorktree
-
-    if (shouldTouchTerminals) {
-      if (shouldCreateTerminals) {
-        await Promise.all([
-          ensureTerminal(terminals.top, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
-          ensureTerminal(terminals.bottomBase, terminals.workingDirectory, tracked, effectiveForceRecreate, cacheKey),
-        ])
+        if (cleanupTerminalsDueToMissingWorktree) {
+          await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
+          selectionsNeedingRecreate.add(cacheKey)
+          effectiveForceRecreate = true
+          missingTop = true
+          missingBottom = true
+        }
       }
 
-      if (cleanupTerminalsDueToMissingWorktree) {
-        await set(clearTerminalTrackingActionAtom, [terminals.top, terminals.bottomBase])
-        selectionsNeedingRecreate.add(cacheKey)
-        effectiveForceRecreate = true
-        missingTop = true
-        missingBottom = true
+      if (pendingRecreate) {
+        selectionsNeedingRecreate.delete(cacheKey)
       }
-    }
 
-    if (pendingRecreate) {
-      selectionsNeedingRecreate.delete(cacheKey)
-    }
-
-    if (unchanged && !effectiveForceRecreate && !missingTop && !missingBottom) {
       rememberSelectionIfNeeded()
       if (isIntentional) {
         emitUiEvent(UiEvent.SelectionChanged, enrichedSelection)
       }
-      return
-    }
-
-    rememberSelectionIfNeeded()
-    if (isIntentional) {
-      emitUiEvent(UiEvent.SelectionChanged, enrichedSelection)
+    } finally {
+      if (wasIntentional) {
+        intentionalSwitchInProgress = false
+      }
     }
   },
 )
@@ -645,12 +664,11 @@ export const clearTerminalTrackingActionAtom = atom(
 
 async function isWorktreeStillPresent(worktreePath: string): Promise<boolean> {
   try {
-    const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
-    if (!exists) {
-      return false
-    }
-    const gitDirExists = await invoke<boolean>(TauriCommands.PathExists, { path: `${worktreePath}/.git` })
-    return gitDirExists
+    const [exists, gitDirExists] = await Promise.all([
+      invoke<boolean>(TauriCommands.PathExists, { path: worktreePath }),
+      invoke<boolean>(TauriCommands.PathExists, { path: `${worktreePath}/.git` }),
+    ])
+    return exists && gitDirExists
   } catch (error) {
     logger.warn('[selection] Failed to verify worktree removal during spec transition', {
       worktreePath,
@@ -984,6 +1002,10 @@ export const initializeSelectionEventsActionAtom = atom(
         return
       }
 
+      if (latest.worktreePath === snapshot.worktreePath && latest.sessionState === snapshot.sessionState) {
+        return
+      }
+
       await set(setSelectionActionAtom, {
         selection: {
           ...latest,
@@ -1076,11 +1098,16 @@ export function resetSelectionAtomsForTest(): void {
   projectFilterModes.clear()
   defaultFilterModeForProjects = FilterMode.Running
   lastProcessedProjectPath = null
+  intentionalSwitchInProgress = false
   if (eventCleanup) {
     eventCleanup()
   }
   eventCleanup = null
   pendingAsyncEffect = null
+}
+
+export function isSwitchInProgressForTest(): boolean {
+  return intentionalSwitchInProgress
 }
 
 export async function waitForSelectionAsyncEffectsForTest(): Promise<void> {
