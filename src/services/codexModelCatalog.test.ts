@@ -24,7 +24,8 @@ describe('codexModelCatalog', () => {
                     description: 'General purpose',
                     defaultReasoning: 'high',
                     reasoningOptions: [
-                        { id: 'low', label: 'Low', description: 'Low effort' }
+                        { id: 'low', label: 'Low', description: 'Low effort' },
+                        { id: 'xhigh', label: '', description: '' }
                     ]
                 }
             ],
@@ -38,6 +39,11 @@ describe('codexModelCatalog', () => {
         expect(catalog.models).toHaveLength(1)
         expect(catalog.models[0].id).toBe('gpt-5.3-codex')
         expect(catalog.models[0].reasoningOptions[0].id).toBe('low')
+        expect(catalog.models[0].reasoningOptions[1]).toEqual({
+            id: 'xhigh',
+            label: 'Extra high',
+            description: 'Extra high reasoning effort'
+        })
     })
 
     test('falls back to defaults when command fails', async () => {
@@ -47,18 +53,25 @@ describe('codexModelCatalog', () => {
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
         expect(catalog.models.length).toBeGreaterThan(0)
-        expect(catalog.models[0]?.id).toBe('gpt-5.3-codex')
+        expect(catalog.models[0]?.id).toBe('gpt-5.5')
         expect(catalog.defaultModelId).toBe(catalog.models[0]?.id ?? '')
     })
 
-    test('fallback catalog includes gpt-5.1-codex-max with extra high reasoning', async () => {
+    test('fallback catalog includes gpt-5.5 with current reasoning efforts', async () => {
         mockInvoke.mockRejectedValue(new Error('backend unavailable'))
 
         const catalog = await loadCodexModelCatalog()
-        const max = catalog.models.find(model => model.id === 'gpt-5.1-codex-max')
+        const gpt55 = catalog.models.find(model => model.id === 'gpt-5.5')
 
-        expect(max).toBeDefined()
-        expect(max?.defaultReasoning).toBe('medium')
-        expect(max?.reasoningOptions.map(option => option.id)).toContain('xhigh')
+        expect(gpt55).toBeDefined()
+        expect(gpt55?.defaultReasoning).toBe('medium')
+        expect(gpt55?.reasoningOptions.map(option => option.id)).toEqual([
+            'none',
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+        ])
+        expect(catalog.models.some(model => model.id === 'gpt-5.5-codex')).toBe(false)
     })
 })

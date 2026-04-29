@@ -1226,10 +1226,8 @@ impl TerminalBackend for LocalPtyAdapter {
 fn session_id_from_terminal_id(id: &str) -> Option<String> {
     let mut rest = if let Some(suffix) = id.strip_prefix("session-") {
         suffix
-    } else if let Some(suffix) = id.strip_prefix("orchestrator-") {
-        suffix
     } else {
-        return None;
+        id.strip_prefix("orchestrator-")?
     };
 
     // Remove numeric index at end like -0, -1 FIRST

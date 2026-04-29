@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use schaltwerk::domains::git::clone::{self, CloneOptions, RemoteMetadata};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -86,7 +87,7 @@ impl ProjectHistory {
 
     pub fn get_recent_projects(&self) -> Vec<RecentProject> {
         let mut projects: Vec<_> = self.projects.values().cloned().collect();
-        projects.sort_by(|a, b| b.last_opened.cmp(&a.last_opened));
+        projects.sort_by_key(|project| Reverse(project.last_opened));
         projects.truncate(20);
         projects
     }
