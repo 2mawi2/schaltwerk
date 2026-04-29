@@ -28,6 +28,7 @@ const FALLBACK_CATALOG: CodexModelCatalog = (() => {
 
 function toTitleCase(value: string): string {
     if (!value) return ''
+    if (value === 'xhigh') return 'Extra high'
     const lower = value.toLowerCase()
     return lower.charAt(0).toUpperCase() + lower.slice(1)
 }

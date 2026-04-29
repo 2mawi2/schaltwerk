@@ -86,7 +86,7 @@ pub async fn collect_agent_env_and_cli(
             .into_iter()
             .collect::<Vec<_>>();
         if let Ok(project_env) = db.get_project_environment_variables(repo_path) {
-            env.extend(project_env.into_iter());
+            env.extend(project_env);
         }
         (
             env,

@@ -1,13 +1,47 @@
 {
   "latest": {
-    "defaultModelId": "gpt-5.3-codex",
+    "defaultModelId": "gpt-5.5",
     "models": [
+      {
+        "id": "gpt-5.5",
+        "label": "GPT-5.5",
+        "description": "OpenAI's newest frontier model for complex coding, computer use, knowledge work, and research workflows in Codex.",
+        "defaultReasoning": "medium",
+        "isDefault": true,
+        "reasoningOptions": [
+          {
+            "id": "none",
+            "label": "None",
+            "description": "Bypasses deliberate reasoning for the fastest lightweight turns"
+          },
+          {
+            "id": "low",
+            "label": "Low",
+            "description": "Fast responses with lighter reasoning"
+          },
+          {
+            "id": "medium",
+            "label": "Medium",
+            "description": "Balanced speed and reasoning depth"
+          },
+          {
+            "id": "high",
+            "label": "High",
+            "description": "Deep reasoning for complex coding tasks"
+          },
+          {
+            "id": "xhigh",
+            "label": "Extra high",
+            "description": "Maximum reasoning depth for the hardest problems"
+          }
+        ]
+      },
       {
         "id": "gpt-5.3-codex",
         "label": "GPT-5.3 Codex",
         "description": "Most capable Codex model for complex coding workflows.",
         "defaultReasoning": "high",
-        "isDefault": true,
+        "isDefault": false,
         "reasoningOptions": [
           {
             "id": "none",
@@ -160,7 +194,7 @@
       {
         "id": "gpt-5.4",
         "label": "GPT-5.4",
-        "description": "Latest frontier model with top-tier knowledge, reasoning and coding.",
+        "description": "Previous frontier model with top-tier knowledge, reasoning and coding.",
         "defaultReasoning": "medium",
         "isDefault": false,
         "reasoningOptions": [

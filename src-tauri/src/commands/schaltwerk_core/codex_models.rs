@@ -120,6 +120,9 @@ fn to_title_case(input: &str) -> String {
     if input.is_empty() {
         return String::new();
     }
+    if input == "xhigh" {
+        return "Extra high".to_string();
+    }
     let mut chars = input.chars();
     let first = chars
         .next()
@@ -446,7 +449,8 @@ mod tests {
                         "supportedReasoningEfforts": [
                             { "reasoningEffort": "low", "description": "Fastest responses with limited reasoning" },
                             { "reasoningEffort": "medium", "description": "Dynamically adjusts reasoning based on the task" },
-                            { "reasoningEffort": "high", "description": "Maximizes reasoning depth for complex or ambiguous problems" }
+                            { "reasoningEffort": "high", "description": "Maximizes reasoning depth for complex or ambiguous problems" },
+                            { "reasoningEffort": "xhigh", "description": "" }
                         ],
                         "defaultReasoningEffort": "medium",
                         "isDefault": true
@@ -479,9 +483,15 @@ mod tests {
         assert_eq!(catalog.default_model_id, "gpt-5.1-codex");
         let first = &catalog.models[0];
         assert_eq!(first.id, "gpt-5.1-codex");
-        assert_eq!(first.reasoning_options.len(), 3);
+        assert_eq!(first.reasoning_options.len(), 4);
         assert_eq!(first.reasoning_options[0].id, "low");
         assert_eq!(first.reasoning_options[0].label, "Low");
+        assert_eq!(first.reasoning_options[3].id, "xhigh");
+        assert_eq!(first.reasoning_options[3].label, "Extra high");
+        assert_eq!(
+            first.reasoning_options[3].description,
+            "Extra high reasoning effort"
+        );
     }
 
     #[test]
@@ -522,12 +532,34 @@ mod tests {
     #[test]
     fn builtin_catalog_prefers_latest_models() {
         let catalog = builtin_codex_model_catalog();
-        assert_eq!(catalog.models[0].id, "gpt-5.3-codex");
+        assert_eq!(catalog.models[0].id, "gpt-5.5");
+        assert!(catalog.models.iter().any(|model| model.id == "gpt-5.4"));
+    }
+
+    #[test]
+    fn builtin_catalog_includes_gpt55_without_codex_variant_and_current_reasoning_efforts() {
+        let catalog = builtin_codex_model_catalog();
+        let model = catalog
+            .models
+            .iter()
+            .find(|model| model.id == "gpt-5.5")
+            .expect("expected gpt-5.5 to be present in builtin catalog");
+
+        assert_eq!(catalog.default_model_id, "gpt-5.5");
+        assert_eq!(model.default_reasoning, "medium");
+        assert_eq!(
+            model
+                .reasoning_options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["none", "low", "medium", "high", "xhigh"]
+        );
         assert!(
-            catalog
+            !catalog
                 .models
                 .iter()
-                .any(|model| model.id == "gpt-5.3-codex-spark")
+                .any(|model| model.id == "gpt-5.5-codex")
         );
     }
 
