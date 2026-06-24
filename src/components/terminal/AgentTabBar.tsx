@@ -51,7 +51,7 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                     style={{ backgroundColor: colorScheme.DEFAULT }}
                 />
                 <span
-                    className="truncate max-w-[120px]"
+                    className="truncate"
                     style={{
                         color: 'var(--color-text-primary)',
                         fontFamily: theme.fontFamily.sans,
@@ -99,7 +99,6 @@ export const AgentTabBar: React.FC<AgentTabBarProps> = ({
                                 className="h-full flex-shrink-0 border-r border-default/50"
                                 style={{
                                     minWidth: '100px',
-                                    maxWidth: '200px',
                                     backgroundColor: isActive
                                         ? 'var(--color-bg-primary)'
                                         : 'transparent',
