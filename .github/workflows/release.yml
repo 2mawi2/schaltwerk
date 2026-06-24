@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Cache apt packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: apt-cache
         with:
           path: /var/cache/apt/archives
@@ -94,7 +94,7 @@ jobs:
           components: clippy
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -161,7 +161,7 @@ jobs:
           components: clippy
 
       - name: Cache bun dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.bun/install/cache
@@ -173,7 +173,7 @@ jobs:
 
       - name: Restore cargo home cache
         id: cache_cargo_home_restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -184,7 +184,7 @@ jobs:
 
       - name: Restore cargo target cache
         id: cache_target_restore
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
@@ -238,7 +238,7 @@ jobs:
       - name: Save cargo home cache
         if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true'
         continue-on-error: true
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -250,7 +250,7 @@ jobs:
       - name: Save cargo target cache
         if: always() && !cancelled() && steps.cache_target_restore.outputs.cache-hit != 'true'
         continue-on-error: true
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
@@ -293,7 +293,7 @@ jobs:
         uses: Mozilla-Actions/sccache-action@v0.0.9
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/
@@ -553,7 +553,7 @@ jobs:
         uses: Mozilla-Actions/sccache-action@v0.0.9
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/bin/
