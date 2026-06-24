@@ -71,20 +71,26 @@ export default {
         transparent: 'transparent',
       },
       fontSize: {
-        // Semantic font sizes that replace legacy sizes
-        'caption': '0.6875rem',     // 11px - Small labels, metadata (replaces text-xs use cases for metadata)
-        'body': '0.875rem',         // 14px - Primary body text (replaces text-sm use cases)
-        'body-large': '1rem',       // 16px - Larger body text (replaces text-base use cases)
-        'heading': '1.125rem',      // 18px - Section headings (replaces text-lg use cases)
-        'heading-large': '1.25rem', // 20px - Main headings (replaces text-xl use cases)
-        'heading-xlarge': '1.5rem', // 24px - Page titles (replaces text-2xl use cases)
-        'display': '2rem',          // 32px - Hero text, important notices
-        // UI-specific sizes
-        'button': '0.875rem',       // 14px - Button text
-        'input': '0.875rem',        // 14px - Input field text  
-        'label': '0.8125rem',       // 13px - Form labels
-        'code': '0.8125rem',        // 13px - Code snippets (monospace)
-        'terminal': '0.8125rem',    // 13px - Terminal text
+        'xs':   'calc(var(--ui-font-size) * 0.786)',
+        'sm':   'calc(var(--ui-font-size) * 0.929)',
+        'base': 'var(--ui-font-size)',
+        'lg':   'calc(var(--ui-font-size) * 1.143)',
+        'xl':   'calc(var(--ui-font-size) * 1.286)',
+        '2xl':  'calc(var(--ui-font-size) * 1.571)',
+        '3xl':  'calc(var(--ui-font-size) * 1.857)',
+        '4xl':  'calc(var(--ui-font-size) * 2.286)',
+        'caption': 'var(--font-caption)',
+        'body': 'var(--font-body)',
+        'body-large': 'var(--font-body-large)',
+        'heading': 'var(--font-heading)',
+        'heading-large': 'var(--font-heading-large)',
+        'heading-xlarge': 'var(--font-heading-xlarge)',
+        'display': 'var(--font-display)',
+        'button': 'var(--font-button)',
+        'input': 'var(--font-input)',
+        'label': 'var(--font-label)',
+        'code': 'var(--font-code)',
+        'terminal': 'var(--font-terminal)',
       },
     },
   },
