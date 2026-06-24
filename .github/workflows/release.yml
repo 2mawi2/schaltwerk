@@ -672,14 +672,14 @@ jobs:
           fetch-depth: 0
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: macos-universal
           path: artifacts/macos
 
       - name: Download Windows artifacts
         if: needs.build-windows.result == 'success'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: windows-installer
           path: artifacts/windows
