@@ -163,7 +163,7 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf mold clang sccache
 
       - name: Setup sccache cache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Enable sccache GHA cache backend
         if: ${{ !env.ACT }}

@@ -119,7 +119,7 @@ jobs:
         run: choco install webview2-runtime -y
 
       - name: Setup sccache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Enable sccache
         shell: bash

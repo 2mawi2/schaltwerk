@@ -76,7 +76,7 @@ jobs:
             sccache
 
       - name: Setup sccache cache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -153,7 +153,7 @@ jobs:
           bun-version: '1.2.16'
 
       - name: Setup sccache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -290,7 +290,7 @@ jobs:
         run: brew install sccache
 
       - name: Setup sccache cache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Cache Rust dependencies
         uses: actions/cache@v5
@@ -550,7 +550,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: Mozilla-Actions/sccache-action@v0.0.9
+        uses: Mozilla-Actions/sccache-action@v0.0.10
 
       - name: Cache Rust dependencies
         uses: actions/cache@v5
