@@ -549,4 +549,91 @@ describe('terminalRegistry stream flushing', () => {
   it('returns false when selecting all for unknown terminal IDs', () => {
     expect(selectAllTerminal('missing-terminal')).toBe(false)
   })
+
+  it('writes small payloads in a single call', async () => {
+    const rawWrite = vi.fn()
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        isTuiMode: () => false,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('small-payload-test', factory)
+    attachTerminalInstance('small-payload-test', document.createElement('div'))
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    listener('small data')
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    expect(rawWrite).toHaveBeenCalledWith('small data', expect.any(Function))
+
+    removeTerminalInstance('small-payload-test')
+  })
+
+  it('splits large payloads across multiple write calls', async () => {
+    const writeCallbacks: Array<() => void> = []
+    const rawWrite = vi.fn((_data: string, cb?: unknown) => {
+      if (typeof cb === 'function') {
+        writeCallbacks.push(cb as () => void)
+      }
+    })
+    const factory = () =>
+      ({
+        raw: {
+          write: rawWrite,
+          scrollToBottom: vi.fn(),
+          buffer: {
+            active: {
+              baseY: 10,
+              viewportY: 10,
+            },
+          },
+        },
+        shouldFollowOutput: () => true,
+        isTuiMode: () => false,
+        attach: vi.fn(),
+        detach: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as import('../xterm/XtermTerminal').XtermTerminal)
+
+    acquireTerminalInstance('large-payload-test', factory)
+    attachTerminalInstance('large-payload-test', document.createElement('div'))
+
+    const listener = addListenerMock.mock.calls[0][1] as (chunk: string) => void
+
+    const largeChunk = 'x'.repeat(128 * 1024)
+    listener(largeChunk)
+
+    await vi.runAllTimersAsync()
+
+    expect(rawWrite).toHaveBeenCalledTimes(1)
+    expect(rawWrite.mock.calls[0][0].length).toBe(64 * 1024)
+
+    writeCallbacks[0]()
+    expect(rawWrite).toHaveBeenCalledTimes(2)
+    expect(rawWrite.mock.calls[1][0].length).toBe(64 * 1024)
+
+    writeCallbacks[1]()
+
+    const totalWritten = rawWrite.mock.calls.reduce((sum: number, call: unknown[]) => sum + (call[0] as string).length, 0)
+    expect(totalWritten).toBe(128 * 1024)
+
+    removeTerminalInstance('large-payload-test')
+  })
 })

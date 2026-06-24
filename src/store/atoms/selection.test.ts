@@ -15,6 +15,7 @@ import {
   resetSelectionAtomsForTest,
   waitForSelectionAsyncEffectsForTest,
   getFilterModeForProjectForTest,
+  isSwitchInProgressForTest,
 } from './selection'
 import { projectPathAtom } from './project'
 import { TauriCommands } from '../../common/tauriCommands'
@@ -871,7 +872,7 @@ describe('selection atoms', () => {
     await store.set(setSelectionActionAtom, { selection: { kind: 'session', payload: 'session-1' } })
 
     expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
-    expect(getInvokeCallCount(TauriCommands.PathExists)).toBe(1)
+    expect(getInvokeCallCount(TauriCommands.PathExists)).toBe(2)
   })
 
   it('remembers selection per project and restores when switching back', async () => {
@@ -1162,6 +1163,7 @@ describe('selection atoms', () => {
           sessionState: 'running',
           worktreePath: '/tmp/worktrees/session-vanish',
         },
+        forceRecreate: true,
       })
 
       await waitFor(() => {
@@ -1216,6 +1218,128 @@ describe('selection atoms', () => {
       await waitFor(() => {
         expect(closeMock).toHaveBeenCalledWith(bottomId)
       })
+    })
+  })
+
+  describe('re-entry guard', () => {
+    it('skips non-intentional call while a switch is already in progress', async () => {
+      await setProjectPath('/projects/alpha')
+
+      let resolveSnapshot!: (value: unknown) => void
+      const invoke = vi.mocked(core.invoke)
+      invoke.mockImplementation(async (cmd) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          return new Promise(resolve => {
+            resolveSnapshot = resolve
+          })
+        }
+        if (cmd === TauriCommands.PathExists) return true
+        if (cmd === TauriCommands.DirectoryExists) return true
+        if (cmd === TauriCommands.TerminalExists) return false
+        throw new Error(`Unexpected command ${cmd}`)
+      })
+
+      const intentionalPromise = store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-a' },
+        isIntentional: true,
+      })
+
+      expect(isSwitchInProgressForTest()).toBe(true)
+
+      const nonIntentionalPromise = store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-b' },
+        isIntentional: false,
+      })
+
+      await nonIntentionalPromise
+
+      expect(store.get(selectionValueAtom).payload).not.toBe('session-b')
+
+      resolveSnapshot(createRawSession({ name: 'session-a' }))
+      await intentionalPromise
+
+      expect(store.get(selectionValueAtom).payload).toBe('session-a')
+      expect(isSwitchInProgressForTest()).toBe(false)
+    })
+
+    it('allows intentional call even while a switch is in progress', async () => {
+      await setProjectPath('/projects/alpha')
+
+      let resolveFirst!: (value: unknown) => void
+      let callCount = 0
+      const invoke = vi.mocked(core.invoke)
+      invoke.mockImplementation(async (cmd, args?: unknown) => {
+        if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
+          callCount += 1
+          if (callCount === 1) {
+            return new Promise(resolve => {
+              resolveFirst = resolve
+            })
+          }
+          const typedArgs = args as Record<string, unknown> | undefined
+          return createRawSession({ name: typedArgs?.name })
+        }
+        if (cmd === TauriCommands.PathExists) return true
+        if (cmd === TauriCommands.DirectoryExists) return true
+        if (cmd === TauriCommands.TerminalExists) return false
+        throw new Error(`Unexpected command ${cmd}`)
+      })
+
+      const firstPromise = store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-a' },
+        isIntentional: true,
+      })
+
+      const secondPromise = store.set(setSelectionActionAtom, {
+        selection: { kind: 'session', payload: 'session-b' },
+        isIntentional: true,
+      })
+
+      await secondPromise
+
+      expect(store.get(selectionValueAtom).payload).toBe('session-b')
+
+      resolveFirst(createRawSession({ name: 'session-a' }))
+      await firstPromise
+
+      expect(isSwitchInProgressForTest()).toBe(false)
+    })
+  })
+
+  it('skips redundant setSelectionActionAtom when SessionsRefreshed snapshot is unchanged', async () => {
+    await withNodeEnv('development', async () => {
+      const backend = await import('../../terminal/transport/backend')
+
+      await setProjectPath('/projects/alpha')
+      await store.set(initializeSelectionEventsActionAtom)
+
+      await store.set(setSelectionActionAtom, {
+        selection: {
+          kind: 'session',
+          payload: 'session-1',
+          sessionState: 'running',
+          worktreePath: '/tmp/worktrees/session-1',
+        },
+      })
+
+      vi.mocked(backend.createTerminalBackend).mockClear()
+      const pathExistsCountBefore = getInvokeCallCount(TauriCommands.PathExists)
+
+      nextSessionResponse = createRawSession({
+        session_state: 'running',
+        status: 'running',
+        ready_to_merge: false,
+        worktree_path: '/tmp/worktrees/session-1',
+      })
+
+      await emitSessionsRefreshed([
+        { info: { session_id: 'session-1', session_state: 'running', status: 'running', ready_to_merge: false } },
+      ])
+      await waitForSelectionAsyncEffectsForTest()
+
+      const pathExistsCountAfter = getInvokeCallCount(TauriCommands.PathExists)
+      expect(pathExistsCountAfter - pathExistsCountBefore).toBe(0)
+      expect(vi.mocked(backend.createTerminalBackend)).not.toHaveBeenCalled()
     })
   })
 })
