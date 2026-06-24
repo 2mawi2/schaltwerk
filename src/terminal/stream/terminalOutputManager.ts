@@ -28,6 +28,8 @@ interface TerminalStream {
   listeners: Set<TerminalStreamListener>
   decoder?: TextDecoder
   encoder?: TextEncoder
+  // Flag to suppress event dispatch during hydration to prevent duplicates
+  hydrating?: boolean
 }
 
 const TEXT_PRESENTATION_RULES = [
@@ -129,15 +131,28 @@ class TerminalOutputManager {
 
   private async startStream(id: string, stream: TerminalStream): Promise<void> {
     try {
-      stream.seqCursor = await this.hydrate(id, stream)
       if (isPluginTerminal(id)) {
+        // Plugin terminals have seq-based deduplication, use original order
+        stream.seqCursor = await this.hydrate(id, stream)
         await this.startPluginStream(id, stream)
       } else {
+        // For standard terminals: register listener FIRST, then hydrate.
+        // This prevents a race condition where events emitted during hydration
+        // could arrive after listener registration and duplicate hydrated data.
+        // During hydration, we suppress event dispatch since hydration covers
+        // all historical data.
+        stream.hydrating = true
         await this.startStandardStream(id, stream)
+        try {
+          stream.seqCursor = await this.hydrate(id, stream)
+        } finally {
+          stream.hydrating = false
+        }
       }
       stream.started = true
     } catch (error) {
       stream.started = false
+      stream.hydrating = false
       logger.error(`[TerminalOutput] failed to start stream for ${id}`, error)
       throw error
     }
@@ -169,6 +184,13 @@ class TerminalOutputManager {
     try {
       stream.unlisten = await listenTerminalOutput(id, chunk => {
         if (typeof chunk !== 'string' || chunk.length === 0) {
+          return
+        }
+        // During hydration, suppress event dispatch to prevent duplicates.
+        // Hydration will fetch and dispatch all historical data, so any events
+        // that arrive during this window would be duplicates.
+        if (stream.hydrating) {
+          logger.debug(`[TerminalOutput] suppressing event during hydration for ${id} (${chunk.length} chars)`)
           return
         }
         this.dispatch(id, chunk)
