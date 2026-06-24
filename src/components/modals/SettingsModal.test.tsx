@@ -220,7 +220,7 @@ const createDefaultUseSettingsValue = () => ({
   loadEnvVars: vi.fn().mockResolvedValue(createEmptyEnvVars()),
   loadCliArgs: vi.fn().mockResolvedValue(createEmptyCliArgs()),
   loadAgentPreferences: vi.fn().mockResolvedValue(createEmptyPreferences()),
-  loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
+  loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', worktreeBaseDirectory: '', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({
     skip_confirmation_modals: false,
@@ -604,6 +604,7 @@ describe('SettingsModal project settings navigation', () => {
       loadProjectSettings: vi.fn().mockResolvedValue({
         setupScript: '#!/bin/bash\necho original',
         branchPrefix: 'schaltwerk',
+        worktreeBaseDirectory: '',
         environmentVariables: [],
       }),
     })
@@ -645,6 +646,7 @@ describe('SettingsModal project settings navigation', () => {
       loadProjectSettings: vi.fn().mockResolvedValue({
         setupScript: '#!/bin/bash\necho original',
         branchPrefix: 'schaltwerk',
+        worktreeBaseDirectory: '',
         environmentVariables: [],
       }),
     })

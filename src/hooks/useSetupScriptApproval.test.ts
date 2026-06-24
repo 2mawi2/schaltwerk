@@ -52,6 +52,7 @@ describe('useSetupScriptApproval', () => {
     invokeMock.mockResolvedValueOnce({
       setupScript: '',
       branchPrefix: 'feature',
+      worktreeBaseDirectory: '/tmp/wt',
     })
     invokeMock.mockResolvedValueOnce(undefined)
 
@@ -72,7 +73,7 @@ describe('useSetupScriptApproval', () => {
     expect(invokeMock).toHaveBeenNthCalledWith(
       2,
       TauriCommands.SetProjectSettings,
-      { settings: { setupScript: '#!/bin/bash\necho hi', branchPrefix: 'feature' } }
+      { settings: { setupScript: '#!/bin/bash\necho hi', branchPrefix: 'feature', worktreeBaseDirectory: '/tmp/wt' } }
     )
     expect(result.current.proposal).toBeNull()
   })

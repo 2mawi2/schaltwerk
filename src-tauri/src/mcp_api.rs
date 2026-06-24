@@ -155,6 +155,12 @@ async fn handle_mcp_request_inner(
         }
         (&Method::GET, "/api/project/setup-script") => get_project_setup_script(app).await,
         (&Method::PUT, "/api/project/setup-script") => set_project_setup_script(req, app).await,
+        (&Method::GET, "/api/project/worktree-base-directory") => {
+            get_project_worktree_base_directory(app).await
+        }
+        (&Method::PUT, "/api/project/worktree-base-directory") => {
+            set_project_worktree_base_directory(req, app).await
+        }
         (&Method::GET, "/api/project/run-script") => get_project_run_script_api().await,
         (&Method::POST, "/api/project/run-script/execute") => execute_project_run_script().await,
         (&Method::GET, "/api/epics") => list_epics().await,
@@ -497,6 +503,37 @@ fn parse_setup_script_request(body: &[u8]) -> Result<String, (StatusCode, String
     Ok(script.to_string())
 }
 
+fn worktree_base_directory_payload(base_directory: Option<&str>) -> serde_json::Value {
+    let has_custom_directory = base_directory
+        .map(|d| !d.trim().is_empty())
+        .unwrap_or(false);
+    let normalized = if has_custom_directory {
+        base_directory.unwrap_or("")
+    } else {
+        ""
+    };
+
+    serde_json::json!({
+        "worktree_base_directory": normalized,
+        "has_custom_directory": has_custom_directory
+    })
+}
+
+fn parse_worktree_base_directory_request(
+    body: &[u8],
+) -> Result<Option<String>, (StatusCode, String)> {
+    let payload: serde_json::Value = serde_json::from_slice(body)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")))?;
+
+    let dir = payload
+        .get("worktree_base_directory")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.trim().is_empty());
+
+    Ok(dir)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -690,6 +727,65 @@ mod tests {
             .expect("valid script")
             .to_string();
         assert_eq!(value, "echo hi");
+    }
+
+    #[test]
+    fn worktree_base_directory_payload_marks_presence() {
+        let payload = worktree_base_directory_payload(Some("/tmp/worktrees"));
+        assert_eq!(payload["has_custom_directory"], serde_json::json!(true));
+        assert_eq!(
+            payload["worktree_base_directory"],
+            serde_json::json!("/tmp/worktrees")
+        );
+
+        let none_payload = worktree_base_directory_payload(None);
+        assert_eq!(none_payload["has_custom_directory"], serde_json::json!(false));
+        assert_eq!(none_payload["worktree_base_directory"], serde_json::json!(""));
+
+        let empty = worktree_base_directory_payload(Some("   "));
+        assert_eq!(empty["has_custom_directory"], serde_json::json!(false));
+        assert_eq!(empty["worktree_base_directory"], serde_json::json!(""));
+    }
+
+    #[test]
+    fn parse_worktree_base_directory_request_returns_none_for_missing_field() {
+        let result =
+            parse_worktree_base_directory_request(b"{}").expect("empty body is valid");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn parse_worktree_base_directory_request_returns_none_for_empty_string() {
+        let result = parse_worktree_base_directory_request(
+            br#"{ "worktree_base_directory": "" }"#,
+        )
+        .expect("empty string is valid");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn parse_worktree_base_directory_request_returns_none_for_whitespace() {
+        let result = parse_worktree_base_directory_request(
+            br#"{ "worktree_base_directory": "   " }"#,
+        )
+        .expect("whitespace is valid");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn parse_worktree_base_directory_request_accepts_path() {
+        let result = parse_worktree_base_directory_request(
+            br#"{ "worktree_base_directory": "/tmp/worktrees" }"#,
+        )
+        .expect("valid path");
+        assert_eq!(result.as_deref(), Some("/tmp/worktrees"));
+    }
+
+    #[test]
+    fn parse_worktree_base_directory_request_rejects_invalid_json() {
+        let err =
+            parse_worktree_base_directory_request(b"not json").expect_err("invalid json");
+        assert_eq!(err.0, StatusCode::BAD_REQUEST);
     }
 
     #[test]
@@ -2024,6 +2120,79 @@ async fn set_project_setup_script(
 
     let response_payload = setup_script_payload(&setup_script);
     Ok(json_response(StatusCode::ACCEPTED, response_payload.to_string()))
+}
+
+async fn get_project_worktree_base_directory(
+    _app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let core = match get_core_read().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for worktree base directory: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+
+    match db.get_project_worktree_base_directory(&repo_path) {
+        Ok(dir) => {
+            let payload = worktree_base_directory_payload(dir.as_deref());
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Err(e) => {
+            error!("Failed to get worktree base directory: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get worktree base directory: {e}"),
+            ))
+        }
+    }
+}
+
+async fn set_project_worktree_base_directory(
+    req: Request<Incoming>,
+    _app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let body = req.into_body();
+    let body_bytes = body.collect().await?.to_bytes();
+
+    let base_directory = match parse_worktree_base_directory_request(&body_bytes) {
+        Ok(dir) => dir,
+        Err((status, message)) => return Ok(json_error_response(status, message)),
+    };
+
+    let core = match get_core_write().await {
+        Ok(core) => core,
+        Err(e) => {
+            error!("Failed to get core for worktree base directory update: {e}");
+            return Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal error: {e}"),
+            ));
+        }
+    };
+
+    let db = core.database().clone();
+    let repo_path = core.repo_path.clone();
+
+    match db.set_project_worktree_base_directory(&repo_path, base_directory.as_deref()) {
+        Ok(()) => {
+            let payload = worktree_base_directory_payload(base_directory.as_deref());
+            Ok(json_response(StatusCode::OK, payload.to_string()))
+        }
+        Err(e) => {
+            error!("Failed to set worktree base directory: {e}");
+            Ok(json_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to set worktree base directory: {e}"),
+            ))
+        }
+    }
 }
 
 async fn get_project_run_script_api() -> Result<Response<String>, hyper::Error> {

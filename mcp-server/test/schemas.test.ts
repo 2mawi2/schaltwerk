@@ -61,6 +61,14 @@ const sampleStructuredOutputs: Record<string, any> = {
     setup_script: '#!/bin/bash\necho updated',
     has_setup_script: true,
   },
+  schaltwerk_get_worktree_base_directory: {
+    worktree_base_directory: '/tmp/worktrees',
+    has_custom_directory: true,
+  },
+  schaltwerk_set_worktree_base_directory: {
+    worktree_base_directory: '/tmp/worktrees',
+    has_custom_directory: true,
+  },
   schaltwerk_spec_create: {
     type: 'spec',
     status: 'created',
