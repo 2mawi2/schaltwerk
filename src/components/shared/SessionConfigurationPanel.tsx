@@ -9,7 +9,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
-import { FALLBACK_CODEX_MODELS, CodexModelMetadata } from '../../common/codexModels'
+import {
+    FALLBACK_CODEX_MODELS,
+    getCodexModelMetadata,
+    CodexModelMetadata
+} from '../../common/codexModels'
 import { useTranslation } from '../../common/i18n'
 
 interface SessionConfigurationPanelProps {
@@ -258,7 +262,7 @@ export function SessionConfigurationPanel({
 
     const selectedCodexMetadata = useMemo(() => {
         if (!codexModel) return undefined
-        return effectiveCodexModels.find(model => model.id === codexModel)
+        return getCodexModelMetadata(codexModel, effectiveCodexModels)
     }, [codexModel, effectiveCodexModels])
 
     // Ensure isValidBranch is considered "used" by TypeScript
@@ -513,11 +517,14 @@ function CodexModelSelector({
 
     const codexMetadataById = useMemo(() => {
         const map = new Map<string, CodexModelMetadata>()
-        codexModels.forEach(model => {
-            map.set(model.id, model)
+        normalizedOptions.forEach(option => {
+            const metadata = getCodexModelMetadata(option, codexModels)
+            if (metadata) {
+                map.set(option, metadata)
+            }
         })
         return map
-    }, [codexModels])
+    }, [codexModels, normalizedOptions])
 
     const selectedKey = useMemo(() => {
         if (!value) return undefined

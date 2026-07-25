@@ -480,6 +480,36 @@ describe('SettingsModal version settings', () => {
   })
 })
 
+describe('SettingsModal Codex model preferences', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
+    useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
+    requestDockBounceMock.mockReset()
+  })
+
+  it('suggests GPT-5.6 models and max reasoning efforts', async () => {
+    renderWithProviders(<SettingsModal open={true} onClose={() => {}} />)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Agent Configuration' }))
+    await user.click(await screen.findByRole('button', { name: 'Codex' }))
+
+    const modelOptions = document.querySelector<HTMLDataListElement>('#agent-model-options-codex')
+    const reasoningOptions = document.querySelector<HTMLDataListElement>('#agent-reasoning-options-codex')
+
+    expect(modelOptions?.querySelector('option[value="gpt-5.6-sol"]')).not.toBeNull()
+    expect(modelOptions?.querySelector('option[value="gpt-5.6-terra"]')).not.toBeNull()
+    expect(modelOptions?.querySelector('option[value="gpt-5.6-luna"]')).not.toBeNull()
+    expect(reasoningOptions?.querySelector('option[value="max"]')).not.toBeNull()
+    expect(reasoningOptions?.querySelector('option[value="ultra"]')).not.toBeNull()
+    expect(await screen.findAllByText(/--model gpt-5\.6-sol/)).toHaveLength(2)
+  })
+})
+
 describe('SettingsModal appearance settings', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()

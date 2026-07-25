@@ -153,7 +153,7 @@ Arguments are parsed with shell-style quoting:
 ```
 
 ```bash Model Override
---model gpt-4
+--model gpt-5.6-sol
 ```
 
 ```bash Sandbox Mode
@@ -161,13 +161,23 @@ Arguments are parsed with shell-style quoting:
 ```
 
 ```bash Multiple Arguments
---profile work --model gpt-4 --verbose
+--profile work --model gpt-5.6-sol --verbose
 ```
 </CodeGroup>
 
 <Info>
   Codex launches are normalized automatically (single-dash long flags are fixed and profiles come before `--model`).
 </Info>
+
+For Codex, Schaltwerk reads the model catalog from your installed and authenticated CLI so the
+session dialog only offers models available to your account. Current GPT-5.6 choices include:
+
+- `gpt-5.6-sol` for the latest frontier capability
+- `gpt-5.6-terra` for balanced everyday work
+- `gpt-5.6-luna` for fast, lower-cost tasks
+
+If live discovery is unavailable, Schaltwerk uses a version-aware fallback catalog. Older Codex
+CLI versions keep their compatible model choices instead of receiving unsupported GPT-5.6 defaults.
 
 ### When Arguments Apply
 

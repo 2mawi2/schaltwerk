@@ -222,24 +222,14 @@ interface AgentPreferenceMetadata {
 }
 
 function buildCodexModelSuggestions(): AgentPreferenceMetadataOption[] {
-    const seen = new Set<string>()
-    const suggestions: AgentPreferenceMetadataOption[] = []
-    getAllCodexModels().forEach(model => {
-        model.reasoningOptions.forEach(option => {
-            const key = `${model.id} ${option.id}`
-            if (seen.has(key)) return
-            seen.add(key)
-            suggestions.push({
-                value: key,
-                label: key
-            })
-        })
-    })
-    return suggestions
+    return getAllCodexModels().map(model => ({
+        value: model.id,
+        label: model.label
+    }))
 }
 
 const CODEX_MODEL_SUGGESTIONS = buildCodexModelSuggestions()
-const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.3-codex high'
+const CODEX_MODEL_PLACEHOLDER = CODEX_MODEL_SUGGESTIONS[0]?.value ?? 'gpt-5.6-sol'
 
 const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'none', label: 'None' },
@@ -248,6 +238,8 @@ const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'medium', label: 'Medium' },
     { value: 'high', label: 'High' },
     { value: 'xhigh', label: 'Extra high' },
+    { value: 'max', label: 'Max' },
+    { value: 'ultra', label: 'Ultra' },
 ]
 
 const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
@@ -1810,7 +1802,7 @@ fi`}
                             style={{ fontVariantLigatures: 'none' }}
                         />
                         <div className="mt-2 text-caption text-text-muted">
-                            {t.settings.environment.cliArgsExamples} <code className="text-accent-blue">--profile test</code>, <code className="text-accent-blue">-d</code>, <code className="text-accent-blue">--model gpt-4</code>
+                            {t.settings.environment.cliArgsExamples} <code className="text-accent-blue">--profile test</code>, <code className="text-accent-blue">-d</code>, <code className="text-accent-blue">--model {activeAgentTab === 'codex' ? 'gpt-5.6-sol' : 'gpt-4'}</code>
                         </div>
                     </div>
                     )}
@@ -1946,13 +1938,11 @@ fi`}
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--sandbox workspace-write</code> - Workspace write access</li>
                                     <li><code>--sandbox danger-full-access</code> - Full system access</li>
-                                    <li><code>--model o3</code> - Use specific model</li>
+                                    <li><code>--model gpt-5.6-sol</code> - Use a specific model</li>
                                 </ul>
                                 <strong className="block mt-3">{t.settings.environment.commonClaudeEnvVars}</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
-                                    <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
-                                    <li>CODEX_PROFILE - Configuration profile to use</li>
                                 </ul>
                             </div>
                         </div>

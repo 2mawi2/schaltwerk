@@ -71,7 +71,7 @@ impl<'a> SessionFinalizer<'a> {
         session_id: &str,
         new_state: SessionState,
     ) -> Result<()> {
-        let state_str = format!("{:?}", &new_state);
+        let state_str = format!("{new_state:?}");
         info!("Finalizing state transition for session '{session_id}' to {state_str}");
 
         self.db_manager

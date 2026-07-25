@@ -4,7 +4,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -44,6 +44,7 @@ struct CodexModelConfigCatalog {
 #[serde(rename_all = "camelCase")]
 struct CodexModelConfigFile {
     latest: CodexModelConfigCatalog,
+    previous: CodexModelConfigCatalog,
     legacy: CodexModelConfigCatalog,
 }
 
@@ -156,27 +157,25 @@ fn legacy_codex_model_catalog() -> CodexModelCatalog {
     catalog_from_config(&CODEX_MODEL_CONFIG.legacy)
 }
 
+fn previous_codex_model_catalog() -> CodexModelCatalog {
+    catalog_from_config(&CODEX_MODEL_CONFIG.previous)
+}
+
 pub fn builtin_codex_model_catalog() -> CodexModelCatalog {
     latest_codex_model_catalog()
 }
 
 pub fn builtin_codex_model_catalog_for_version(cli_version: Option<&str>) -> CodexModelCatalog {
-    if codex_cli_supports_latest(cli_version) {
-        builtin_codex_model_catalog()
-    } else {
-        legacy_codex_model_catalog()
-    }
-}
-
-fn codex_cli_supports_latest(cli_version: Option<&str>) -> bool {
-    let Some(raw) = cli_version else {
-        return false;
+    let Some(version) = cli_version.and_then(parse_semver_from_string) else {
+        return legacy_codex_model_catalog();
     };
 
-    let parsed = parse_semver_from_string(raw);
-    match parsed {
-        Some(version) => version >= Version::new(0, 58, 0),
-        None => false,
+    if version >= Version::new(0, 145, 0) {
+        builtin_codex_model_catalog()
+    } else if version >= Version::new(0, 58, 0) {
+        previous_codex_model_catalog()
+    } else {
+        legacy_codex_model_catalog()
     }
 }
 
@@ -201,9 +200,10 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
 
     let mut command = Command::new(binary_path.as_ref());
     command
+        .kill_on_drop(true)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::null());
 
     for (key, value) in env_vars {
         command.env(key, value);
@@ -223,76 +223,113 @@ pub async fn fetch_codex_model_catalog<P: AsRef<Path>>(
         .take()
         .context("Failed to acquire Codex stdin for model discovery")?;
 
-    let request = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "model/list",
-        "params": { "pageSize": 50 }
+    let initialize_request = serde_json::json!({
+        "id": 0,
+        "method": "initialize",
+        "params": {
+            "clientInfo": {
+                "name": "schaltwerk",
+                "title": "Schaltwerk",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        }
     });
 
-    let mut payload = serde_json::to_vec(&request)?;
-    payload.push(b'\n');
-
-    stdin
-        .write_all(&payload)
+    write_json_line(&mut stdin, &initialize_request)
         .await
-        .context("Failed to send model/list request to Codex")?;
-    stdin
-        .shutdown()
-        .await
-        .context("Failed to close Codex stdin after sending request")?;
-    drop(stdin);
+        .context("Failed to send initialize request to Codex")?;
 
     let stdout = child
         .stdout
         .take()
         .context("Failed to capture Codex stdout for model discovery")?;
+    let mut reader = BufReader::new(stdout).lines();
 
-    let response = {
-        let mut reader = BufReader::new(stdout).lines();
-        let mut captured: Option<serde_json::Value> = None;
-        while let Some(line) = reader
-            .next_line()
-            .await
-            .context("Failed to read Codex stdout during model discovery")?
-        {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
+    read_response(&mut reader, 0, "initialize").await?;
 
-            let value: serde_json::Value =
-                serde_json::from_str(trimmed).context("Failed to parse Codex stdout as JSON")?;
-            if value
-                .get("id")
-                .and_then(|v| v.as_i64())
-                .map(|id| id == 1)
-                .unwrap_or(false)
-            {
-                captured = Some(value);
-                break;
-            }
-        }
-        captured
-    };
+    let initialized_notification = serde_json::json!({
+        "method": "initialized",
+        "params": {}
+    });
+    write_json_line(&mut stdin, &initialized_notification)
+        .await
+        .context("Failed to acknowledge Codex initialization")?;
+
+    let model_list_request = serde_json::json!({
+        "id": 1,
+        "method": "model/list",
+        "params": { "pageSize": 50 }
+    });
+    write_json_line(&mut stdin, &model_list_request)
+        .await
+        .context("Failed to send model/list request to Codex")?;
+
+    let response = read_response(&mut reader, 1, "model/list").await?;
+
+    stdin
+        .shutdown()
+        .await
+        .context("Failed to close Codex stdin after model discovery")?;
+    drop(stdin);
 
     let status = child
         .wait()
         .await
         .context("Failed to wait for Codex CLI process to exit")?;
 
-    if let Some(value) = response {
-        map_models_from_json(&value)
-    } else if !status.success() {
+    if !status.success() {
         Err(anyhow::anyhow!(
             "Codex CLI exited with status {:?} before returning models",
             status.code()
         ))
     } else {
-        Err(anyhow::anyhow!(
-            "Codex CLI did not return a model list before exiting"
-        ))
+        map_models_from_json(&response)
     }
+}
+
+async fn write_json_line(
+    stdin: &mut tokio::process::ChildStdin,
+    value: &serde_json::Value,
+) -> Result<()> {
+    let mut payload = serde_json::to_vec(value)?;
+    payload.push(b'\n');
+    stdin.write_all(&payload).await?;
+    stdin.flush().await?;
+    Ok(())
+}
+
+async fn read_response<R>(
+    reader: &mut Lines<R>,
+    expected_id: i64,
+    method: &str,
+) -> Result<serde_json::Value>
+where
+    R: AsyncBufRead + Unpin,
+{
+    while let Some(line) = reader
+        .next_line()
+        .await
+        .with_context(|| format!("Failed to read Codex stdout during {method}"))?
+    {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let value: serde_json::Value =
+            serde_json::from_str(trimmed).context("Failed to parse Codex stdout as JSON")?;
+        if value.get("id").and_then(|id| id.as_i64()) != Some(expected_id) {
+            continue;
+        }
+
+        if let Some(error) = value.get("error") {
+            bail!("Codex {method} request failed: {error}");
+        }
+
+        return Ok(value);
+    }
+
+    bail!("Codex CLI exited before returning a {method} response")
 }
 
 pub async fn detect_codex_cli_version<P: AsRef<Path>>(binary_path: P) -> Option<String> {
@@ -320,8 +357,9 @@ fn map_models_from_json(value: &serde_json::Value) -> Result<CodexModelCatalog> 
         .context("Codex response missing result field")?;
 
     let items = result
-        .get("items")
-        .context("Codex response missing items field")?
+        .get("data")
+        .or_else(|| result.get("items"))
+        .context("Codex response missing data/items field")?
         .as_array()
         .context("Codex items field was not an array")?;
 
@@ -475,6 +513,48 @@ mod tests {
         })
     }
 
+    fn current_response() -> serde_json::Value {
+        serde_json::json!({
+            "id": 1,
+            "result": {
+                "data": [
+                    {
+                        "id": "gpt-5.6-sol",
+                        "model": "gpt-5.6-sol",
+                        "displayName": "GPT-5.6-Sol",
+                        "description": "Latest frontier agentic coding model.",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "low", "description": "Fast responses with lighter reasoning" },
+                            { "reasoningEffort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+                            { "reasoningEffort": "high", "description": "Greater reasoning depth for complex problems" },
+                            { "reasoningEffort": "xhigh", "description": "Extra high reasoning depth for complex problems" },
+                            { "reasoningEffort": "max", "description": "Maximum reasoning depth for the hardest problems" },
+                            { "reasoningEffort": "ultra", "description": "Maximum reasoning with automatic task delegation" }
+                        ],
+                        "defaultReasoningEffort": "low",
+                        "isDefault": true
+                    },
+                    {
+                        "id": "gpt-5.6-luna",
+                        "model": "gpt-5.6-luna",
+                        "displayName": "GPT-5.6-Luna",
+                        "description": "Fast and affordable agentic coding model.",
+                        "supportedReasoningEfforts": [
+                            { "reasoningEffort": "low", "description": "Fast responses with lighter reasoning" },
+                            { "reasoningEffort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
+                            { "reasoningEffort": "high", "description": "Greater reasoning depth for complex problems" },
+                            { "reasoningEffort": "xhigh", "description": "Extra high reasoning depth for complex problems" },
+                            { "reasoningEffort": "max", "description": "Maximum reasoning depth for the hardest problems" }
+                        ],
+                        "defaultReasoningEffort": "medium",
+                        "isDefault": false
+                    }
+                ],
+                "nextCursor": null
+            }
+        })
+    }
+
     #[test]
     fn maps_codex_models_from_json() {
         let value = sample_response();
@@ -491,6 +571,31 @@ mod tests {
         assert_eq!(
             first.reasoning_options[3].description,
             "Extra high reasoning effort"
+        );
+    }
+
+    #[test]
+    fn maps_current_codex_model_list_shape_and_reasoning_efforts() {
+        let catalog =
+            map_models_from_json(&current_response()).expect("expected current response to map");
+
+        assert_eq!(catalog.default_model_id, "gpt-5.6-sol");
+        assert_eq!(catalog.models[0].default_reasoning, "low");
+        assert_eq!(
+            catalog.models[0]
+                .reasoning_options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "xhigh", "max", "ultra"]
+        );
+        assert_eq!(
+            catalog.models[1]
+                .reasoning_options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "xhigh", "max"]
         );
     }
 
@@ -530,42 +635,67 @@ mod tests {
     }
 
     #[test]
-    fn builtin_catalog_prefers_latest_models() {
+    fn builtin_catalog_prefers_gpt56_family() {
         let catalog = builtin_codex_model_catalog();
-        assert_eq!(catalog.models[0].id, "gpt-5.5");
-        assert!(catalog.models.iter().any(|model| model.id == "gpt-5.4"));
-    }
-
-    #[test]
-    fn builtin_catalog_includes_gpt55_without_codex_variant_and_current_reasoning_efforts() {
-        let catalog = builtin_codex_model_catalog();
-        let model = catalog
-            .models
-            .iter()
-            .find(|model| model.id == "gpt-5.5")
-            .expect("expected gpt-5.5 to be present in builtin catalog");
-
-        assert_eq!(catalog.default_model_id, "gpt-5.5");
-        assert_eq!(model.default_reasoning, "medium");
+        assert_eq!(catalog.default_model_id, "gpt-5.6-sol");
         assert_eq!(
-            model
-                .reasoning_options
+            catalog
+                .models
                 .iter()
-                .map(|option| option.id.as_str())
+                .take(3)
+                .map(|model| model.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["none", "low", "medium", "high", "xhigh"]
+            vec!["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
         );
         assert!(
             !catalog
                 .models
                 .iter()
-                .any(|model| model.id == "gpt-5.5-codex")
+                .any(|model| model.id == "gpt-5.3-codex")
         );
     }
 
     #[test]
-    fn builtin_catalog_includes_codex_max_with_extra_high_reasoning() {
+    fn builtin_catalog_includes_gpt56_family_with_current_reasoning_efforts() {
         let catalog = builtin_codex_model_catalog();
+        let sol = catalog
+            .models
+            .iter()
+            .find(|model| model.id == "gpt-5.6-sol")
+            .expect("expected gpt-5.6-sol to be present in builtin catalog");
+        let terra = catalog
+            .models
+            .iter()
+            .find(|model| model.id == "gpt-5.6-terra")
+            .expect("expected gpt-5.6-terra to be present in builtin catalog");
+        let luna = catalog
+            .models
+            .iter()
+            .find(|model| model.id == "gpt-5.6-luna")
+            .expect("expected gpt-5.6-luna to be present in builtin catalog");
+
+        assert_eq!(sol.default_reasoning, "low");
+        assert_eq!(terra.default_reasoning, "medium");
+        assert_eq!(luna.default_reasoning, "medium");
+        assert_eq!(
+            sol.reasoning_options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "xhigh", "max", "ultra"]
+        );
+        assert_eq!(
+            luna.reasoning_options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["low", "medium", "high", "xhigh", "max"]
+        );
+    }
+
+    #[test]
+    fn previous_catalog_keeps_codex_max_with_extra_high_reasoning() {
+        let catalog = previous_codex_model_catalog();
         let max = catalog
             .models
             .iter()
@@ -585,5 +715,12 @@ mod tests {
         let catalog = builtin_codex_model_catalog_for_version(Some("Codex CLI 0.57.2"));
         assert_eq!(catalog.models[0].id, "gpt-5-codex");
         assert!(catalog.models.iter().all(|model| !model.id.contains("5.1")));
+    }
+
+    #[test]
+    fn builtin_catalog_for_version_preserves_pre_gpt56_fallback() {
+        let catalog = builtin_codex_model_catalog_for_version(Some("codex-cli 0.144.0"));
+        assert_eq!(catalog.default_model_id, "gpt-5.5");
+        assert!(catalog.models.iter().all(|model| !model.id.contains("5.6")));
     }
 }
