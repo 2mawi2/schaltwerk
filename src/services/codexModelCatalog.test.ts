@@ -53,25 +53,37 @@ describe('codexModelCatalog', () => {
 
         expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListCodexModels)
         expect(catalog.models.length).toBeGreaterThan(0)
-        expect(catalog.models[0]?.id).toBe('gpt-5.5')
+        expect(catalog.models[0]?.id).toBe('gpt-5.6-sol')
         expect(catalog.defaultModelId).toBe(catalog.models[0]?.id ?? '')
     })
 
-    test('fallback catalog includes gpt-5.5 with current reasoning efforts', async () => {
+    test('fallback catalog includes the GPT-5.6 family with current reasoning efforts', async () => {
         mockInvoke.mockRejectedValue(new Error('backend unavailable'))
 
         const catalog = await loadCodexModelCatalog()
-        const gpt55 = catalog.models.find(model => model.id === 'gpt-5.5')
+        const sol = catalog.models.find(model => model.id === 'gpt-5.6-sol')
+        const terra = catalog.models.find(model => model.id === 'gpt-5.6-terra')
+        const luna = catalog.models.find(model => model.id === 'gpt-5.6-luna')
 
-        expect(gpt55).toBeDefined()
-        expect(gpt55?.defaultReasoning).toBe('medium')
-        expect(gpt55?.reasoningOptions.map(option => option.id)).toEqual([
-            'none',
+        expect(catalog.defaultModelId).toBe('gpt-5.6-sol')
+        expect(sol?.defaultReasoning).toBe('low')
+        expect(terra?.defaultReasoning).toBe('medium')
+        expect(luna?.defaultReasoning).toBe('medium')
+        expect(sol?.reasoningOptions.map(option => option.id)).toEqual([
             'low',
             'medium',
             'high',
             'xhigh',
+            'max',
+            'ultra',
         ])
-        expect(catalog.models.some(model => model.id === 'gpt-5.5-codex')).toBe(false)
+        expect(luna?.reasoningOptions.map(option => option.id)).toEqual([
+            'low',
+            'medium',
+            'high',
+            'xhigh',
+            'max',
+        ])
+        expect(catalog.models.some(model => model.id === 'gpt-5.3-codex')).toBe(false)
     })
 })
