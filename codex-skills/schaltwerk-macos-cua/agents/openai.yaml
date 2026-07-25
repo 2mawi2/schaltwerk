@@ -1,0 +1,4 @@
+interface:
+  display_name: "Schaltwerk macOS UI Test"
+  short_description: "Test Schaltwerk safely on a disposable Mac fixture"
+  default_prompt: "Use $schaltwerk-macos-cua to build and test my local Schaltwerk changes end to end."

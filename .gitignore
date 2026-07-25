@@ -27,6 +27,8 @@ coverage/
 *.njsproj
 *.sln
 *.sw?
+__pycache__/
+*.pyc
 .mcp.json
 # Schaltwerk directories and state files
 # Ignore everything in .schaltwerk except Dockerfile.custom and config.json
