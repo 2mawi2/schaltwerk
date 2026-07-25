@@ -2,6 +2,23 @@ use super::types::*;
 use super::validation::clean_invalid_binary_paths;
 use std::collections::HashMap;
 
+fn agent_binary_override_with<F>(agent_name: &str, lookup: F) -> Option<String>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    if agent_name != "codex" {
+        return None;
+    }
+
+    lookup("SCHALTWERK_CODEX_BINARY_PATH")
+        .map(|path| path.trim().to_string())
+        .filter(|path| !path.is_empty())
+}
+
+fn agent_binary_override(agent_name: &str) -> Option<String> {
+    agent_binary_override_with(agent_name, |key| std::env::var(key).ok())
+}
+
 #[derive(Debug, Clone)]
 pub enum SettingsServiceError {
     UnknownAgentType(String),
@@ -486,6 +503,10 @@ impl SettingsService {
         &self,
         agent_name: &str,
     ) -> Result<String, SettingsServiceError> {
+        if let Some(path) = agent_binary_override(agent_name) {
+            return Ok(path);
+        }
+
         if let Some(config) = self.get_agent_binary_config(agent_name) {
             if let Some(custom_path) = &config.custom_path {
                 return Ok(custom_path.clone());
@@ -930,6 +951,28 @@ mod tests {
             .expect("should accept kilo binary config");
 
         assert_eq!(repo_handle.snapshot().agent_binaries.kilo, Some(config));
+    }
+
+    #[test]
+    fn codex_binary_override_reads_nonempty_harness_path() {
+        let lookup = |key: &str| match key {
+            "SCHALTWERK_CODEX_BINARY_PATH" => Some("/tmp/cua/bin/codex".to_string()),
+            _ => None,
+        };
+
+        assert_eq!(
+            agent_binary_override_with("codex", lookup),
+            Some("/tmp/cua/bin/codex".to_string())
+        );
+        assert_eq!(agent_binary_override_with("claude", lookup), None);
+    }
+
+    #[test]
+    fn codex_binary_override_ignores_blank_path() {
+        assert_eq!(
+            agent_binary_override_with("codex", |_| Some("  ".to_string())),
+            None
+        );
     }
 
     #[test]

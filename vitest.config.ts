@@ -21,7 +21,8 @@ export default defineConfig({
     },
     include: [
       'src/**/*.test.ts',
-      'src/**/*.test.tsx'
+      'src/**/*.test.tsx',
+      'scripts/cua/**/*.test.js'
     ],
     exclude: [
       'node_modules/**',
