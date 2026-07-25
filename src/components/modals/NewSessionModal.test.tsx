@@ -375,9 +375,11 @@ describe('NewSessionModal', () => {
   it('prefills spec content when schaltwerk:new-session:prefill event is dispatched', async () => {
     render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
+    expect(screen.getByText('Describe the task for this agent')).toBeInTheDocument()
+
     // Initially the agent content editor should be empty (ignoring placeholder text)
     const initialContent = getTaskEditorContent()
-    expect(initialContent === '' || initialContent === 'Describe the agent for the Claude session').toBe(true)
+    expect(initialContent === '' || initialContent === 'Describe the task for this agent').toBe(true)
     
     // Dispatch the prefill event with spec content
     const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'

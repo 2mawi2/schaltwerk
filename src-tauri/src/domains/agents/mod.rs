@@ -12,6 +12,7 @@ pub mod launch_spec;
 pub mod manifest;
 pub mod naming;
 pub mod opencode;
+pub mod pi;
 pub mod qwen;
 pub mod unified;
 

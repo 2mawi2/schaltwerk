@@ -1,5 +1,7 @@
 import {
+  chmodSync,
   closeSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   openSync,
@@ -106,6 +108,7 @@ function resetRuntime() {
   mkdirSync(resolve(paths.configDatabase, '..'), { recursive: true })
   mkdirSync(paths.agentBinDir, { recursive: true })
   mkdirSync(paths.codexHomeDir, { recursive: true, mode: 0o700 })
+  mkdirSync(paths.piAgentDir, { recursive: true, mode: 0o700 })
 }
 
 function prepareFixture() {
@@ -183,6 +186,87 @@ function prepareRealCodex() {
   process.stdout.write(`Using real ${version} from ${binary}\n`)
 }
 
+function resolveRealPiBinary() {
+  let pathPi
+  try {
+    pathPi = run('/usr/bin/which', ['pi'], { capture: true })
+  } catch {
+    pathPi = null
+  }
+  const candidates = [
+    process.env.SCHALTWERK_CUA_PI_BIN,
+    pathPi,
+  ].filter(Boolean)
+
+  for (const candidate of [...new Set(candidates)]) {
+    if (!existsSync(candidate)) {
+      continue
+    }
+    try {
+      const version = run(candidate, ['--version'], { capture: true })
+      if (/^\d+\.\d+\.\d+/.test(version)) {
+        return { binary: candidate, version }
+      }
+    } catch {
+      continue
+    }
+  }
+  fail('No working real Pi CLI was found; install Pi or set SCHALTWERK_CUA_PI_BIN')
+}
+
+function copyPrivateFile(source, destination) {
+  copyFileSync(source, destination)
+  chmodSync(destination, 0o600)
+}
+
+function prepareRealPi() {
+  const { binary, version } = resolveRealPiBinary()
+  const piLink = resolve(paths.agentBinDir, 'pi')
+  const sourceAgentDir = process.env.PI_CODING_AGENT_DIR ?? resolve(process.env.HOME, '.pi', 'agent')
+  const sourceAuth = resolve(sourceAgentDir, 'auth.json')
+  const sourceSettings = resolve(sourceAgentDir, 'settings.json')
+  const sourceModels = resolve(sourceAgentDir, 'models.json')
+
+  if (!existsSync(sourceAuth)) {
+    fail(`Real Pi is not logged in; expected authentication at ${sourceAuth}`)
+  }
+
+  mkdirSync(paths.agentBinDir, { recursive: true })
+  mkdirSync(paths.piAgentDir, { recursive: true, mode: 0o700 })
+  rmSync(piLink, { force: true })
+  rmSync(paths.piAuthFile, { force: true })
+  rmSync(paths.piSettingsFile, { force: true })
+  rmSync(paths.piModelsFile, { force: true })
+  symlinkSync(binary, piLink)
+  copyPrivateFile(sourceAuth, paths.piAuthFile)
+
+  if (existsSync(sourceSettings)) {
+    const settings = JSON.parse(readFileSync(sourceSettings, 'utf8'))
+    delete settings.packages
+    writeFileSync(paths.piSettingsFile, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 })
+  }
+  if (existsSync(sourceModels)) {
+    copyPrivateFile(sourceModels, paths.piModelsFile)
+  }
+
+  run(piLink, ['--list-models'], {
+    capture: true,
+    env: buildMacosLaunchEnv(paths),
+  })
+
+  writeFileSync(
+    resolve(paths.runtimeDir, 'pi.json'),
+    `${JSON.stringify({ binary, version }, null, 2)}\n`,
+  )
+  process.stdout.write(`Using real Pi ${version} from ${binary}\n`)
+}
+
+function removePiPrivateFiles() {
+  rmSync(paths.piAuthFile, { force: true })
+  rmSync(paths.piSettingsFile, { force: true })
+  rmSync(paths.piModelsFile, { force: true })
+}
+
 function buildApp() {
   run('bun', ['run', 'tauri', 'build', '--bundles', 'app'])
   if (!existsSync(paths.appExecutable)) {
@@ -200,33 +284,42 @@ function startApp() {
     fail('The Schaltwerk app bundle is missing; run bun run cua:prepare')
   }
 
-  prepareRealCodex()
-  mkdirSync(paths.runtimeDir, { recursive: true })
-  const logFd = openSync(paths.logFile, 'a')
-  const child = spawn(paths.appExecutable, [paths.fixtureDir], {
-    detached: true,
-    cwd: paths.fixtureDir,
-    env: buildMacosLaunchEnv(paths),
-    stdio: ['ignore', logFd, logFd],
-  })
-  child.unref()
-  closeSync(logFd)
-  writeFileSync(paths.pidFile, `${child.pid}\n`)
+  try {
+    prepareRealCodex()
+    prepareRealPi()
+    mkdirSync(paths.runtimeDir, { recursive: true })
+    const logFd = openSync(paths.logFile, 'a')
+    const child = spawn(paths.appExecutable, [paths.fixtureDir], {
+      detached: true,
+      cwd: paths.fixtureDir,
+      env: buildMacosLaunchEnv(paths),
+      stdio: ['ignore', logFd, logFd],
+    })
+    child.unref()
+    closeSync(logFd)
+    writeFileSync(paths.pidFile, `${child.pid}\n`)
 
-  process.stdout.write(`Started isolated Schaltwerk CUA process ${child.pid}\n`)
-  printStatus()
+    process.stdout.write(`Started isolated Schaltwerk CUA process ${child.pid}\n`)
+    printStatus()
+  } catch (error) {
+    rmSync(paths.codexAuthLink, { force: true })
+    removePiPrivateFiles()
+    throw error
+  }
 }
 
 function stopApp() {
   const pid = readOwnedPid()
   if (pid === null) {
     rmSync(paths.codexAuthLink, { force: true })
+    removePiPrivateFiles()
     process.stdout.write('Schaltwerk CUA is not running\n')
     return
   }
   if (!processIsRunning(pid)) {
     rmSync(paths.pidFile)
     rmSync(paths.codexAuthLink, { force: true })
+    removePiPrivateFiles()
     process.stdout.write(`Removed stale CUA pid file for process ${pid}\n`)
     return
   }
@@ -235,6 +328,7 @@ function stopApp() {
   process.kill(pid, 'SIGTERM')
   rmSync(paths.pidFile)
   rmSync(paths.codexAuthLink, { force: true })
+  removePiPrivateFiles()
   process.stdout.write(`Stopped Schaltwerk CUA process ${pid}\n`)
 }
 
@@ -259,6 +353,7 @@ function printStatus() {
     fixtureHead: head,
     isolatedHome: paths.homeDir,
     configDatabase: paths.configDatabase,
+    piAgentDir: paths.piAgentDir,
     log: paths.logFile,
   }
   process.stdout.write(`${JSON.stringify(status, null, 2)}\n`)

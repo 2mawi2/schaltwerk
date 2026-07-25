@@ -1550,6 +1550,7 @@ async fn schaltwerk_core_start_agent_in_terminal(
         // Get resolved binary paths for all agents
         for agent in [
             "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilo",
+            "pi",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
@@ -1785,6 +1786,7 @@ async fn schaltwerk_core_start_agent_in_terminal(
         agent_ctx::AgentKind::Droid => "droid",
         agent_ctx::AgentKind::Qwen => "qwen",
         agent_ctx::AgentKind::Kilocode => "kilo",
+        agent_ctx::AgentKind::Pi => "pi",
         agent_ctx::AgentKind::Fallback => "claude",
     };
     log::info!(
@@ -1967,6 +1969,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
 
         for agent in [
             "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "kilo",
+            "pi",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
@@ -2641,7 +2644,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
 
         // Get resolved binary paths for all agents
         for agent in [
-            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp",
+            "claude", "copilot", "codex", "opencode", "gemini", "droid", "qwen", "amp", "pi",
         ] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {

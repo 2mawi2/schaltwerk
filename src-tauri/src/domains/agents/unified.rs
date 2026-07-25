@@ -5,6 +5,7 @@ use super::droid;
 use super::format_binary_invocation;
 use super::launch_spec::AgentLaunchSpec;
 use super::manifest::AgentManifest;
+use super::pi;
 use super::qwen;
 use log::warn;
 use std::collections::HashMap;
@@ -313,6 +314,35 @@ impl AgentAdapter for AmpAdapter {
     }
 }
 
+pub struct PiAdapter;
+
+impl AgentAdapter for PiAdapter {
+    fn find_session(&self, path: &Path) -> Option<AgentSessionInfo> {
+        pi::find_pi_session(path).map(|id| AgentSessionInfo {
+            id,
+            has_history: true,
+        })
+    }
+
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let config = pi::PiConfig {
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
+        };
+        let command = pi::build_pi_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
+            Some(&config),
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
+    }
+}
+
 pub struct TerminalAdapter;
 
 impl AgentAdapter for TerminalAdapter {
@@ -337,6 +367,7 @@ impl AgentRegistry {
         adapters.insert("qwen".to_string(), Box::new(QwenAdapter));
         adapters.insert("amp".to_string(), Box::new(AmpAdapter));
         adapters.insert("kilo".to_string(), Box::new(KilocodeAdapter));
+        adapters.insert("pi".to_string(), Box::new(PiAdapter));
         adapters.insert("copilot".to_string(), Box::new(CopilotAdapter));
         adapters.insert("terminal".to_string(), Box::new(TerminalAdapter));
 
@@ -405,6 +436,7 @@ mod tests {
         assert!(registry.get("qwen").is_some());
         assert!(registry.get("amp").is_some());
         assert!(registry.get("kilo").is_some());
+        assert!(registry.get("pi").is_some());
         assert!(registry.get("copilot").is_some());
         assert!(registry.get("terminal").is_some());
     }
@@ -423,6 +455,7 @@ mod tests {
         assert!(supported.contains(&"qwen".to_string()));
         assert!(supported.contains(&"amp".to_string()));
         assert!(supported.contains(&"kilo".to_string()));
+        assert!(supported.contains(&"pi".to_string()));
         assert!(supported.contains(&"terminal".to_string()));
     }
 
@@ -552,6 +585,42 @@ mod tests {
 
             let spec = adapter.build_launch_spec(ctx);
             assert!(spec.shell_command.contains("opencode"));
+        }
+    }
+
+    mod pi_tests {
+        use super::*;
+
+        #[test]
+        fn test_pi_adapter_builds_initial_prompt_and_resume_commands() {
+            let adapter = PiAdapter;
+            let manifest = AgentManifest::get("pi").unwrap();
+
+            let fresh = adapter.build_launch_spec(AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("pi"),
+                manifest,
+            });
+            assert_eq!(
+                fresh.shell_command,
+                r#"cd /test/path && pi --approve "test prompt""#
+            );
+
+            let resumed = adapter.build_launch_spec(AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: Some("session-id"),
+                initial_prompt: None,
+                skip_permissions: false,
+                binary_override: Some("pi"),
+                manifest,
+            });
+            assert_eq!(
+                resumed.shell_command,
+                "cd /test/path && pi --session session-id"
+            );
         }
     }
 

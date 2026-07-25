@@ -27,6 +27,10 @@ export function createMacosHarnessPaths(repoRoot) {
     codexHomeDir: resolve(runtimeDir, 'codex-home'),
     codexAuthLink: resolve(runtimeDir, 'codex-home', 'auth.json'),
     codexConfigFile: resolve(runtimeDir, 'codex-home', 'config.toml'),
+    piAgentDir: resolve(runtimeDir, 'pi-agent'),
+    piAuthFile: resolve(runtimeDir, 'pi-agent', 'auth.json'),
+    piSettingsFile: resolve(runtimeDir, 'pi-agent', 'settings.json'),
+    piModelsFile: resolve(runtimeDir, 'pi-agent', 'models.json'),
     appBundle,
     appExecutable: resolve(appBundle, 'Contents', 'MacOS', 'schaltwerk'),
   })
@@ -43,7 +47,9 @@ export function buildMacosLaunchEnv(paths, baseEnv = process.env) {
     SCHALTWERK_APP_CONFIG_DB_PATH: paths.configDatabase,
     SCHALTWERK_CUA_RUNTIME_DIR: paths.runtimeDir,
     SCHALTWERK_CODEX_BINARY_PATH: resolve(paths.agentBinDir, 'codex'),
+    SCHALTWERK_PI_BINARY_PATH: resolve(paths.agentBinDir, 'pi'),
     CODEX_HOME: paths.codexHomeDir,
+    PI_CODING_AGENT_DIR: paths.piAgentDir,
     RUST_LOG: baseEnv.RUST_LOG ?? 'schaltwerk=debug',
     PATH: `${paths.agentBinDir}${delimiter}${systemPath}`,
   }

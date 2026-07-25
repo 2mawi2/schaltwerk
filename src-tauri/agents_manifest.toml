@@ -75,6 +75,14 @@ default_binary_path = "kilo"
 auto_send_initial_command = false
 supports_resume = true
 
+[agents.pi]
+id = "pi"
+display_name = "Pi"
+binary_name = "pi"
+default_binary_path = "pi"
+auto_send_initial_command = false
+supports_resume = true
+
 [agents.terminal]
 id = "terminal"
 display_name = "Terminal Only"

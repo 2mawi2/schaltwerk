@@ -242,6 +242,16 @@ const CODEX_REASONING_OPTIONS: AgentPreferenceMetadataOption[] = [
     { value: 'ultra', label: 'Ultra' },
 ]
 
+const PI_THINKING_OPTIONS: AgentPreferenceMetadataOption[] = [
+    { value: 'off', label: 'Off' },
+    { value: 'minimal', label: 'Minimal' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra high' },
+    { value: 'max', label: 'Max' },
+]
+
 const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     claude: {},
     copilot: {},
@@ -257,6 +267,10 @@ const AGENT_PREFERENCE_METADATA: Record<AgentType, AgentPreferenceMetadata> = {
     qwen: {},
     amp: {},
     kilo: {},
+    pi: {
+        reasoningOptions: PI_THINKING_OPTIONS,
+        reasoningPlaceholder: 'Select thinking level',
+    },
     terminal: {},
 }
 

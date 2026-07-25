@@ -17,6 +17,7 @@ pub enum AgentKind {
     Droid,
     Qwen,
     Kilocode,
+    Pi,
     Fallback,
 }
 
@@ -39,6 +40,8 @@ pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
         AgentKind::Qwen
     } else if agent_name.contains("kilo") {
         AgentKind::Kilocode
+    } else if agent_name.ends_with("/pi") || agent_name.ends_with("\\pi") || agent_name == "pi" {
+        AgentKind::Pi
     } else {
         AgentKind::Fallback
     }
@@ -56,6 +59,7 @@ impl AgentKind {
             AgentKind::Droid => "droid",
             AgentKind::Qwen => "qwen",
             AgentKind::Kilocode => "kilo",
+            AgentKind::Pi => "pi",
             AgentKind::Fallback => "claude",
         }
     }
@@ -76,6 +80,7 @@ pub async fn collect_agent_env_and_cli(
         AgentKind::Droid => "droid",
         AgentKind::Qwen => "qwen",
         AgentKind::Kilocode => "kilo",
+        AgentKind::Pi => "pi",
         AgentKind::Fallback => "claude",
     };
 
@@ -179,11 +184,33 @@ pub fn build_final_args(
             }
             parsed_agent_args
         }
+        AgentKind::Pi => {
+            let extracted_prompt = extract_pi_prompt_if_present(&mut parsed_agent_args);
+            parsed_agent_args.extend(additional);
+            if let Some(prompt) = extracted_prompt {
+                parsed_agent_args.push(prompt);
+            }
+            parsed_agent_args
+        }
         _ => {
             parsed_agent_args.extend(additional);
             parsed_agent_args
         }
     }
+}
+
+fn extract_pi_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--approve" => index += 1,
+            "--session" => index += 2,
+            argument if argument.starts_with("--session=") => index += 1,
+            _ if index + 1 == args.len() => return Some(args.remove(index)),
+            _ => return None,
+        }
+    }
+    None
 }
 
 fn apply_agent_preferences(
@@ -192,7 +219,7 @@ fn apply_agent_preferences(
     additional_args: &mut Vec<String>,
     preferences: &AgentPreference,
 ) {
-    if matches!(agent_kind, AgentKind::Codex) {
+    if matches!(agent_kind, AgentKind::Codex | AgentKind::Pi) {
         match preferences
             .model
             .as_ref()
@@ -205,7 +232,9 @@ fn apply_agent_preferences(
             }
             _ => {}
         }
+    }
 
+    if matches!(agent_kind, AgentKind::Codex) {
         match preferences
             .reasoning_effort
             .as_ref()
@@ -221,6 +250,21 @@ fn apply_agent_preferences(
             {
                 additional_args.push("-c".to_string());
                 additional_args.push(format!(r#"model_reasoning_effort="{reasoning}""#));
+            }
+            _ => {}
+        }
+    }
+
+    if matches!(agent_kind, AgentKind::Pi) {
+        match preferences
+            .reasoning_effort
+            .as_ref()
+            .map(|reasoning| reasoning.trim())
+            .filter(|reasoning| !reasoning.is_empty())
+        {
+            Some(reasoning) if !has_flag(existing_args, additional_args, &["--thinking"]) => {
+                additional_args.push("--thinking".to_string());
+                additional_args.push(reasoning.to_string());
             }
             _ => {}
         }
@@ -335,6 +379,11 @@ mod tests {
         assert!(matches!(infer_agent_kind("qwen"), AgentKind::Qwen));
         assert!(matches!(infer_agent_kind("/usr/bin/qwen"), AgentKind::Qwen));
         assert!(matches!(infer_agent_kind("kilo"), AgentKind::Kilocode));
+        assert!(matches!(infer_agent_kind("pi"), AgentKind::Pi));
+        assert!(matches!(
+            infer_agent_kind("/usr/local/bin/pi"),
+            AgentKind::Pi
+        ));
         assert!(matches!(infer_agent_kind("unknown"), AgentKind::Fallback));
     }
 
@@ -382,6 +431,7 @@ mod tests {
         assert_eq!(AgentKind::Droid.manifest_key(), "droid");
         assert_eq!(AgentKind::Qwen.manifest_key(), "qwen");
         assert_eq!(AgentKind::Kilocode.manifest_key(), "kilo");
+        assert_eq!(AgentKind::Pi.manifest_key(), "pi");
         assert_eq!(AgentKind::Fallback.manifest_key(), "claude");
     }
 
@@ -474,6 +524,59 @@ mod tests {
                 "custom",
                 "-c",
                 "model_reasoning_effort=low"
+            ]
+        );
+    }
+
+    #[test]
+    fn pi_places_configuration_before_the_initial_prompt() {
+        let prefs = AgentPreference {
+            model: Some("openai-codex/gpt-5.6-terra".to_string()),
+            reasoning_effort: Some("high".to_string()),
+        };
+
+        let args = build_final_args(
+            &AgentKind::Pi,
+            vec!["--approve".into(), "inspect the repository".into()],
+            "--no-extensions",
+            &prefs,
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "--approve",
+                "--no-extensions",
+                "--model",
+                "openai-codex/gpt-5.6-terra",
+                "--thinking",
+                "high",
+                "inspect the repository",
+            ]
+        );
+    }
+
+    #[test]
+    fn pi_model_preference_does_not_duplicate_custom_model_argument() {
+        let prefs = AgentPreference {
+            model: Some("openai-codex/gpt-5.6-terra".to_string()),
+            reasoning_effort: None,
+        };
+
+        let args = build_final_args(
+            &AgentKind::Pi,
+            vec!["--session".into(), "session-id".into()],
+            "--model anthropic/claude-sonnet-4-5",
+            &prefs,
+        );
+
+        assert_eq!(
+            args,
+            vec![
+                "--session",
+                "session-id",
+                "--model",
+                "anthropic/claude-sonnet-4-5",
             ]
         );
     }

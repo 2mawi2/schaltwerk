@@ -9,10 +9,10 @@ Run Schaltwerk natively while keeping the user's projects and normal app state o
 
 ## Prepare
 
-The host must have a working, authenticated real Codex CLI. The harness checks the
-current `PATH`, the Codex binaries bundled with ChatGPT and Codex, or the explicit
-`SCHALTWERK_CUA_CODEX_BIN` override. It fails before launching Schaltwerk if the
-binary is broken or `${CODEX_HOME:-~/.codex}/auth.json` is missing.
+The host must have working, authenticated real Codex and Pi CLIs. The harness checks
+the current `PATH`, the Codex binaries bundled with ChatGPT and Codex, or the explicit
+`SCHALTWERK_CUA_CODEX_BIN` and `SCHALTWERK_CUA_PI_BIN` overrides. It fails before
+launching Schaltwerk if either binary is broken or its authentication is missing.
 
 From the Schaltwerk repository root, run:
 
@@ -21,7 +21,7 @@ bun run cua:prepare
 bun run cua:verify-isolation
 ```
 
-`cua:prepare` builds the release `.app`, resets `logs/cua/macos-runtime`, creates a disposable Git fixture, and launches Schaltwerk with an isolated home and config database. It pins both model discovery and agent launch to the validated real Codex binary. The harness links only the user's existing Codex authentication into its isolated Codex home and pre-trusts only the disposable fixture root so a new worktree can start without first-run input. Use `bun run cua:prepare -- --no-build` only when the current app bundle already represents the source under test.
+`cua:prepare` builds the release `.app`, resets `logs/cua/macos-runtime`, creates a disposable Git fixture, and launches Schaltwerk with an isolated home and config database. It pins agent launch to the validated real Codex and Pi binaries. Codex authentication is linked into its isolated home; Pi authentication and model configuration are copied into isolated private files and removed on stop. The harness pre-trusts only the disposable fixture root for Codex. Use `bun run cua:prepare -- --no-build` only when the current app bundle already represents the source under test.
 
 If a harness instance is running, stop it before preparing again:
 
@@ -58,6 +58,12 @@ No Codex project-trust prompt should appear. Treat one as a harness failure: sto
 the run, prepare fresh state, and inspect
 `logs/cua/macos-runtime/codex-home/config.toml` before continuing.
 
+For the real-Pi flow, select Pi, select **Skip permissions** so project-local Pi
+resources are approved inside the disposable repository, and use a unique prompt
+and output file just like the Codex smoke flow. Confirm the prompt starts
+automatically, the file appears in Changes, and restarting the terminal resumes the
+same Pi session without replaying the initial prompt.
+
 ## Verify
 
 Check the process, isolation, logs, and Git effects:
@@ -76,7 +82,8 @@ only when the log also identifies the validated CLI version and the selected
 supported model completes the smoke task. Capture screenshots from Computer Use
 for visual findings.
 
-Always stop the owned test app when finished. Stopping also removes the temporary Codex authentication link:
+Always stop the owned test app when finished. Stopping also removes the temporary
+Codex authentication link and the isolated Pi authentication/configuration copies:
 
 ```bash
 bun run cua:stop
