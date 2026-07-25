@@ -85,6 +85,16 @@ just test          # Run ALL validations: TypeScript, Rust lints, tests, and bui
 - Codex and Factory Droid may run `just test`, `bun run test`, `bun run lint`, `bun run lint:rust`, `bun run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
 - Rationale: Running the full validation suite is required to keep the repository green and accelerate iteration. Do not pause to request permission before executing these commands.
 
+### Self-Testing Implementations (MANDATORY)
+- Automated tests are the baseline, not a substitute for exercising changed user-visible behavior. After each substantive implementation, run the most focused relevant tests while iterating, then validate the completed behavior end to end.
+- UI changes and changes that cross the frontend/Tauri boundary **must** be manually tested in the real app before completion. This includes session flows, terminals, agent startup, worktree/change detection, settings, dialogs, keyboard or pointer interactions, and persisted state.
+- On macOS, read and follow `codex-skills/schaltwerk-macos-cua/SKILL.md`. Use `bun run cua:prepare` to build and launch an isolated native Schaltwerk app, drive the affected flow with Computer Use, verify visible state plus filesystem/log side effects, run `bun run cua:verify-isolation`, and finish with `bun run cua:stop`.
+- On Linux, read and follow `codex-skills/schaltwerk-linux-cua/SKILL.md` and use the isolated Docker harness when the change is testable there.
+- Agents may build and operate these isolated harnesses without asking for permission. Keep all sessions, branches, app data, credentials links, and file edits inside the harness fixture; never use the installed production app or the user's real projects for self-testing.
+- Exercise the exact changed flow, not only app startup. Cover the normal result and practical error, empty, loading, or restart state when relevant. Re-observe the UI after each action and confirm important effects independently in the fixture or logs.
+- Do not claim a UI-affecting change is fully tested unless the affected flow was exercised through the harness. If the required host, Computer Use capability, Codex authentication, or another dependency is unavailable, run every remaining safe check and report the precise untested boundary.
+- Report manual verification with the commands used, flow exercised, observed result, isolation result, and any remaining boundary. Screenshots are useful evidence for visual changes but do not replace behavioral assertions.
+
 ### Development Commands
 ```bash
 # Starting Development
