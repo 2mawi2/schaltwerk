@@ -193,6 +193,7 @@ const createEmptyEnvVars = () => ({
   opencode: [],
   gemini: [],
   codex: [],
+  pi: [],
 })
 
 const createEmptyCliArgs = () => ({
@@ -200,6 +201,7 @@ const createEmptyCliArgs = () => ({
   opencode: '',
   gemini: '',
   codex: '',
+  pi: '',
 })
 
 const createEmptyPreferences = () => ({
@@ -210,6 +212,7 @@ const createEmptyPreferences = () => ({
   droid: { model: '', reasoningEffort: '' },
   qwen: { model: '', reasoningEffort: '' },
   amp: { model: '', reasoningEffort: '' },
+  pi: { model: '', reasoningEffort: '' },
   terminal: { model: '', reasoningEffort: '' },
 })
 
@@ -507,6 +510,32 @@ describe('SettingsModal Codex model preferences', () => {
     expect(reasoningOptions?.querySelector('option[value="max"]')).not.toBeNull()
     expect(reasoningOptions?.querySelector('option[value="ultra"]')).not.toBeNull()
     expect(await screen.findAllByText(/--model gpt-5\.6-sol/)).toHaveLength(2)
+  })
+})
+
+describe('SettingsModal Pi model preferences', () => {
+  beforeEach(() => {
+    useSettingsMock.mockReset()
+    useSettingsMock.mockReturnValue(createDefaultUseSettingsValue())
+    useSessionsMock.mockReset()
+    useSessionsMock.mockReturnValue(createDefaultUseSessionsValue())
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(baseInvokeImplementation)
+    requestDockBounceMock.mockReset()
+  })
+
+  it('suggests Pi thinking levels without unsupported values', async () => {
+    renderWithProviders(<SettingsModal open={true} onClose={() => {}} />)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Agent Configuration' }))
+    await user.click(await screen.findByRole('button', { name: 'Pi' }))
+
+    const reasoningOptions = document.querySelector<HTMLDataListElement>('#agent-reasoning-options-pi')
+
+    expect(reasoningOptions?.querySelector('option[value="off"]')).not.toBeNull()
+    expect(reasoningOptions?.querySelector('option[value="max"]')).not.toBeNull()
+    expect(reasoningOptions?.querySelector('option[value="ultra"]')).toBeNull()
   })
 })
 

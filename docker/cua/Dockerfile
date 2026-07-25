@@ -42,7 +42,7 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY desktopctl.sh /usr/local/bin/desktopctl
 COPY agent-stub.sh /usr/local/bin/schaltwerk-agent-stub
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/desktopctl /usr/local/bin/schaltwerk-agent-stub \
-  && for agent in amp claude codex copilot droid gemini kilo opencode qwen; do \
+  && for agent in amp claude codex copilot droid gemini kilo opencode pi qwen; do \
     ln -s /usr/local/bin/schaltwerk-agent-stub "/usr/local/bin/$agent"; \
   done
 

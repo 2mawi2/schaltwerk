@@ -9,6 +9,7 @@ export const getAgentColorKey = (
         case 'gemini':
             return 'orange'
         case 'droid':
+        case 'pi':
             return 'violet'
         case 'codex':
             return 'red'

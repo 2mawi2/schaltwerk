@@ -13,6 +13,7 @@ describe('session agent constants', () => {
       'qwen',
       'amp',
       'kilo',
+      'pi',
       'terminal',
     ])
   })
@@ -29,5 +30,11 @@ describe('session agent constants', () => {
     expect(Object.keys(AGENT_SUPPORTS_SKIP_PERMISSIONS)).toEqual(AGENT_TYPES)
     expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.copilot).toBe(true)
     expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.kilo).toBe(false)
+    expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.pi).toBe(true)
+  })
+
+  it('treats Pi as a TUI-based agent', async () => {
+    const { isTuiAgent } = await import('./session')
+    expect(isTuiAgent('pi')).toBe(true)
   })
 })

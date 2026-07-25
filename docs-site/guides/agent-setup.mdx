@@ -43,7 +43,7 @@ Configure each agent from **Settings → Agent Configuration** before you launch
 
 <Steps>
   <Step title="Select agent tab">
-  Choose from: GitHub Copilot, Claude Code, OpenCode, Codex, Gemini, Kilo Code, Qwen, Factory Droid, Amp, or Terminal
+  Choose from: GitHub Copilot, Claude Code, OpenCode, Codex, Pi, Gemini, Kilo Code, Qwen, Factory Droid, Amp, or Terminal
   </Step>
 
   <Step title="Pick binary">
@@ -118,6 +118,10 @@ After installation run `/login` in any Copilot session to authenticate.
 ~/.npm-global/bin/codex
 ```
 
+```bash Pi
+~/.local/bin/pi
+```
+
 ```bash Factory Droid
 ~/.local/bin/droid
 ```
@@ -178,6 +182,26 @@ session dialog only offers models available to your account. Current GPT-5.6 cho
 
 If live discovery is unavailable, Schaltwerk uses a version-aware fallback catalog. Older Codex
 CLI versions keep their compatible model choices instead of receiving unsupported GPT-5.6 defaults.
+
+### Pi
+
+Install and authenticate Pi before selecting it in Schaltwerk:
+
+```bash
+curl -fsSL https://pi.dev/install.sh | sh
+pi
+```
+
+Schaltwerk passes the initial task directly to Pi, adds `--approve` when **Skip permissions** is
+enabled, and resumes the newest Pi session associated with the worktree. Pi's **Model** preference
+maps to `--model`; use the full `provider/model-id` value shown by `pi --list-models`.
+
+Pi stores sessions below `~/.pi/agent/sessions` by default. If you set `PI_CODING_AGENT_DIR` or
+`PI_CODING_AGENT_SESSION_DIR` in Pi's agent environment, Schaltwerk uses the same location for
+session discovery.
+
+See the [Pi coding agent documentation](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)
+for authentication, model, and CLI configuration details.
 
 ### When Arguments Apply
 

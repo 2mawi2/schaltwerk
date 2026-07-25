@@ -40,6 +40,7 @@ describe('useSettings', () => {
         qwen: [{ key: 'PROJECT_ID', value: 'test-id' }],
         amp: [{ key: 'AMP_API_KEY', value: 'amp-key' }],
         kilo: [{ key: 'KILO_KEY', value: 'kilo-key' }],
+        pi: [{ key: 'PI_CODING_AGENT_DIR', value: '/tmp/pi-agent' }],
         terminal: []
       }
 
@@ -53,6 +54,7 @@ describe('useSettings', () => {
         qwen: '--project test',
         amp: '--mode free',
         kilo: '--mode architect',
+        pi: '--model openai-codex/gpt-5.6-terra',
         terminal: ''
       }
 
@@ -66,6 +68,7 @@ describe('useSettings', () => {
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
         kilo: { model: '', reasoningEffort: '' },
+        pi: { model: 'openai-codex/gpt-5.6-terra', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -129,6 +132,21 @@ describe('useSettings', () => {
         agentType: 'kilo',
         cliArgs: '--mode architect'
       })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
+        agentType: 'pi',
+        envVars: { PI_CODING_AGENT_DIR: '/tmp/pi-agent' }
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
+        agentType: 'pi',
+        cliArgs: '--model openai-codex/gpt-5.6-terra'
+      })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
+        agentType: 'pi',
+        preferences: {
+          model: 'openai-codex/gpt-5.6-terra',
+          reasoning_effort: null,
+        },
+      })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentPreferences, {
         agentType: 'codex',
         preferences: {
@@ -150,7 +168,7 @@ describe('useSettings', () => {
           reasoning_effort: null,
         },
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(30)
+      expect(mockInvoke).toHaveBeenCalledTimes(33)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -170,6 +188,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       }
 
@@ -183,6 +202,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       }
 
@@ -196,6 +216,7 @@ describe('useSettings', () => {
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
         kilo: { model: '', reasoningEffort: '' },
+        pi: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -372,6 +393,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       }
 
@@ -385,6 +407,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       }
 
@@ -398,6 +421,7 @@ describe('useSettings', () => {
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
         kilo: { model: '', reasoningEffort: '' },
+        pi: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -468,6 +492,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       }
 
@@ -481,6 +506,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       }
 
@@ -494,6 +520,7 @@ describe('useSettings', () => {
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
         kilo: { model: '', reasoningEffort: '' },
+        pi: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -559,6 +586,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       }
 
@@ -572,6 +600,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       }
 
@@ -585,6 +614,7 @@ describe('useSettings', () => {
         qwen: { model: '', reasoningEffort: '' },
         amp: { model: '', reasoningEffort: '' },
         kilo: { model: '', reasoningEffort: '' },
+        pi: { model: '', reasoningEffort: '' },
         terminal: { model: '', reasoningEffort: '' },
       }
 
@@ -718,6 +748,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       })
       expect(result.current.loading).toBe(false)
@@ -742,6 +773,7 @@ describe('useSettings', () => {
         qwen: [],
         amp: [],
         kilo: [],
+        pi: [],
         terminal: []
       })
     })
@@ -779,6 +811,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       })
     })
@@ -802,6 +835,7 @@ describe('useSettings', () => {
         qwen: '',
         amp: '',
         kilo: '',
+        pi: '',
         terminal: ''
       })
     })

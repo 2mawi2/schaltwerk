@@ -205,6 +205,15 @@ fn test_parse_agent_command_amp_with_full_path_pipeline() {
 }
 
 #[test]
+fn test_parse_agent_command_pi_with_prompt_and_approval() {
+    let cmd = r#"cd "/tmp/work tree" && /usr/local/bin/pi --approve "implement feature X""#;
+    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+    assert_eq!(cwd, "/tmp/work tree");
+    assert_eq!(agent, "/usr/local/bin/pi");
+    assert_eq!(args, vec!["--approve", "implement feature X"]);
+}
+
+#[test]
 fn test_normalize_cwd_strips_double_quotes() {
     let result = normalize_cwd("\"/path with spaces\"");
     assert_eq!(result, "/path with spaces");

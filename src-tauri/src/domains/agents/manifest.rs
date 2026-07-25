@@ -62,6 +62,7 @@ mod tests {
         assert!(AgentManifest::get("droid").is_some());
         assert!(AgentManifest::get("copilot").is_some());
         assert!(AgentManifest::get("kilo").is_some());
+        assert!(AgentManifest::get("pi").is_some());
         assert!(AgentManifest::get("terminal").is_some());
     }
 
@@ -93,8 +94,8 @@ mod tests {
         assert!(agents.len() >= 10);
 
         let expected = vec![
-            "amp", "claude", "codex", "copilot", "droid", "gemini", "kilo", "opencode", "qwen",
-            "terminal",
+            "amp", "claude", "codex", "copilot", "droid", "gemini", "kilo", "opencode", "pi",
+            "qwen", "terminal",
         ];
         for agent in expected {
             assert!(agents.contains(&agent.to_string()));
@@ -128,6 +129,17 @@ mod tests {
         assert_eq!(terminal.default_binary_path, "/bin/sh");
         assert!(!terminal.auto_send_initial_command);
         assert!(!terminal.supports_resume);
+    }
+
+    #[test]
+    fn test_pi_definition() {
+        let pi = AgentManifest::get("pi").expect("Pi manifest entry missing");
+        assert_eq!(pi.id, "pi");
+        assert_eq!(pi.display_name, "Pi");
+        assert_eq!(pi.binary_name, "pi");
+        assert_eq!(pi.default_binary_path, "pi");
+        assert!(!pi.auto_send_initial_command);
+        assert!(pi.supports_resume);
     }
 
     #[test]

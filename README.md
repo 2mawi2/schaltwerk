@@ -4,7 +4,7 @@
 
 **Native terminal AI agents with git worktree isolation. Spec-driven development for parallel workflows.**
 
-Run GitHub Copilot CLI, Claude Code, Kilo Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, and Amp natively—no wrappers, no limitations. Or use Terminal Only mode for manual work. Each session gets its own worktree.
+Run GitHub Copilot CLI, Claude Code, Kilo Code, OpenCode, Codex, Pi, Gemini, Qwen, Factory Droid, and Amp natively—no wrappers, no limitations. Or use Terminal Only mode for manual work. Each session gets its own worktree.
 
 [![Test](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml/badge.svg)](https://github.com/2mawi2/schaltwerk/actions/workflows/test.yml)
 
@@ -32,7 +32,7 @@ Run GitHub Copilot CLI, Claude Code, Kilo Code, OpenCode, Codex, Gemini, Qwen, F
 - **Windows 10/11** (native; WSL not yet supported)
 - **Linux** - beta builds available via releases
 - **Git 2.30+**
-- At least one agentic coding CLI: GitHub Copilot CLI, Claude Code, OpenCode, Codex, Gemini, Qwen, Factory Droid, or Amp (or use Terminal Only mode for manual work)
+- At least one agentic coding CLI: GitHub Copilot CLI, Claude Code, OpenCode, Codex, Pi, Gemini, Qwen, Factory Droid, or Amp (or use Terminal Only mode for manual work)
 
 ## Quick Start (60 seconds)
 
@@ -91,7 +91,7 @@ Looking for multi-agent orchestration patterns? Check out the **Scaffold → Swa
 - Isolated branches (no conflicts between agents)
 - Squash-merge to main with one command
 - Direct PR creation via GitHub CLI integration
-- Session resumption support (Claude Code, Codex)
+- Session resumption support (Claude Code, Codex, Pi, and other supported agents)
 
 **Agent Configuration**
 - Custom environment variables per agent

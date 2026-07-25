@@ -33,6 +33,8 @@ pub struct AgentCliArgs {
     pub amp: String,
     #[serde(default)]
     pub kilo: String,
+    #[serde(default)]
+    pub pi: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -49,6 +51,8 @@ pub struct AgentInitialCommands {
     pub amp: String,
     #[serde(default)]
     pub kilo: String,
+    #[serde(default)]
+    pub pi: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -65,6 +69,8 @@ pub struct AgentEnvVars {
     pub amp: HashMap<String, String>,
     #[serde(default)]
     pub kilo: HashMap<String, String>,
+    #[serde(default)]
+    pub pi: HashMap<String, String>,
     pub terminal: HashMap<String, String>,
 }
 
@@ -96,6 +102,8 @@ pub struct AgentPreferences {
     pub amp: AgentPreference,
     #[serde(default)]
     pub kilo: AgentPreference,
+    #[serde(default)]
+    pub pi: AgentPreference,
     #[serde(default)]
     pub terminal: AgentPreference,
 }
@@ -280,6 +288,8 @@ pub struct AgentBinaryConfigs {
     pub amp: Option<AgentBinaryConfig>,
     #[serde(default)]
     pub kilo: Option<AgentBinaryConfig>,
+    #[serde(default)]
+    pub pi: Option<AgentBinaryConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -653,7 +653,7 @@
     "issueSelectHint": "Select an issue to pull its description and comments into the agent prompt.",
     "prSelectHint": "Select a pull request to pull its description and comments into the agent prompt. The session will start on the PR branch.",
     "enterSpecContent": "Enter spec content in markdown...",
-    "describeAgent": "Describe the agent for the Claude session",
+    "describeAgent": "Describe the task for this agent",
     "unifiedSearch": {
       "title": "Search",
       "branchesTab": "Branches",

@@ -33,6 +33,10 @@ describe('createMacosHarnessPaths', () => {
     expectDescendant(paths.runtimeDir, paths.codexHomeDir)
     expectDescendant(paths.runtimeDir, paths.codexAuthLink)
     expectDescendant(paths.runtimeDir, paths.codexConfigFile)
+    expectDescendant(paths.runtimeDir, paths.piAgentDir)
+    expectDescendant(paths.runtimeDir, paths.piAuthFile)
+    expectDescendant(paths.runtimeDir, paths.piSettingsFile)
+    expectDescendant(paths.runtimeDir, paths.piModelsFile)
   })
 
   it('targets the executable in the release macOS app bundle', () => {
@@ -67,7 +71,9 @@ describe('buildMacosLaunchEnv', () => {
       SCHALTWERK_APP_CONFIG_DB_PATH: paths.configDatabase,
       SCHALTWERK_CUA_RUNTIME_DIR: paths.runtimeDir,
       SCHALTWERK_CODEX_BINARY_PATH: resolve(paths.agentBinDir, 'codex'),
+      SCHALTWERK_PI_BINARY_PATH: resolve(paths.agentBinDir, 'pi'),
       CODEX_HOME: paths.codexHomeDir,
+      PI_CODING_AGENT_DIR: paths.piAgentDir,
       RUST_LOG: 'schaltwerk=debug',
       LANG: 'en_US.UTF-8',
     })
@@ -121,6 +127,7 @@ describe('native macOS repository integration', () => {
     expect(skill).toContain('bun run cua:verify-isolation')
     expect(skill).toContain('No Codex project-trust prompt should appear')
     expect(skill).toContain('SCHALTWERK_CUA_CODEX_BIN')
+    expect(skill).toContain('SCHALTWERK_CUA_PI_BIN')
   })
 
   it('launches the signed Codex app CLI instead of generated agent stubs', () => {
@@ -134,5 +141,22 @@ describe('native macOS repository integration', () => {
     expect(harness).toContain("run(candidate, ['--version']")
     expect(harness).not.toContain('prepareAgentStubs')
     expect(harness).not.toContain('Schaltwerk CUA agent stub')
+  })
+
+  it('launches the authenticated host Pi CLI with isolated mutable state', () => {
+    const harness = readFileSync(
+      resolve(repoRoot, 'scripts', 'cua', 'schaltwerk-macos.js'),
+      'utf8',
+    )
+
+    expect(harness).toContain('SCHALTWERK_CUA_PI_BIN')
+    expect(harness).toContain('prepareRealPi')
+    expect(harness).toContain("run(candidate, ['--version']")
+    expect(harness).toContain("run(piLink, ['--list-models']")
+  })
+
+  it('provides a Pi stub in the isolated Linux harness', () => {
+    const dockerfile = readFileSync(resolve(repoRoot, 'docker', 'cua', 'Dockerfile'), 'utf8')
+    expect(dockerfile).toMatch(/for agent in [^\n]*\bpi\b/)
   })
 })

@@ -6,11 +6,13 @@ fn agent_binary_override_with<F>(agent_name: &str, lookup: F) -> Option<String>
 where
     F: Fn(&str) -> Option<String>,
 {
-    if agent_name != "codex" {
-        return None;
-    }
+    let variable = match agent_name {
+        "codex" => "SCHALTWERK_CODEX_BINARY_PATH",
+        "pi" => "SCHALTWERK_PI_BINARY_PATH",
+        _ => return None,
+    };
 
-    lookup("SCHALTWERK_CODEX_BINARY_PATH")
+    lookup(variable)
         .map(|path| path.trim().to_string())
         .filter(|path| !path.is_empty())
 }
@@ -76,6 +78,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_env_vars.qwen.clone(),
             "amp" => self.settings.agent_env_vars.amp.clone(),
             "kilo" => self.settings.agent_env_vars.kilo.clone(),
+            "pi" => self.settings.agent_env_vars.pi.clone(),
             "terminal" => self.settings.agent_env_vars.terminal.clone(),
             _ => HashMap::new(),
         }
@@ -96,6 +99,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_env_vars.qwen = env_vars,
             "amp" => self.settings.agent_env_vars.amp = env_vars,
             "kilo" => self.settings.agent_env_vars.kilo = env_vars,
+            "pi" => self.settings.agent_env_vars.pi = env_vars,
             "terminal" => self.settings.agent_env_vars.terminal = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
@@ -171,6 +175,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_cli_args.qwen.clone(),
             "amp" => self.settings.agent_cli_args.amp.clone(),
             "kilo" => self.settings.agent_cli_args.kilo.clone(),
+            "pi" => self.settings.agent_cli_args.pi.clone(),
             _ => String::new(),
         }
     }
@@ -199,6 +204,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
             "amp" => self.settings.agent_cli_args.amp = cli_args.clone(),
             "kilo" => self.settings.agent_cli_args.kilo = cli_args.clone(),
+            "pi" => self.settings.agent_cli_args.pi = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
                 log::error!("Invalid agent type in set_agent_cli_args: {error}");
@@ -233,6 +239,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_initial_commands.qwen.clone(),
             "amp" => self.settings.agent_initial_commands.amp.clone(),
             "kilo" => self.settings.agent_initial_commands.kilo.clone(),
+            "pi" => self.settings.agent_initial_commands.pi.clone(),
             "terminal" => String::new(),
             _ => String::new(),
         }
@@ -249,6 +256,7 @@ impl SettingsService {
             "qwen" => Some(&self.settings.agent_preferences.qwen),
             "amp" => Some(&self.settings.agent_preferences.amp),
             "kilo" => Some(&self.settings.agent_preferences.kilo),
+            "pi" => Some(&self.settings.agent_preferences.pi),
             "terminal" => Some(&self.settings.agent_preferences.terminal),
             _ => None,
         }
@@ -268,6 +276,7 @@ impl SettingsService {
             "qwen" => Ok(&mut self.settings.agent_preferences.qwen),
             "amp" => Ok(&mut self.settings.agent_preferences.amp),
             "kilo" => Ok(&mut self.settings.agent_preferences.kilo),
+            "pi" => Ok(&mut self.settings.agent_preferences.pi),
             "terminal" => Ok(&mut self.settings.agent_preferences.terminal),
             _ => Err(SettingsServiceError::UnknownAgentType(
                 agent_type.to_string(),
@@ -311,6 +320,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_initial_commands.qwen = initial_command.clone(),
             "amp" => self.settings.agent_initial_commands.amp = initial_command.clone(),
             "kilo" => self.settings.agent_initial_commands.kilo = initial_command.clone(),
+            "pi" => self.settings.agent_initial_commands.pi = initial_command.clone(),
             "terminal" => {}
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
@@ -438,6 +448,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_binaries.qwen.clone(),
             "amp" => self.settings.agent_binaries.amp.clone(),
             "kilo" => self.settings.agent_binaries.kilo.clone(),
+            "pi" => self.settings.agent_binaries.pi.clone(),
             "terminal" => None,
             _ => None,
         }
@@ -462,6 +473,7 @@ impl SettingsService {
             "qwen" => self.settings.agent_binaries.qwen = Some(config),
             "amp" => self.settings.agent_binaries.amp = Some(config),
             "kilo" => self.settings.agent_binaries.kilo = Some(config),
+            "pi" => self.settings.agent_binaries.pi = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
         self.save()
@@ -494,6 +506,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.kilo {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.pi {
             configs.push(config.clone());
         }
         configs
@@ -659,6 +674,52 @@ mod tests {
         assert_eq!(
             repo_handle.snapshot().agent_cli_args.kilo,
             "--mode architect"
+        );
+    }
+
+    #[test]
+    fn settings_support_all_pi_configuration() {
+        let repo = InMemoryRepository::default();
+        let repo_handle = repo.clone();
+        let mut service = SettingsService::new(Box::new(repo));
+
+        service
+            .set_agent_cli_args("pi", "--model openai/gpt-5".to_string())
+            .expect("should accept Pi CLI args");
+        service
+            .set_agent_initial_command("pi", "build project".to_string())
+            .expect("should accept Pi initial command");
+        let vars = HashMap::from([("PI_OFFLINE".to_string(), "1".to_string())]);
+        service
+            .set_agent_env_vars("pi", vars.clone())
+            .expect("should accept Pi env vars");
+        let binary = AgentBinaryConfig {
+            agent_name: "pi".to_string(),
+            custom_path: Some("/custom/pi".to_string()),
+            auto_detect: false,
+            detected_binaries: vec![],
+        };
+        service
+            .set_agent_binary_config(binary.clone())
+            .expect("should accept Pi binary config");
+
+        let snapshot = repo_handle.snapshot();
+        assert_eq!(snapshot.agent_cli_args.pi, "--model openai/gpt-5");
+        assert_eq!(snapshot.agent_initial_commands.pi, "build project");
+        assert_eq!(snapshot.agent_env_vars.pi, vars);
+        assert_eq!(snapshot.agent_binaries.pi, Some(binary));
+    }
+
+    #[test]
+    fn pi_binary_override_reads_nonempty_harness_path() {
+        let lookup = |key: &str| match key {
+            "SCHALTWERK_PI_BINARY_PATH" => Some("/tmp/cua/bin/pi".to_string()),
+            _ => None,
+        };
+
+        assert_eq!(
+            agent_binary_override_with("pi", lookup),
+            Some("/tmp/cua/bin/pi".to_string())
         );
     }
 
