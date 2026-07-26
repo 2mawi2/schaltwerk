@@ -203,7 +203,6 @@ fn extract_pi_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
-            "--approve" => index += 1,
             "--session" => index += 2,
             argument if argument.starts_with("--session=") => index += 1,
             _ if index + 1 == args.len() => return Some(args.remove(index)),
@@ -537,7 +536,7 @@ mod tests {
 
         let args = build_final_args(
             &AgentKind::Pi,
-            vec!["--approve".into(), "inspect the repository".into()],
+            vec!["inspect the repository".into()],
             "--no-extensions",
             &prefs,
         );
@@ -545,7 +544,6 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "--approve",
                 "--no-extensions",
                 "--model",
                 "openai-codex/gpt-5.6-terra",

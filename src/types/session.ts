@@ -30,7 +30,7 @@ export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
     qwen: true,
     amp: true,
     kilo: false,
-    pi: true,
+    pi: false,
     terminal: false
 }
 

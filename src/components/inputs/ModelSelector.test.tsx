@@ -293,6 +293,13 @@ describe('ModelSelector', () => {
     expect(screen.queryByRole('button', { name: /Require permissions/i })).not.toBeInTheDocument()
   })
 
+  test('hides permission toggle for Pi', () => {
+    setup({ initial: 'pi', skipPermissions: false, onSkipPermissionsChange: vi.fn() })
+
+    expect(screen.queryByRole('button', { name: /Skip permissions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Require permissions/i })).not.toBeInTheDocument()
+  })
+
   test('updates toggle visibility when selecting unsupported agent', async () => {
     const onSkipPermissionsChange = vi.fn()
     setup({ skipPermissions: false, onSkipPermissionsChange })
