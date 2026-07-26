@@ -4,9 +4,11 @@ import { PierreDiffViewer, type ChangedFile, type PierreDiffViewerProps } from '
 import type { ReviewCommentThread } from '../../types/review'
 import type { FileDiffData } from './loadDiffs'
 import type { DiffLineAnnotation } from '@pierre/diffs/react'
+import type { FileDiffOptions } from '@pierre/diffs'
 import type { PierreAnnotationMetadata } from '../../adapters/pierreAnnotationAdapter'
 
 type CapturedFileDiffProps = {
+  options?: FileDiffOptions<PierreAnnotationMetadata>
   lineAnnotations?: DiffLineAnnotation<PierreAnnotationMetadata>[]
   renderAnnotation?: (annotation: DiffLineAnnotation<PierreAnnotationMetadata>) => React.ReactNode
 }
@@ -116,6 +118,18 @@ describe('PierreDiffViewer annotation display', () => {
     expect(screen.getByTestId('pierre-file-diff')).toBeInTheDocument()
     expect(screen.getByTestId('annotation-additions-2')).toBeInTheDocument()
     expect(screen.getByTestId('annotation-content')).toBeInTheDocument()
+  })
+
+  it('uses readable line and word-level diff indicators', () => {
+    render(<PierreDiffViewer {...defaultProps} />)
+
+    expect(capturedProps.options).toMatchObject({
+      diffIndicators: 'bars',
+      lineDiffType: 'word-alt',
+      lineHoverHighlight: 'both',
+      maxLineDiffLength: 1000,
+      tokenizeMaxLineLength: 1000,
+    })
   })
 
   it('converts old side to deletions', () => {

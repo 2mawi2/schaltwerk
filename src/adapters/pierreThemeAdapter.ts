@@ -78,17 +78,20 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       --diffs-bg-context: color-mix(in lab, var(--diffs-bg) 92.5%, var(--diffs-mixer));
       --diffs-bg-separator: color-mix(in lab, var(--diffs-bg) 85%, var(--diffs-mixer));
 
-      /* Deletions - layered opacities (8%, 13%, 20%) matching superset */
+      /*
+       * Intraline spans sit on changed rows. Precompose their 13% surfaces
+       * against the viewer background so they replace, rather than stack onto,
+       * the row's translucent 8% tint.
+       */
       --diffs-bg-deletion: var(--color-diff-removed-bg);
       --diffs-bg-deletion-number: var(--color-diff-removed-gutter);
       --diffs-bg-deletion-hover: color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-deletion-base));
-      --diffs-bg-deletion-emphasis: var(--color-diff-removed-text-bg);
+      --diffs-bg-deletion-emphasis: color-mix(in srgb, var(--diffs-bg) 87%, var(--diffs-deletion-base));
 
-      /* Additions - layered opacities (8%, 13%, 20%) matching superset */
       --diffs-bg-addition: var(--color-diff-added-bg);
       --diffs-bg-addition-number: var(--color-diff-added-gutter);
       --diffs-bg-addition-hover: color-mix(in lab, var(--diffs-bg) 88%, var(--diffs-addition-base));
-      --diffs-bg-addition-emphasis: var(--color-diff-added-text-bg);
+      --diffs-bg-addition-emphasis: color-mix(in srgb, var(--diffs-bg) 87%, var(--diffs-addition-base));
 
       /* Selection highlighting */
       --diffs-selection-base: var(--diffs-modified-base);
@@ -100,6 +103,27 @@ export function getPierreUnsafeCSS(themeId: SchaltwerkThemeId): string {
       --diffs-tab-size: 4;
       --diffs-gap-block: 0;
       --diffs-min-number-column-width: 2ch;
+    }
+
+    /*
+     * Pierre 1.1 treats its background overrides as tint targets. Pin the final
+     * row and gutter surfaces so our deliberately subtle theme colors are not
+     * mixed with the editor background a second time.
+     */
+    [data-diff][data-background] [data-line][data-line-type='change-addition'] {
+      --diffs-computed-diff-line-bg: var(--color-diff-added-bg);
+    }
+
+    [data-diff][data-background] [data-column-number][data-line-type='change-addition'] {
+      --diffs-computed-diff-line-bg: var(--color-diff-added-gutter);
+    }
+
+    [data-diff][data-background] [data-line][data-line-type='change-deletion'] {
+      --diffs-computed-diff-line-bg: var(--color-diff-removed-bg);
+    }
+
+    [data-diff][data-background] [data-column-number][data-line-type='change-deletion'] {
+      --diffs-computed-diff-line-bg: var(--color-diff-removed-gutter);
     }
 
     .shiki {

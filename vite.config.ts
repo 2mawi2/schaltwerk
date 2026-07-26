@@ -29,6 +29,9 @@ export default defineConfig(({ command }) => ({
       ignored: ["**/src-tauri/**", "**/.schaltwerk/worktrees/**"],
     },
   },
+  worker: {
+    format: 'es',
+  },
   build: {
     minify: 'esbuild',
     rollupOptions: {

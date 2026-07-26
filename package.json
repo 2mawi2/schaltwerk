@@ -92,7 +92,7 @@
     "@codemirror/lang-markdown": "^6.4.0",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.5",
-    "@pierre/diffs": "^1.0.10",
+    "@pierre/diffs": "1.1.22",
     "@tailwindcss/postcss": "^4.1.14",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "2.7.0",

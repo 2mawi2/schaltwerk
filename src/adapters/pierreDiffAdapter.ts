@@ -82,9 +82,18 @@ interface HunkBuilder {
   contextCount: number
   oldLineStart: number
   newLineStart: number
+  unifiedLineStart: number
+  additionLineIndex: number
+  deletionLineIndex: number
 }
 
-function createHunkBuilder(oldLineStart: number, newLineStart: number): HunkBuilder {
+function createHunkBuilder(
+  oldLineStart: number,
+  newLineStart: number,
+  unifiedLineStart: number,
+  additionLineIndex: number,
+  deletionLineIndex: number
+): HunkBuilder {
   return {
     content: [],
     contextLines: [],
@@ -95,37 +104,62 @@ function createHunkBuilder(oldLineStart: number, newLineStart: number): HunkBuil
     contextCount: 0,
     oldLineStart,
     newLineStart,
+    unifiedLineStart,
+    additionLineIndex,
+    deletionLineIndex,
   }
 }
 
-function flushHunkContext(builder: HunkBuilder): void {
+function flushHunkContext(
+  builder: HunkBuilder,
+  additionLines: string[],
+  deletionLines: string[]
+): void {
   if (builder.contextLines.length > 0) {
+    const additionLineIndex = additionLines.length
+    const deletionLineIndex = deletionLines.length
+    additionLines.push(...builder.contextLines)
+    deletionLines.push(...builder.contextLines)
     builder.content.push({
       type: 'context',
-      lines: builder.contextLines,
-      noEOFCR: false,
+      lines: builder.contextLines.length,
+      additionLineIndex,
+      deletionLineIndex,
     })
     builder.contextLines = []
   }
 }
 
-function flushHunkChanges(builder: HunkBuilder): void {
+function flushHunkChanges(
+  builder: HunkBuilder,
+  additionLines: string[],
+  deletionLines: string[]
+): void {
   if (builder.deletions.length > 0 || builder.additions.length > 0) {
+    const additionLineIndex = additionLines.length
+    const deletionLineIndex = deletionLines.length
+    additionLines.push(...builder.additions)
+    deletionLines.push(...builder.deletions)
     builder.content.push({
       type: 'change',
-      deletions: builder.deletions,
-      additions: builder.additions,
-      noEOFCRDeletions: false,
-      noEOFCRAdditions: false,
+      deletions: builder.deletions.length,
+      additions: builder.additions.length,
+      additionLineIndex,
+      deletionLineIndex,
     })
     builder.deletions = []
     builder.additions = []
   }
 }
 
-function finalizeHunk(builder: HunkBuilder, collapsedBefore: number, unifiedLineStart: number): Hunk | null {
-  flushHunkContext(builder)
-  flushHunkChanges(builder)
+function finalizeHunk(
+  builder: HunkBuilder,
+  collapsedBefore: number,
+  additionLines: string[],
+  deletionLines: string[]
+): Hunk | null {
+  flushHunkContext(builder, additionLines, deletionLines)
+  flushHunkChanges(builder, additionLines, deletionLines)
 
   if (builder.content.length === 0) {
     return null
@@ -136,36 +170,44 @@ function finalizeHunk(builder: HunkBuilder, collapsedBefore: number, unifiedLine
 
   return {
     collapsedBefore,
-    splitLineStart: builder.oldLineStart,
+    splitLineStart: Math.max(0, Math.min(builder.oldLineStart, builder.newLineStart) - 1),
     splitLineCount: Math.max(oldLineCount, newLineCount),
-    unifiedLineStart,
+    unifiedLineStart: builder.unifiedLineStart,
     unifiedLineCount: builder.contextCount + builder.deletionCount + builder.additionCount,
-    additionCount: builder.additionCount,
+    additionCount: newLineCount,
     additionStart: builder.newLineStart,
     additionLines: builder.additionCount,
-    deletionCount: builder.deletionCount,
+    additionLineIndex: builder.additionLineIndex,
+    deletionCount: oldLineCount,
     deletionStart: builder.oldLineStart,
     deletionLines: builder.deletionCount,
+    deletionLineIndex: builder.deletionLineIndex,
     hunkContent: builder.content,
     hunkContext: undefined,
     hunkSpecs: undefined,
+    noEOFCRDeletions: false,
+    noEOFCRAdditions: false,
   }
 }
 
 interface ConversionResult {
   hunks: Hunk[]
   collapsedSections: CollapsedSection[]
+  additionLines: string[]
+  deletionLines: string[]
 }
 
 function convertLinesToHunks(lines: LineInfo[]): ConversionResult {
   const hunks: Hunk[] = []
   const collapsedSections: CollapsedSection[] = []
+  const additionLines: string[] = []
+  const deletionLines: string[] = []
 
   if (lines.length === 0) {
-    return { hunks, collapsedSections }
+    return { hunks, collapsedSections, additionLines, deletionLines }
   }
 
-  let unifiedLineNum = 1
+  let unifiedLineNum = 0
   let collapsedBefore = 0
   let builder: HunkBuilder | null = null
   let sectionIndex = 0
@@ -173,7 +215,7 @@ function convertLinesToHunks(lines: LineInfo[]): ConversionResult {
   for (const line of lines) {
     if (line.isCollapsible) {
       if (builder) {
-        const hunk = finalizeHunk(builder, collapsedBefore, unifiedLineNum - (builder.contextCount + builder.deletionCount + builder.additionCount))
+        const hunk = finalizeHunk(builder, collapsedBefore, additionLines, deletionLines)
         if (hunk) {
           hunks.push(hunk)
         }
@@ -197,9 +239,15 @@ function convertLinesToHunks(lines: LineInfo[]): ConversionResult {
     }
 
     if (!builder) {
-      const oldLineStart = line.oldLineNumber ?? unifiedLineNum
-      const newLineStart = line.newLineNumber ?? unifiedLineNum
-      builder = createHunkBuilder(oldLineStart, newLineStart)
+      const oldLineStart = line.oldLineNumber ?? line.newLineNumber ?? unifiedLineNum + 1
+      const newLineStart = line.newLineNumber ?? line.oldLineNumber ?? unifiedLineNum + 1
+      builder = createHunkBuilder(
+        oldLineStart,
+        newLineStart,
+        unifiedLineNum,
+        additionLines.length,
+        deletionLines.length
+      )
     }
 
     const content = line.content ?? ''
@@ -207,21 +255,21 @@ function convertLinesToHunks(lines: LineInfo[]): ConversionResult {
 
     switch (line.type) {
       case 'unchanged':
-        flushHunkChanges(builder)
+        flushHunkChanges(builder, additionLines, deletionLines)
         builder.contextLines.push(contentWithNewline)
         builder.contextCount++
         unifiedLineNum++
         break
 
       case 'removed':
-        flushHunkContext(builder)
+        flushHunkContext(builder, additionLines, deletionLines)
         builder.deletions.push(contentWithNewline)
         builder.deletionCount++
         unifiedLineNum++
         break
 
       case 'added':
-        flushHunkContext(builder)
+        flushHunkContext(builder, additionLines, deletionLines)
         builder.additions.push(contentWithNewline)
         builder.additionCount++
         unifiedLineNum++
@@ -230,13 +278,13 @@ function convertLinesToHunks(lines: LineInfo[]): ConversionResult {
   }
 
   if (builder) {
-    const hunk = finalizeHunk(builder, collapsedBefore, unifiedLineNum - (builder.contextCount + builder.deletionCount + builder.additionCount))
+    const hunk = finalizeHunk(builder, collapsedBefore, additionLines, deletionLines)
     if (hunk) {
       hunks.push(hunk)
     }
   }
 
-  return { hunks, collapsedSections }
+  return { hunks, collapsedSections, additionLines, deletionLines }
 }
 
 const diffConversionCache = new Map<string, ConvertedDiff>()
@@ -291,7 +339,8 @@ export function convertDiffResponseToFileDiffMetadata(
     ? expandLinesWithSections(response.lines, expandedSections)
     : response.lines
 
-  const { hunks, collapsedSections } = convertLinesToHunks(linesToConvert)
+  const { hunks, collapsedSections, additionLines, deletionLines } =
+    convertLinesToHunks(linesToConvert)
   const language = getLanguageFromExtension(response.fileInfo.language)
   const changeType = determineChangeType(response.lines)
 
@@ -305,6 +354,9 @@ export function convertDiffResponseToFileDiffMetadata(
     hunks,
     splitLineCount: Math.max(oldLineCount, newLineCount),
     unifiedLineCount: totalUnified,
+    isPartial: true,
+    deletionLines,
+    additionLines,
     cacheKey,
   }
 
@@ -355,6 +407,9 @@ export function createEmptyFileDiff(filePath: string): FileDiffMetadata {
     hunks: [],
     splitLineCount: 0,
     unifiedLineCount: 0,
+    isPartial: true,
+    deletionLines: [],
+    additionLines: [],
   }
 }
 
@@ -367,5 +422,8 @@ export function createBinaryFileDiff(filePath: string): FileDiffMetadata {
     hunks: [],
     splitLineCount: 0,
     unifiedLineCount: 0,
+    isPartial: true,
+    deletionLines: [],
+    additionLines: [],
   }
 }
