@@ -48,11 +48,23 @@ jobs:
             workflows:
               - '.github/workflows/**'
 
-  lint-typescript:
-    name: TypeScript Lint & Format
+  typescript-checks:
+    name: TypeScript ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: changed
     if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ESLint
+            command: lint
+          - name: Type Check
+            command: lint:ts
+          - name: MCP Lint
+            command: lint:mcp
+          - name: Knip
+            command: deps:check
     env:
       SCHALTWERK_PM: bun
     steps:
@@ -86,18 +98,18 @@ jobs:
             cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
           fi
 
-      - name: Run TypeScript lints
-        run: |
-          node scripts/package-manager.mjs run lint
-          node scripts/package-manager.mjs run lint:ts
-          node scripts/package-manager.mjs run lint:mcp
-          node scripts/package-manager.mjs run deps:check
+      - name: Run ${{ matrix.name }}
+        run: node scripts/package-manager.mjs run ${{ matrix.command }}
 
   test-frontend:
-    name: Frontend Tests
+    name: Frontend Tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: changed
     if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/3', '2/3', '3/3']
     env:
       SCHALTWERK_PM: bun
     steps:
@@ -131,16 +143,28 @@ jobs:
             cd mcp-server && node ../scripts/package-manager.mjs install --frozen-lockfile && cd ..
           fi
 
-      - name: Run frontend tests
+      - name: Run frontend test shard ${{ matrix.shard }}
+        run: node scripts/package-manager.mjs run test:frontend -- --shard=${{ matrix.shard }}
+
+      - name: Run MCP and build-script tests
+        if: matrix.shard == '1/3'
         run: |
-          node scripts/package-manager.mjs run test:frontend
           node scripts/package-manager.mjs run test:mcp
+          node scripts/package-manager.mjs run test:build-scripts
 
   rust-checks:
-    name: Rust Checks
+    name: Rust ${{ matrix.name }}
     runs-on: ubuntu-latest
     needs: changed
     if: ${{ needs.changed.outputs.schaltwerk == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Lint
+            kind: lint
+          - name: Tests
+            kind: tests
     env:
       # Override target-cpu=native from .cargo/config.toml - CI runners have varying CPU features
       # which can cause SIGILL crashes with native CPU targeting
@@ -195,25 +219,35 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: src-tauri/target/
-          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: cargo-target-${{ runner.os }}-${{ matrix.kind }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-target-${{ runner.os }}-${{ matrix.kind }}-
+            cargo-target-${{ runner.os }}-
 
       - uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612
+        if: matrix.kind == 'lint'
         with:
           tool: cargo-shear
           version: 1.5.2
 
       - uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612
+        if: matrix.kind == 'tests'
         with:
           tool: nextest
           version: 0.9.108
 
-      - name: Run Rust checks
+      - name: Run Rust lint
+        if: matrix.kind == 'lint'
         run: |
           cd src-tauri
           cargo clippy --all-features -- -D warnings
           cargo shear
+
+      - name: Run Rust tests
+        if: matrix.kind == 'tests'
+        run: |
+          cd src-tauri
           cargo nextest run --profile ci --all-features --status-level fail --failure-output immediate
-          cargo build
 
       - name: Save cargo home cache
         if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true' && !env.ACT
@@ -233,20 +267,20 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: src-tauri/target/
-          key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: cargo-target-${{ runner.os }}-${{ matrix.kind }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
   results:
     name: CI Results (required)
-    needs: [changed, lint-typescript, test-frontend, rust-checks]
+    needs: [changed, typescript-checks, test-frontend, rust-checks]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
         shell: bash
         run: |
-          echo "lint-typescript: ${{ needs.lint-typescript.result }}"
-          echo "test-frontend  : ${{ needs.test-frontend.result }}"
-          echo "rust-checks    : ${{ needs.rust-checks.result }}"
+          echo "typescript-checks: ${{ needs.typescript-checks.result }}"
+          echo "test-frontend    : ${{ needs.test-frontend.result }}"
+          echo "rust-checks      : ${{ needs.rust-checks.result }}"
           
           # If no relevant changes, succeed
           if [[ '${{ needs.changed.outputs.schaltwerk }}' != 'true' && '${{ needs.changed.outputs.workflows }}' != 'true' && '${{ github.event_name }}' != 'push' ]]; then
@@ -255,7 +289,7 @@ jobs:
           fi
           
           # All jobs must succeed
-          [[ '${{ needs.lint-typescript.result }}' == 'success' ]] || { echo 'lint-typescript failed'; exit 1; }
+          [[ '${{ needs.typescript-checks.result }}' == 'success' ]] || { echo 'typescript-checks failed'; exit 1; }
           [[ '${{ needs.test-frontend.result }}' == 'success' ]] || { echo 'test-frontend failed'; exit 1; }
           [[ '${{ needs.rust-checks.result }}' == 'success' ]] || { echo 'rust-checks failed'; exit 1; }
           
