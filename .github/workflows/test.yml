@@ -39,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -78,7 +78,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -104,7 +104,7 @@ jobs:
           fi
 
       - name: Run frontend tests
-        run: node scripts/package-manager.mjs run test:frontend -- --maxWorkers=12
+        run: node scripts/package-manager.mjs run test:frontend
 
       - name: Run MCP and build-script tests
         run: |
