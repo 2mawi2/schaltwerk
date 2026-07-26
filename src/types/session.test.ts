@@ -30,7 +30,7 @@ describe('session agent constants', () => {
     expect(Object.keys(AGENT_SUPPORTS_SKIP_PERMISSIONS)).toEqual(AGENT_TYPES)
     expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.copilot).toBe(true)
     expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.kilo).toBe(false)
-    expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.pi).toBe(true)
+    expect(AGENT_SUPPORTS_SKIP_PERMISSIONS.pi).toBe(false)
   })
 
   it('treats Pi as a TUI-based agent', async () => {

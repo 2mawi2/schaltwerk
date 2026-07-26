@@ -58,11 +58,10 @@ No Codex project-trust prompt should appear. Treat one as a harness failure: sto
 the run, prepare fresh state, and inspect
 `logs/cua/macos-runtime/codex-home/config.toml` before continuing.
 
-For the real-Pi flow, select Pi, select **Skip permissions** so project-local Pi
-resources are approved inside the disposable repository, and use a unique prompt
-and output file just like the Codex smoke flow. Confirm the prompt starts
-automatically, the file appears in Changes, and restarting the terminal resumes the
-same Pi session without replaying the initial prompt.
+For the real-Pi flow, select Pi and use a unique prompt and output file just like
+the Codex smoke flow. Pi does not expose Schaltwerk's permission toggle. Confirm
+the prompt starts automatically, the file appears in Changes, and restarting the
+terminal resumes the same Pi session without replaying the initial prompt.
 
 ## Verify
 

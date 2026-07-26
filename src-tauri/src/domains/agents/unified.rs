@@ -604,10 +604,7 @@ mod tests {
                 binary_override: Some("pi"),
                 manifest,
             });
-            assert_eq!(
-                fresh.shell_command,
-                r#"cd /test/path && pi --approve "test prompt""#
-            );
+            assert_eq!(fresh.shell_command, r#"cd /test/path && pi "test prompt""#);
 
             let resumed = adapter.build_launch_spec(AgentLaunchContext {
                 worktree_path: Path::new("/test/path"),

@@ -192,9 +192,11 @@ curl -fsSL https://pi.dev/install.sh | sh
 pi
 ```
 
-Schaltwerk passes the initial task directly to Pi, adds `--approve` when **Skip permissions** is
-enabled, and resumes the newest Pi session associated with the worktree. Pi's **Model** preference
-maps to `--model`; use the full `provider/model-id` value shown by `pi --list-models`.
+Schaltwerk passes the initial task directly to Pi and resumes the newest Pi session associated with
+the worktree. Pi does not use Schaltwerk's permission toggle: its similarly named `--approve` option
+trusts project-local Pi resources rather than bypassing tool confirmations. Add `--approve` under
+Pi's **CLI Arguments** only when you explicitly trust those resources. Pi's **Model** preference maps
+to `--model`; use the full `provider/model-id` value shown by `pi --list-models`.
 
 Pi stores sessions below `~/.pi/agent/sessions` by default. If you set `PI_CODING_AGENT_DIR` or
 `PI_CODING_AGENT_SESSION_DIR` in Pi's agent environment, Schaltwerk uses the same location for

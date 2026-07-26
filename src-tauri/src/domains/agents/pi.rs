@@ -123,7 +123,7 @@ pub fn build_pi_command_with_config(
     worktree_path: &Path,
     session_id: Option<&str>,
     initial_prompt: Option<&str>,
-    skip_permissions: bool,
+    _skip_permissions: bool,
     config: Option<&PiConfig>,
 ) -> String {
     let binary = config
@@ -138,10 +138,6 @@ pub fn build_pi_command_with_config(
     if let Some(id) = session_id.map(str::trim).filter(|value| !value.is_empty()) {
         command.push_str(" --session ");
         command.push_str(&format_binary_invocation(id));
-    }
-
-    if skip_permissions {
-        command.push_str(" --approve");
     }
 
     if let Some(prompt) = initial_prompt.filter(|value| !value.trim().is_empty()) {
@@ -165,7 +161,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn builds_new_session_with_initial_prompt_and_approval() {
+    fn ignores_generic_skip_permissions_when_building_a_new_session() {
         let config = PiConfig {
             binary_path: Some("pi".to_string()),
         };
@@ -179,7 +175,7 @@ mod tests {
 
         assert_eq!(
             command,
-            r#"cd /path/to/worktree && pi --approve "implement feature X""#
+            r#"cd /path/to/worktree && pi "implement feature X""#
         );
     }
 
