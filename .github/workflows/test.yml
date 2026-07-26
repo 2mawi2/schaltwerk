@@ -129,6 +129,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Prepare apt cache
+        run: sudo chown "$USER" /var/cache/apt/archives
+
       - name: Cache apt packages
         uses: actions/cache@v6
         id: apt-cache
