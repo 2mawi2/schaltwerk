@@ -5,12 +5,16 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
 if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
-    git_common_dir="$(git -C "$repo_root" rev-parse --git-common-dir)"
+    git_common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
     export CARGO_TARGET_DIR="$git_common_dir/schaltwerk-target"
 fi
 
-if [[ -z "${CARGO_INCREMENTAL:-}" ]]; then
+if [[ -z "${CARGO_INCREMENTAL:-}" && "${RUSTC_WRAPPER:-}" != *sccache* ]]; then
     export CARGO_INCREMENTAL=1
+fi
+
+if [[ "${RUSTC_WRAPPER:-}" == *sccache* ]]; then
+    export CARGO_CACHE_RUSTC_INFO=0
 fi
 
 mkdir -p "$CARGO_TARGET_DIR"

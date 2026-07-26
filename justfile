@@ -136,9 +136,6 @@ install:
         just setup
     fi
 
-    # Build frontend
-    echo "Building frontend..."
-    {{pm}} run build
     # Build MCP server if it exists
     if [ -d "mcp-server" ]; then
         echo "Building MCP server..."
@@ -254,7 +251,7 @@ run:
     echo "Using dev profile (opt-level=0) for fastest compilation"
 
     if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
-        export CARGO_TARGET_DIR="$(git rev-parse --git-common-dir)/schaltwerk-target"
+        export CARGO_TARGET_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/schaltwerk-target"
     fi
     export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
     mkdir -p "$CARGO_TARGET_DIR"
@@ -375,7 +372,6 @@ run-port port:
     if [ ! -f "$BINARY_PATH" ]; then
         echo "No release binary found. Building one first..."
         echo "   This will take a few minutes but only needs to be done once."
-        {{pm}} run build
         {{pm}} run tauri -- build
         # Re-check for binary after build
         if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
@@ -410,7 +406,7 @@ run-port-dev port:
     echo "Using standard dev profile (opt-level=0) for fast compilation"
 
     if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
-        export CARGO_TARGET_DIR="$(git rev-parse --git-common-dir)/schaltwerk-target"
+        export CARGO_TARGET_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/schaltwerk-target"
     fi
     export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
     mkdir -p "$CARGO_TARGET_DIR"
@@ -446,12 +442,12 @@ run-port-dev port:
 
 # Build the application for production
 build:
-    {{pm}} run build && {{pm}} run tauri -- build
+    {{pm}} run tauri -- build
 
 
 # Build and run the application in production mode
 run-build:
-    {{pm}} run build && {{pm}} run tauri -- build && ./src-tauri/target/release/schaltwerk
+    {{pm}} run tauri -- build && ./src-tauri/target/release/schaltwerk
 
 # Run all tests and lints (uses dev-fast profile for FASTEST compilation)
 test:
@@ -468,37 +464,9 @@ test:
         exit 1
     fi
 
-    if command -v sccache &> /dev/null; then
-        step "Rust: sccache"
-        if sccache rustc -vV >/dev/null 2>&1; then
-            export RUSTC_WRAPPER=sccache
-            export SCCACHE_DIR=$HOME/.cache/sccache
-            ok "sccache enabled"
-        else
-            echo "sccache found but unusable; continuing without it"
-            export RUSTC_WRAPPER=
-            export CARGO_BUILD_RUSTC_WRAPPER=
-        fi
-    fi
-
-    step "Lint"
-    {{pm}} run lint:all && ok "All lints passed"
-
-    step "Dependencies"
-    {{pm}} run deps:rust && ok "Cargo shear passed"
-    {{pm}} run deps:check && ok "Knip passed"
-
-    step "Test: Frontend"
-    {{pm}} run test:frontend && ok "Frontend tests passed"
-
-    step "Test: MCP Server"
-    {{pm}} run test:mcp && ok "MCP tests passed"
-
-    step "Test: Rust"
-    just test-rust && ok "Rust tests passed"
-
-    step "Build: Rust"
-    {{pm}} run build:rust && ok "Rust build passed"
+    step "Validation"
+    {{pm}} run test
+    ok "All validation tasks passed"
 
     printf '\n\033[1;32m✓ All checks passed\033[0m\n'
 
@@ -511,14 +479,13 @@ test-frontend:
 test-rust *ARGS:
     #!/usr/bin/env bash
     set -euo pipefail
-    RUSTFLAGS="${RUSTFLAGS:-} -Awarnings" scripts/cargo-worktree.sh nextest run --cargo-quiet --status-level leak {{ARGS}}
+    scripts/cargo-worktree.sh nextest run --cargo-quiet --status-level leak {{ARGS}}
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building Schaltwerk (release bundle, no auto-reload)..."
-    {{pm}} run build
     {{pm}} run tauri -- build
     echo "Build complete. Launching binary from HOME directory..."
     # Always start from HOME directory when using 'just run' commands
@@ -560,10 +527,6 @@ run-port-release port:
     rm -f ./src-tauri/target/release/schaltwerk
     rm -f ./src-tauri/target/release/ui
     rm -f /tmp/schaltwerk-shared-target/release/schaltwerk
-
-    # Build frontend
-    echo "Building frontend..."
-    {{pm}} run build
 
     # Build Tauri app properly (this embeds the frontend assets)
     echo "Building Tauri app (with frontend embedded)..."
