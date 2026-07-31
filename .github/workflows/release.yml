@@ -106,12 +106,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612
+      - uses: taiki-e/install-action@18b1216eba7f8039b0f8d131d5473787f0edce68
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612
+      - uses: taiki-e/install-action@18b1216eba7f8039b0f8d131d5473787f0edce68
         with:
           tool: nextest
           version: 0.9.108
@@ -189,12 +189,12 @@ jobs:
           path: src-tauri/target/
           key: cargo-target-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
-      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
+      - uses: taiki-e/install-action@18b1216eba7f8039b0f8d131d5473787f0edce68
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@a983ca795126a4be4e8a44879ac5c4c3ef66cae1
+      - uses: taiki-e/install-action@18b1216eba7f8039b0f8d131d5473787f0edce68
         with:
           tool: nextest
           version: 0.9.108
