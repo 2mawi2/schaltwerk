@@ -145,7 +145,7 @@ jobs:
           key: cargo-windows-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install cargo tools
-        uses: taiki-e/install-action@v2.85.8
+        uses: taiki-e/install-action@v2.85.10
         with:
           tool: cargo-shear@1.5.2
 
