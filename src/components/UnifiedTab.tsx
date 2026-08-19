@@ -89,7 +89,6 @@ export function UnifiedTab({
         paddingLeft: '12px',
         paddingRight: '8px',
         minWidth: style?.minWidth || '80px',
-        maxWidth: style?.maxWidth || '150px',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
