@@ -552,7 +552,7 @@ const TerminalGridComponent = () => {
                 setAgentType('claude')
             })
         }
-    }, [selection, sessions, getAgentType, getOrchestratorAgentType, setAgentType])
+    }, [selection.kind, selection.payload, sessions, getAgentType, getOrchestratorAgentType, setAgentType])
 
     // Keep primary tab label/agentType in sync with current agentType
     useEffect(() => {
@@ -631,7 +631,7 @@ const TerminalGridComponent = () => {
     // Load run script availability and manage run mode state - only on selection changes
     useEffect(() => {
         void refreshRunScriptConfiguration()
-    }, [selection, getSessionKey, refreshRunScriptConfiguration])
+    }, [selection.kind, selection.payload, getSessionKey, refreshRunScriptConfiguration])
 
     const handleRunButtonClick = useCallback(() => {
         if (!hasRunScripts) {

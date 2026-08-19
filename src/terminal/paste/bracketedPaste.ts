@@ -11,7 +11,7 @@ function isLowSurrogate(codeUnit: number): boolean {
   return codeUnit >= 0xdc00 && codeUnit <= 0xdfff
 }
 
-function slicePreservingSurrogates(text: string, start: number, end: number): string {
+export function slicePreservingSurrogates(text: string, start: number, end: number): string {
   const length = text.length
   let safeEnd = Math.min(end, length)
 
