@@ -14,6 +14,7 @@ type SetupScriptRequestPayload = {
 type ProjectSettingsResponse = {
   setupScript: string
   branchPrefix: string
+  worktreeBaseDirectory?: string | null
 }
 
 export type SetupScriptProposal = {
@@ -59,6 +60,7 @@ export function useSetupScriptApproval() {
         settings: {
           setupScript: proposal.setupScript,
           branchPrefix: currentSettings.branchPrefix,
+          worktreeBaseDirectory: currentSettings.worktreeBaseDirectory ?? null,
         },
       })
       setProposal(null)

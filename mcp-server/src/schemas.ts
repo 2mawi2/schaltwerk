@@ -255,6 +255,28 @@ export const toolOutputSchemas = {
     additionalProperties: false,
   },
 
+  schaltwerk_get_worktree_base_directory: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      worktree_base_directory: { type: 'string' },
+      has_custom_directory: { type: 'boolean' },
+    },
+    required: ['worktree_base_directory', 'has_custom_directory'],
+    additionalProperties: false,
+  },
+
+  schaltwerk_set_worktree_base_directory: {
+    $schema: draft2020,
+    type: 'object',
+    properties: {
+      worktree_base_directory: { type: 'string' },
+      has_custom_directory: { type: 'boolean' },
+    },
+    required: ['worktree_base_directory', 'has_custom_directory'],
+    additionalProperties: false,
+  },
+
   schaltwerk_spec_list: {
     $schema: draft2020,
     type: 'object',

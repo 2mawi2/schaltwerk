@@ -275,6 +275,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: 'bun install && bun run build',
         branchPrefix: 'feature',
+        worktreeBaseDirectory: '',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'production' },
           { key: 'PORT', value: '3000' }
@@ -289,6 +290,7 @@ describe('useSettings', () => {
         settings: {
           setupScript: 'bun install && bun run build',
           branchPrefix: 'feature',
+          worktreeBaseDirectory: null,
         }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
@@ -305,6 +307,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: '',
         branchPrefix: 'feature',
+        worktreeBaseDirectory: '',
         environmentVariables: [
           { key: 'VALID', value: 'yes' },
           { key: '', value: 'no-key' }
@@ -429,6 +432,7 @@ describe('useSettings', () => {
         setupScript: '',
         environmentVariables: [],
         branchPrefix: 'feature',
+        worktreeBaseDirectory: '',
       }
       
       const terminalSettings = {
@@ -528,6 +532,7 @@ describe('useSettings', () => {
         setupScript: '',
         environmentVariables: [],
         branchPrefix: 'feature',
+        worktreeBaseDirectory: '',
       }
       
       const terminalSettings = {
@@ -622,6 +627,7 @@ describe('useSettings', () => {
         setupScript: '',
         environmentVariables: [],
         branchPrefix: 'feature',
+        worktreeBaseDirectory: '',
       }
 
       const terminalSettings = {
@@ -862,6 +868,7 @@ describe('useSettings', () => {
       expect(settings).toEqual({
         setupScript: 'bun install',
         branchPrefix: 'team',
+        worktreeBaseDirectory: '',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'test' },
           { key: 'DEBUG', value: 'true' }
@@ -881,6 +888,7 @@ describe('useSettings', () => {
       expect(settings).toEqual({
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '',
         environmentVariables: []
       })
     })
@@ -902,6 +910,7 @@ describe('useSettings', () => {
       expect(settings).toEqual({
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '',
         environmentVariables: []
       })
       expect(logger.error).not.toHaveBeenCalled()
@@ -928,6 +937,7 @@ describe('useSettings', () => {
       expect(settings).toEqual({
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '',
         environmentVariables: []
       })
     })
@@ -1020,13 +1030,14 @@ describe('useSettings', () => {
     })
   })
 
-  describe('empty branch prefix', () => {
-    it('saves empty string branch prefix without fallback to default', async () => {
+  describe('worktreeBaseDirectory', () => {
+    it('sends non-empty worktreeBaseDirectory as-is', async () => {
       const { result } = renderHook(() => useSettings())
 
       const projectSettings = {
         setupScript: '',
         branchPrefix: '',
+        worktreeBaseDirectory: '/tmp/custom-worktrees',
         environmentVariables: []
       }
 
@@ -1038,6 +1049,160 @@ describe('useSettings', () => {
         settings: {
           setupScript: '',
           branchPrefix: '',
+          worktreeBaseDirectory: '/tmp/custom-worktrees',
+        }
+      })
+    })
+
+    it('trims whitespace from worktreeBaseDirectory', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const projectSettings = {
+        setupScript: '',
+        branchPrefix: '',
+        worktreeBaseDirectory: '  /tmp/custom-worktrees  ',
+        environmentVariables: []
+      }
+
+      await act(async () => {
+        await result.current.saveProjectSettings(projectSettings)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
+        settings: {
+          setupScript: '',
+          branchPrefix: '',
+          worktreeBaseDirectory: '/tmp/custom-worktrees',
+        }
+      })
+    })
+
+    it('converts whitespace-only worktreeBaseDirectory to null', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const projectSettings = {
+        setupScript: '',
+        branchPrefix: '',
+        worktreeBaseDirectory: '   ',
+        environmentVariables: []
+      }
+
+      await act(async () => {
+        await result.current.saveProjectSettings(projectSettings)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
+        settings: {
+          setupScript: '',
+          branchPrefix: '',
+          worktreeBaseDirectory: null,
+        }
+      })
+    })
+  })
+
+  describe('saveAllSettings error handling', () => {
+    it('reports project settings failure when save fails for non-project reasons', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockImplementation((command: string) => {
+        if (command === TauriCommands.SetProjectSettings) {
+          return Promise.reject(new Error('Database write failed'))
+        }
+        return Promise.resolve()
+      })
+
+      const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
+        claude: [], copilot: [], opencode: [], gemini: [], codex: [],
+        droid: [], qwen: [], amp: [], kilocode: [], terminal: []
+      }
+      const cliArgs: Record<AgentType, string> = {
+        claude: '', copilot: '', opencode: '', gemini: '', codex: '',
+        droid: '', qwen: '', amp: '', kilocode: '', terminal: ''
+      }
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' }, copilot: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' }, gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' }, droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' }, amp: { model: '', reasoningEffort: '' },
+        kilocode: { model: '', reasoningEffort: '' }, terminal: { model: '', reasoningEffort: '' },
+      }
+
+      const saveResult = await act(async () => {
+        return await result.current.saveAllSettings(
+          envVars, cliArgs, preferences,
+          { setupScript: '', branchPrefix: '', worktreeBaseDirectory: '/tmp/wt', environmentVariables: [] },
+          { shell: null, shellArgs: [] },
+          { skip_confirmation_modals: false, always_show_large_diffs: false, attention_notification_mode: 'dock' as const, remember_idle_baseline: true },
+          { autoCancelAfterMerge: true, autoCancelAfterPr: false }
+        )
+      })
+
+      expect(saveResult.failedSettings).toContain('project settings')
+      expect(logger.error).toHaveBeenCalled()
+    })
+
+    it('does not report failure when project is unavailable', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockImplementation((command: string) => {
+        if (command === TauriCommands.SetProjectSettings) {
+          return Promise.reject(new Error('Project manager not initialized'))
+        }
+        return Promise.resolve()
+      })
+
+      const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
+        claude: [], copilot: [], opencode: [], gemini: [], codex: [],
+        droid: [], qwen: [], amp: [], kilocode: [], terminal: []
+      }
+      const cliArgs: Record<AgentType, string> = {
+        claude: '', copilot: '', opencode: '', gemini: '', codex: '',
+        droid: '', qwen: '', amp: '', kilocode: '', terminal: ''
+      }
+      const preferences: Record<AgentType, { model: string; reasoningEffort: string }> = {
+        claude: { model: '', reasoningEffort: '' }, copilot: { model: '', reasoningEffort: '' },
+        opencode: { model: '', reasoningEffort: '' }, gemini: { model: '', reasoningEffort: '' },
+        codex: { model: '', reasoningEffort: '' }, droid: { model: '', reasoningEffort: '' },
+        qwen: { model: '', reasoningEffort: '' }, amp: { model: '', reasoningEffort: '' },
+        kilocode: { model: '', reasoningEffort: '' }, terminal: { model: '', reasoningEffort: '' },
+      }
+
+      const saveResult = await act(async () => {
+        return await result.current.saveAllSettings(
+          envVars, cliArgs, preferences,
+          { setupScript: '', branchPrefix: '', worktreeBaseDirectory: '', environmentVariables: [] },
+          { shell: null, shellArgs: [] },
+          { skip_confirmation_modals: false, always_show_large_diffs: false, attention_notification_mode: 'dock' as const, remember_idle_baseline: true },
+          { autoCancelAfterMerge: true, autoCancelAfterPr: false }
+        )
+      })
+
+      expect(saveResult.failedSettings).not.toContain('project settings')
+      expect(logger.error).not.toHaveBeenCalledWith(expect.stringContaining('project settings'), expect.anything())
+    })
+  })
+
+  describe('empty branch prefix', () => {
+    it('saves empty string branch prefix without fallback to default', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const projectSettings = {
+        setupScript: '',
+        branchPrefix: '',
+        worktreeBaseDirectory: '',
+        environmentVariables: []
+      }
+
+      await act(async () => {
+        await result.current.saveProjectSettings(projectSettings)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
+        settings: {
+          setupScript: '',
+          branchPrefix: '',
+          worktreeBaseDirectory: null,
         }
       })
     })
@@ -1048,6 +1213,7 @@ describe('useSettings', () => {
       const projectSettings = {
         setupScript: '',
         branchPrefix: '   ',
+        worktreeBaseDirectory: '',
         environmentVariables: []
       }
 
@@ -1059,6 +1225,7 @@ describe('useSettings', () => {
         settings: {
           setupScript: '',
           branchPrefix: '',
+          worktreeBaseDirectory: null,
         }
       })
     })

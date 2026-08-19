@@ -187,6 +187,8 @@ export interface Translations {
     projectGeneral: {
       branchPrefix: string
       branchPrefixDesc: string
+      worktreeBaseDirectory: string
+      worktreeBaseDirectoryDesc: string
       mergeDefaults: string
       mergeDefaultsDesc: string
       autoCancelAfterMerge: string
