@@ -284,8 +284,14 @@ impl FileWatcher {
             saw_refs
         );
 
-        let changed_files = git::get_changed_files(worktree_path, base_branch)
-            .map_err(|e| format!("Failed to get changed files: {e}"))?;
+        let wt = worktree_path.to_path_buf();
+        let bb = base_branch.to_string();
+        let changed_files = tokio::task::spawn_blocking(move || {
+            git::get_changed_files(&wt, &bb)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+        .map_err(|e| format!("Failed to get changed files: {e}"))?;
 
         info!(
             "Session {} has {} changed files detected",
@@ -293,10 +299,22 @@ impl FileWatcher {
             changed_files.len()
         );
 
-        let change_summary =
-            Self::compute_change_summary(&changed_files, worktree_path, base_branch).await?;
+        let wt = worktree_path.to_path_buf();
+        let bb = base_branch.to_string();
+        let cf = changed_files.clone();
+        let change_summary = tokio::task::spawn_blocking(move || {
+            Self::compute_change_summary_sync(&cf, &wt, &bb)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
 
-        let branch_info = Self::get_branch_info(worktree_path, base_branch).await?;
+        let wt = worktree_path.to_path_buf();
+        let bb = base_branch.to_string();
+        let branch_info = tokio::task::spawn_blocking(move || {
+            Self::get_branch_info_sync(&wt, &bb)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
         let session_branch_name = branch_info.current_branch.clone();
 
         let timestamp = std::time::SystemTime::now()
@@ -332,74 +350,83 @@ impl FileWatcher {
 
         // Invalidate cached stats so the recomputation sees the latest file changes
         crate::domains::git::stats::invalidate_stats_cache_for(worktree_path, base_branch);
-        match git::calculate_git_stats_fast(worktree_path, base_branch) {
-            Ok(stats) => {
-                let has_conflicts = match git::has_conflicts(worktree_path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        log::warn!("Watcher conflict detection failed for {session_name}: {err}");
-                        false
-                    }
-                };
-                let merge_snapshot = Repository::open(worktree_path)
-                    .ok()
-                    .and_then(|repo| {
-                        let session_oid = repo.head().ok().and_then(|h| h.target());
-                        let parent_obj = repo.revparse_single(base_branch).ok()?;
-                        let parent_oid = parent_obj.peel_to_commit().ok()?.id();
-                        let branch_name = session_branch_name.clone();
+        let wt = worktree_path.to_path_buf();
+        let bb = base_branch.to_string();
+        let sn = session_name.to_string();
+        let sbn = session_branch_name.clone();
+        let stats_result = tokio::task::spawn_blocking(move || {
+            let stats = match git::calculate_git_stats_fast(&wt, &bb) {
+                Ok(s) => s,
+                Err(e) => {
+                    log::debug!("Watcher git stats fast failed for {sn}: {e}");
+                    return None;
+                }
+            };
+            let has_conflicts = match git::has_conflicts(&wt) {
+                Ok(value) => value,
+                Err(err) => {
+                    log::warn!("Watcher conflict detection failed for {sn}: {err}");
+                    false
+                }
+            };
+            let merge_snapshot = Repository::open(&wt)
+                .ok()
+                .and_then(|repo| {
+                    let session_oid = repo.head().ok().and_then(|h| h.target());
+                    let parent_obj = repo.revparse_single(&bb).ok()?;
+                    let parent_oid = parent_obj.peel_to_commit().ok()?.id();
 
-                        session_oid.and_then(|oid| {
-                            MergeSnapshotGateway::compute(
-                                &repo,
-                                oid,
-                                parent_oid,
-                                &branch_name,
-                                base_branch,
-                            )
-                            .map_err(|err| {
-                                log::debug!(
-                                    "Watcher merge assessment failed for {session_name}: {err}"
-                                );
-                            })
-                            .ok()
+                    session_oid.and_then(|oid| {
+                        MergeSnapshotGateway::compute(
+                            &repo,
+                            oid,
+                            parent_oid,
+                            &sbn,
+                            &bb,
+                        )
+                        .map_err(|err| {
+                            log::debug!(
+                                "Watcher merge assessment failed for {sn}: {err}"
+                            );
                         })
+                        .ok()
                     })
-                    .unwrap_or_default();
-                // Collect a small sample of uncommitted paths to help frontend tooltips
-                let sample = match crate::domains::git::operations::uncommitted_sample_paths(
-                    worktree_path,
-                    5,
-                ) {
-                    Ok(v) if !v.is_empty() => Some(v),
-                    _ => None,
-                };
-                let payload = SessionGitStatsUpdated {
-                    session_id: session_name.to_string(), // UI uses session_name; keep id same for payload
-                    session_name: session_name.to_string(),
-                    files_changed: stats.files_changed,
-                    lines_added: stats.lines_added,
-                    lines_removed: stats.lines_removed,
-                    has_uncommitted: stats.has_uncommitted,
-                    has_conflicts,
-                    top_uncommitted_paths: sample,
-                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                };
-                let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
-                debug!(
-                    "Watcher emitted SessionGitStats for {}: files={} +{} -{} has_uncommitted={}",
-                    session_name,
-                    payload.files_changed,
-                    payload.lines_added,
-                    payload.lines_removed,
-                    payload.has_uncommitted
-                );
-            }
-            Err(e) => {
-                log::debug!("Watcher git stats fast failed for {session_name}: {e}");
-            }
+                })
+                .unwrap_or_default();
+            let sample = match crate::domains::git::operations::uncommitted_sample_paths(
+                &wt,
+                5,
+            ) {
+                Ok(v) if !v.is_empty() => Some(v),
+                _ => None,
+            };
+            Some(SessionGitStatsUpdated {
+                session_id: sn.clone(),
+                session_name: sn,
+                files_changed: stats.files_changed,
+                lines_added: stats.lines_added,
+                lines_removed: stats.lines_removed,
+                has_uncommitted: stats.has_uncommitted,
+                has_conflicts,
+                top_uncommitted_paths: sample,
+                merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+                merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+                merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
+            })
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?;
+
+        if let Some(payload) = stats_result {
+            debug!(
+                "Watcher emitted SessionGitStats for {}: files={} +{} -{} has_uncommitted={}",
+                session_name,
+                payload.files_changed,
+                payload.lines_added,
+                payload.lines_removed,
+                payload.has_uncommitted
+            );
+            let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
         }
 
         Ok(())
@@ -432,7 +459,7 @@ impl FileWatcher {
         }
     }
 
-    async fn compute_change_summary(
+    fn compute_change_summary_sync(
         changed_files: &[ChangedFile],
         worktree_path: &Path,
         _base_branch: &str,
@@ -522,7 +549,7 @@ impl FileWatcher {
         })
     }
 
-    async fn get_branch_info(
+    fn get_branch_info_sync(
         worktree_path: &Path,
         base_branch: &str,
     ) -> Result<BranchInfo, String> {
@@ -569,6 +596,23 @@ impl FileWatcher {
             base_commit,
             head_commit,
         })
+    }
+
+    #[cfg(test)]
+    async fn compute_change_summary(
+        changed_files: &[ChangedFile],
+        worktree_path: &Path,
+        base_branch: &str,
+    ) -> Result<ChangeSummary, String> {
+        Self::compute_change_summary_sync(changed_files, worktree_path, base_branch)
+    }
+
+    #[cfg(test)]
+    async fn get_branch_info(
+        worktree_path: &Path,
+        base_branch: &str,
+    ) -> Result<BranchInfo, String> {
+        Self::get_branch_info_sync(worktree_path, base_branch)
     }
 }
 
