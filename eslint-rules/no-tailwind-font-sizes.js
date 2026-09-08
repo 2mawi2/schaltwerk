@@ -1,42 +1,30 @@
-const DISALLOWED = [
-  'text-xs',
-  'text-sm',
-  'text-base',
-  'text-lg',
-  'text-xl',
-  'text-2xl',
-  'text-3xl',
-  'text-4xl',
-  'text-5xl',
-  'text-6xl',
-  'text-7xl',
-  'text-8xl',
-  'text-9xl',
-  'text-[',
-]
+const ARBITRARY_FONT_SIZE_PATTERN = /text-\[/
 
 export default {
   meta: {
     type: 'suggestion',
     docs: {
-      description: 'disallow legacy Tailwind font-size utilities in favor of theme.fontSize tokens',
+      description: 'disallow arbitrary fixed Tailwind font-size values like text-[12px]',
     },
     schema: [],
     messages: {
-      unexpected: 'Use theme.fontSize / typography tokens instead of "{{token}}"',
+      unexpected: 'Use Tailwind scale classes (text-sm, text-base, …) instead of arbitrary "{{token}}"',
     },
   },
   create(context) {
     const reportMatch = (value, node) => {
-      for (const token of DISALLOWED) {
-        if (value.includes(token)) {
-          context.report({
-            node,
-            messageId: 'unexpected',
-            data: { token },
-          })
-          return
-        }
+      const match = value.match(ARBITRARY_FONT_SIZE_PATTERN)
+      if (match) {
+        const startIdx = match.index
+        const endIdx = value.indexOf(']', startIdx)
+        const token = endIdx !== -1
+          ? value.slice(startIdx, endIdx + 1)
+          : value.slice(startIdx)
+        context.report({
+          node,
+          messageId: 'unexpected',
+          data: { token },
+        })
       }
     }
 
