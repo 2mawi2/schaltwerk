@@ -163,6 +163,11 @@ type SetupScriptPayload = {
   has_setup_script?: boolean
 }
 
+type WorktreeBaseDirectoryPayload = {
+  worktree_base_directory: string
+  has_custom_directory: boolean
+}
+
 export type RunScriptPayload = {
   has_run_script: boolean
   command?: string
@@ -677,6 +682,47 @@ export class SchaltwerkBridge {
     return {
       setup_script: payload.setup_script ?? '',
       has_setup_script: payload.has_setup_script ?? (payload.setup_script?.trim().length ?? 0) > 0
+    }
+  }
+
+  async getWorktreeBaseDirectory(): Promise<WorktreeBaseDirectoryPayload> {
+    const response = await this.fetchWithAutoPort('/api/project/worktree-base-directory', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...this.getProjectHeaders()
+      }
+    })
+
+    const payload = await this.parseJsonResponse<WorktreeBaseDirectoryPayload>(response, 'worktree base directory')
+    if (!payload) {
+      throw new Error('Worktree base directory payload missing')
+    }
+
+    return {
+      worktree_base_directory: payload.worktree_base_directory ?? '',
+      has_custom_directory: payload.has_custom_directory ?? (payload.worktree_base_directory?.trim().length ?? 0) > 0
+    }
+  }
+
+  async setWorktreeBaseDirectory(baseDirectory: string): Promise<WorktreeBaseDirectoryPayload> {
+    const response = await this.fetchWithAutoPort('/api/project/worktree-base-directory', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.getProjectHeaders()
+      },
+      body: JSON.stringify({ worktree_base_directory: baseDirectory })
+    })
+
+    const payload = await this.parseJsonResponse<WorktreeBaseDirectoryPayload>(response, 'set worktree base directory')
+    if (!payload) {
+      throw new Error('Set worktree base directory payload missing')
+    }
+
+    return {
+      worktree_base_directory: payload.worktree_base_directory ?? '',
+      has_custom_directory: payload.has_custom_directory ?? (payload.worktree_base_directory?.trim().length ?? 0) > 0
     }
   }
 

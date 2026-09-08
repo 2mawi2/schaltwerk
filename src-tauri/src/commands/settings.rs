@@ -262,6 +262,8 @@ pub async fn set_project_default_base_branch(branch: Option<String>) -> Result<(
 pub struct ProjectSettings {
     pub setup_script: String,
     pub branch_prefix: String,
+    #[serde(default)]
+    pub worktree_base_directory: Option<String>,
 }
 
 #[tauri::command]
@@ -285,9 +287,14 @@ pub async fn get_project_settings() -> Result<ProjectSettings, String> {
         .get_project_branch_prefix(&project.path)
         .map_err(|e| format!("Failed to get project branch prefix: {e}"))?;
 
+    let worktree_base_directory = db
+        .get_project_worktree_base_directory(&project.path)
+        .map_err(|e| format!("Failed to get project worktree base directory: {e}"))?;
+
     Ok(ProjectSettings {
         setup_script,
         branch_prefix,
+        worktree_base_directory,
     })
 }
 
@@ -307,6 +314,11 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .map_err(|e| format!("Failed to set project setup script: {e}"))?;
     db.set_project_branch_prefix(&project.path, &settings.branch_prefix)
         .map_err(|e| format!("Failed to set project branch prefix: {e}"))?;
+    db.set_project_worktree_base_directory(
+        &project.path,
+        settings.worktree_base_directory.as_deref(),
+    )
+    .map_err(|e| format!("Failed to set project worktree base directory: {e}"))?;
     Ok(())
 }
 
@@ -697,6 +709,7 @@ mod tests {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho test".to_string(),
             branch_prefix: "team".to_string(),
+            worktree_base_directory: None,
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -714,6 +727,7 @@ mod tests {
         let deserialized: ProjectSettings = serde_json::from_str(json_input).unwrap();
         assert_eq!(deserialized.setup_script, "echo hello");
         assert_eq!(deserialized.branch_prefix, "feature");
+        assert_eq!(deserialized.worktree_base_directory, None);
     }
 
     #[test]
@@ -956,6 +970,7 @@ mod tests {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho test".to_string(),
             branch_prefix: "team".to_string(),
+            worktree_base_directory: None,
         };
         let result = set_project_settings(settings).await;
         assert!(result.is_err());
@@ -1089,10 +1104,12 @@ mod tests {
         let settings = ProjectSettings {
             setup_script: setup_script.to_string(),
             branch_prefix: "team".to_string(),
+            worktree_base_directory: None,
         };
 
         assert_eq!(settings.setup_script, setup_script);
         assert_eq!(settings.branch_prefix, "team");
+        assert_eq!(settings.worktree_base_directory, None);
     }
 
     #[test]
@@ -1131,6 +1148,7 @@ mod tests {
             setup_script: "#!/bin/bash\necho 'test script'\nexport PATH=/usr/local/bin:$PATH"
                 .to_string(),
             branch_prefix: "team".to_string(),
+            worktree_base_directory: Some("/tmp/worktrees".to_string()),
         };
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1205,6 +1223,7 @@ mod tests {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho 'special chars: @#$%^&*()'\nexport PATH=/usr/local/bin:$PATH\ncd /some/path".to_string(),
             branch_prefix: "team".to_string(),
+            worktree_base_directory: None,
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -1233,6 +1252,7 @@ mod tests {
         let settings = ProjectSettings {
             setup_script: String::new(),
             branch_prefix: "schaltwerk".to_string(),
+            worktree_base_directory: None,
         };
 
         let json = serde_json::to_string(&settings).unwrap();

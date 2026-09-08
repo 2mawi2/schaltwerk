@@ -13,6 +13,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+pub fn resolve_worktree_base(repo_path: &Path, worktree_base_directory: Option<&str>) -> PathBuf {
+    match worktree_base_directory {
+        Some(dir) if !dir.trim().is_empty() => {
+            let path = Path::new(dir);
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                repo_path.join(path)
+            }
+        }
+        _ => repo_path.join(".schaltwerk").join("worktrees"),
+    }
+}
+
 pub struct SessionUtils {
     repo_path: PathBuf,
     cache_manager: SessionCacheManager,
@@ -30,13 +44,24 @@ impl SessionUtils {
             })
     }
 
-    fn check_name_availability_with_prefix(&self, name: &str, branch_prefix: &str) -> Result<bool> {
+    fn custom_worktree_base_directory(&self) -> Result<Option<String>> {
+        self.db_manager
+            .db
+            .get_project_worktree_base_directory(&self.repo_path)
+    }
+
+    fn worktree_base_path(&self, worktree_base_directory: Option<&str>) -> PathBuf {
+        resolve_worktree_base(&self.repo_path, worktree_base_directory)
+    }
+
+    fn check_name_availability_with_prefix(
+        &self,
+        name: &str,
+        branch_prefix: &str,
+        worktree_base: &Path,
+    ) -> Result<bool> {
         let branch = format_branch_name(branch_prefix, name);
-        let worktree_path = self
-            .repo_path
-            .join(".schaltwerk")
-            .join("worktrees")
-            .join(name);
+        let worktree_path = worktree_base.join(name);
 
         let worktree_exists = worktree_path.exists();
         let session_exists = self.db_manager.session_exists(name);
@@ -80,19 +105,22 @@ impl SessionUtils {
 
     pub fn check_name_availability(&self, name: &str) -> Result<bool> {
         let branch_prefix = self.branch_prefix();
-        self.check_name_availability_with_prefix(name, &branch_prefix)
+        let custom_base = self.custom_worktree_base_directory()?;
+        let worktree_base = resolve_worktree_base(&self.repo_path, custom_base.as_deref());
+        self.check_name_availability_with_prefix(name, &branch_prefix, &worktree_base)
     }
 
-    pub fn find_unique_session_paths(&self, base_name: &str) -> Result<(String, String, PathBuf)> {
+    pub fn find_unique_session_paths(
+        &self,
+        base_name: &str,
+        worktree_base_directory: Option<&str>,
+    ) -> Result<(String, String, PathBuf)> {
         let branch_prefix = self.branch_prefix();
+        let worktree_base = self.worktree_base_path(worktree_base_directory);
 
-        if self.check_name_availability_with_prefix(base_name, &branch_prefix)? {
+        if self.check_name_availability_with_prefix(base_name, &branch_prefix, &worktree_base)? {
             let branch = format_branch_name(&branch_prefix, base_name);
-            let worktree_path = self
-                .repo_path
-                .join(".schaltwerk")
-                .join("worktrees")
-                .join(base_name);
+            let worktree_path = worktree_base.join(base_name);
 
             self.cache_manager.reserve_name(base_name);
             return Ok((base_name.to_string(), branch, worktree_path));
@@ -102,13 +130,10 @@ impl SessionUtils {
             let suffix = Self::generate_random_suffix(2);
             let candidate = format!("{base_name}-{suffix}");
 
-            if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
+            if self.check_name_availability_with_prefix(&candidate, &branch_prefix, &worktree_base)?
+            {
                 let branch = format_branch_name(&branch_prefix, &candidate);
-                let worktree_path = self
-                    .repo_path
-                    .join(".schaltwerk")
-                    .join("worktrees")
-                    .join(&candidate);
+                let worktree_path = worktree_base.join(&candidate);
 
                 self.cache_manager.reserve_name(&candidate);
                 return Ok((candidate, branch, worktree_path));
@@ -118,13 +143,10 @@ impl SessionUtils {
         for i in 1..=100 {
             let candidate = format!("{base_name}-{i}");
 
-            if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
+            if self.check_name_availability_with_prefix(&candidate, &branch_prefix, &worktree_base)?
+            {
                 let branch = format_branch_name(&branch_prefix, &candidate);
-                let worktree_path = self
-                    .repo_path
-                    .join(".schaltwerk")
-                    .join("worktrees")
-                    .join(&candidate);
+                let worktree_path = worktree_base.join(&candidate);
 
                 self.cache_manager.reserve_name(&candidate);
                 return Ok((candidate, branch, worktree_path));
@@ -172,8 +194,6 @@ impl SessionUtils {
     pub fn cleanup_orphaned_worktrees(&self) -> Result<()> {
         let worktrees = git::list_worktrees(&self.repo_path)?;
         let sessions = self.db_manager.list_sessions()?;
-        // IMPORTANT: Only check against sessions that should have worktrees.
-        // Spec sessions should NOT have worktree directories, so we exclude them.
         let sessions_with_worktrees: Vec<_> = sessions
             .into_iter()
             .filter(|s| s.session_state != SessionState::Spec)
@@ -187,15 +207,13 @@ impl SessionUtils {
             })
             .collect();
 
+        let managed_bases = self.managed_worktree_bases();
+
         for worktree_path in worktrees {
-            if !worktree_path
-                .to_string_lossy()
-                .contains("/.schaltwerk/worktrees/")
-            {
+            if !Self::is_under_managed_base(&worktree_path, &managed_bases) {
                 continue;
             }
 
-            // Canonicalize paths to handle symlinks (like /var -> /private/var on macOS)
             let canonical_worktree = worktree_path
                 .canonicalize()
                 .unwrap_or_else(|_| worktree_path.clone());
@@ -218,9 +236,39 @@ impl SessionUtils {
             }
         }
 
-        self.cleanup_trash_directory()?;
+        self.cleanup_trash_directories()?;
 
         Ok(())
+    }
+
+    fn managed_worktree_bases(&self) -> Vec<PathBuf> {
+        let default_base = resolve_worktree_base(&self.repo_path, None);
+        let custom_base = self.custom_worktree_base_directory().unwrap_or_else(|err| {
+            log::warn!("Could not read custom worktree base for cleanup: {err}");
+            None
+        });
+        let resolved_custom = custom_base
+            .as_deref()
+            .map(|dir| resolve_worktree_base(&self.repo_path, Some(dir)));
+
+        let mut bases = vec![default_base];
+        if let Some(custom) = resolved_custom.filter(|c| !bases.contains(c)) {
+            bases.push(custom);
+        }
+        bases
+    }
+
+    fn is_under_managed_base(worktree_path: &Path, bases: &[PathBuf]) -> bool {
+        let canonical_worktree = worktree_path
+            .canonicalize()
+            .unwrap_or_else(|_| worktree_path.to_path_buf());
+
+        bases.iter().any(|base| {
+            let canonical_base = base
+                .canonicalize()
+                .unwrap_or_else(|_| base.clone());
+            canonical_worktree.starts_with(&canonical_base)
+        })
     }
 
     fn fast_remove_dir_in_background(&self, path: &Path) {
@@ -284,8 +332,14 @@ impl SessionUtils {
         }
     }
 
-    fn cleanup_trash_directory(&self) -> Result<()> {
-        let worktrees_dir = self.repo_path.join(".schaltwerk/worktrees");
+    fn cleanup_trash_directories(&self) -> Result<()> {
+        for base in &self.managed_worktree_bases() {
+            self.cleanup_trash_in_directory(base)?;
+        }
+        Ok(())
+    }
+
+    fn cleanup_trash_in_directory(&self, worktrees_dir: &Path) -> Result<()> {
         let trash_dir = worktrees_dir.join(".schaltwerk-trash");
 
         if !trash_dir.exists() {
@@ -535,5 +589,97 @@ impl SessionUtils {
             "No override provided for {agent_name}, will be resolved from settings at command level"
         );
         agent_name.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_worktree_base_default_when_none() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, None);
+        assert_eq!(result, PathBuf::from("/repo/.schaltwerk/worktrees"));
+    }
+
+    #[test]
+    fn resolve_worktree_base_default_when_empty() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, Some(""));
+        assert_eq!(result, PathBuf::from("/repo/.schaltwerk/worktrees"));
+    }
+
+    #[test]
+    fn resolve_worktree_base_default_when_whitespace() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, Some("   "));
+        assert_eq!(result, PathBuf::from("/repo/.schaltwerk/worktrees"));
+    }
+
+    #[test]
+    fn resolve_worktree_base_absolute_path() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, Some("/tmp/worktrees"));
+        assert_eq!(result, PathBuf::from("/tmp/worktrees"));
+    }
+
+    #[test]
+    fn resolve_worktree_base_relative_path() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, Some("../../worktrees"));
+        assert_eq!(result, PathBuf::from("/repo/../../worktrees"));
+    }
+
+    #[test]
+    fn resolve_worktree_base_relative_dot_path() {
+        let repo = PathBuf::from("/repo");
+        let result = resolve_worktree_base(&repo, Some("./custom-dir"));
+        assert_eq!(result, PathBuf::from("/repo/./custom-dir"));
+    }
+
+    #[test]
+    fn is_under_managed_base_matches_default() {
+        let bases = vec![PathBuf::from("/repo/.schaltwerk/worktrees")];
+        let worktree = PathBuf::from("/repo/.schaltwerk/worktrees/my-session");
+        assert!(SessionUtils::is_under_managed_base(&worktree, &bases));
+    }
+
+    #[test]
+    fn is_under_managed_base_matches_custom() {
+        let bases = vec![
+            PathBuf::from("/repo/.schaltwerk/worktrees"),
+            PathBuf::from("/tmp/custom-worktrees"),
+        ];
+        let worktree = PathBuf::from("/tmp/custom-worktrees/my-session");
+        assert!(SessionUtils::is_under_managed_base(&worktree, &bases));
+    }
+
+    #[test]
+    fn is_under_managed_base_rejects_unrelated_path() {
+        let bases = vec![PathBuf::from("/repo/.schaltwerk/worktrees")];
+        let worktree = PathBuf::from("/other/project/worktrees/session");
+        assert!(!SessionUtils::is_under_managed_base(&worktree, &bases));
+    }
+
+    #[test]
+    fn is_under_managed_base_rejects_prefix_not_parent() {
+        let bases = vec![PathBuf::from("/tmp/work")];
+        let worktree = PathBuf::from("/tmp/workers/foo");
+        assert!(!SessionUtils::is_under_managed_base(&worktree, &bases));
+    }
+
+    #[test]
+    fn is_under_managed_base_rejects_substring_match() {
+        let bases = vec![PathBuf::from("/bar/.schaltwerk/worktrees")];
+        let worktree = PathBuf::from("/foo/bar/.schaltwerk/worktrees/session");
+        assert!(!SessionUtils::is_under_managed_base(&worktree, &bases));
+    }
+
+    #[test]
+    fn is_under_managed_base_empty_bases() {
+        let bases: Vec<PathBuf> = vec![];
+        let worktree = PathBuf::from("/repo/.schaltwerk/worktrees/session");
+        assert!(!SessionUtils::is_under_managed_base(&worktree, &bases));
     }
 }
