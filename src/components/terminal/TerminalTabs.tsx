@@ -168,7 +168,6 @@ const TerminalTabsComponent = forwardRef<TerminalTabsHandle, TerminalTabsProps>(
             showCloseButton={tabs.length > 1}
             className="h-full flex-shrink-0"
             style={{
-              maxWidth: '150px',
               minWidth: '100px'
             }}
           />

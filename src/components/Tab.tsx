@@ -25,7 +25,6 @@ export function Tab({ projectPath, projectName, attentionCount, isActive, onSele
       title={projectPath}
       className="h-full"
       style={{
-        maxWidth: '150px',
         minWidth: '100px'
       }}
       badgeContent={badgeLabel}
