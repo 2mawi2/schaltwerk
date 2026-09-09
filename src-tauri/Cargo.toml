@@ -44,7 +44,7 @@ rusqlite = { version = "0.40", features = ["bundled", "chrono"] }
 r2d2 = "0.8"
 uuid = { version = "1.23", features = ["v4", "serde"] }
 walkdir = "2.5"
-git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }
+git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl"] }
 sha2 = "0.10"
 hyper = { version = "1.10", default-features = false, features = ["server", "http1"] }
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
