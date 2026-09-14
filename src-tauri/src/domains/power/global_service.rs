@@ -641,9 +641,29 @@ impl GlobalInhibitorService {
         }
 
         if let Some(info) = &guard.process_info {
-            let running = self.process_inspector.is_running(info.pid)?;
+            let pid = info.pid;
+            let inspector = self.process_inspector.clone();
+            drop(guard);
+
+            let (running, cmdline_result) = tokio::task::spawn_blocking(move || {
+                let running = inspector.is_running(pid)?;
+                let cmdline = if running {
+                    Some(inspector.cmdline(pid)?)
+                } else {
+                    None
+                };
+                Ok::<_, SchaltError>((running, cmdline))
+            })
+            .await
+            .map_err(|e| SchaltError::IoError {
+                operation: "watchdog_inspect".into(),
+                path: String::new(),
+                message: format!("Task join error: {e}"),
+            })??;
+
+            let mut guard = self.state.lock().await;
             if !running {
-                warn!("Inhibitor pid {} not running; clearing state", info.pid);
+                warn!("Inhibitor pid {pid} not running; clearing state");
                 guard.process_info = None;
                 guard.child = None;
                 self.security.delete_pid_file()?;
@@ -663,10 +683,11 @@ impl GlobalInhibitorService {
                     self.emit_state(next, active_count);
                 }
                 return Ok(());
-            } else {
-                let actual = self.process_inspector.cmdline(info.pid)?;
-                if !actual.contains("caffeinate") && !actual.contains("systemd-inhibit") {
-                    warn!("PID {} reused by other process: {}", info.pid, actual);
+            } else if let Some(actual) = cmdline_result
+                && !actual.contains("caffeinate")
+                && !actual.contains("systemd-inhibit")
+            {
+                    warn!("PID {pid} reused by other process: {actual}");
                     guard.process_info = None;
                     guard.child = None;
                     self.security.delete_pid_file()?;
@@ -686,7 +707,6 @@ impl GlobalInhibitorService {
                         self.emit_state(next, active_count);
                     }
                     return Ok(());
-                }
             }
         } else if guard.user_enabled && !guard.active_sessions.is_empty() {
             self.spawn_inhibitor_locked(&mut guard).await?;

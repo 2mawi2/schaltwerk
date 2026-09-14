@@ -1,24 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import type { ChangedFile } from '../../common/events'
-import type { DiffResponse } from '../../types/diff'
 import { loadFileDiff, type FileDiffData, type ViewMode } from '../../components/diff/loadDiffs'
-import { convertDiffResponseToFileDiffMetadata } from '../../adapters/pierreDiffAdapter'
-import { getOrCreateWorkerPoolSingleton } from '@pierre/diffs/worker'
-import { getHighlighterIfLoaded, renderDiffWithHighlighter } from '@pierre/diffs'
-import {
-  getPierreWorkerPoolOptions,
-  getPierreHighlighterOptions,
-} from '../../workers/pierreDiffWorkerFactory'
 import { logger } from '../../utils/logger'
-
-async function waitForPoolInit(pool: ReturnType<typeof getOrCreateWorkerPoolSingleton>): Promise<void> {
-  if (pool.isInitialized()) return
-  const state = (pool as unknown as Record<string, unknown>).initialized
-  if (state instanceof Promise) {
-    await state
-  }
-}
 
 class DiffPreloadManager {
   private activeSession: string | null = null
@@ -116,73 +100,13 @@ class DiffPreloadManager {
 
       if (signal.aborted) return
 
-      const highlightCached = await this.batchCacheHighlights(diffMap, diffLayout, signal)
       const elapsed = Math.round(performance.now() - startTime)
-      logger.debug(`[DiffPreloader] Preload complete: ${diffMap.size} diffs loaded, ${highlightCached} highlighted in ${elapsed}ms`)
+      logger.debug(`[DiffPreloader] Preload complete: ${diffMap.size} diffs loaded in ${elapsed}ms`)
     } catch (e) {
       if (!signal.aborted) {
         logger.debug('[DiffPreloader] Preload failed', e)
       }
     }
-  }
-
-  private async batchCacheHighlights(
-    diffMap: Map<string, FileDiffData>,
-    diffLayout: ViewMode,
-    signal: AbortSignal
-  ): Promise<number> {
-    if (diffLayout !== 'unified') return 0
-
-    const pool = getOrCreateWorkerPoolSingleton({
-      poolOptions: getPierreWorkerPoolOptions(),
-      highlighterOptions: getPierreHighlighterOptions(),
-    })
-
-    await waitForPoolInit(pool)
-    if (signal.aborted) return 0
-
-    const highlighter = getHighlighterIfLoaded()
-    if (!highlighter) {
-      logger.debug('[DiffPreloader] Shiki not loaded on main thread, skipping highlight cache')
-      return 0
-    }
-
-    const options = pool.getDiffRenderOptions()
-    const { diffCache } = pool.inspectCaches()
-    let count = 0
-
-    for (const [filePath, diff] of diffMap) {
-      if (signal.aborted) return count
-      if (!('diffResult' in diff)) continue
-
-      try {
-        const response: DiffResponse = {
-          lines: diff.diffResult,
-          stats: {
-            additions: diff.file.additions,
-            deletions: diff.file.deletions,
-          },
-          fileInfo: diff.fileInfo,
-          isLargeFile: false,
-          isBinary: diff.isBinary,
-          unsupportedReason: diff.unsupportedReason,
-        }
-
-        const converted = convertDiffResponseToFileDiffMetadata(response, filePath)
-        const { cacheKey } = converted.fileDiff
-        if (!cacheKey) continue
-        if (pool.getDiffResultCache(converted.fileDiff)) continue
-
-        const result = renderDiffWithHighlighter(converted.fileDiff, highlighter, options)
-        diffCache.set(cacheKey, { result, options })
-        count++
-        logger.debug(`[DiffPreloader] Cached highlight for ${filePath}`)
-      } catch (e) {
-        logger.debug(`[DiffPreloader] Failed to highlight ${filePath}`, e)
-      }
-    }
-
-    return count
   }
 }
 

@@ -96,9 +96,13 @@ impl SessionsBackend for ProjectSessionsBackend {
         }
 
         let manager = core.session_manager();
-        let result = manager
-            .list_enriched_sessions()
-            .map_err(|err| err.to_string());
+        drop(core);
+        let result = tokio::task::spawn_blocking(move || {
+            manager.list_enriched_sessions()
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+        .map_err(|err| err.to_string());
 
         match &result {
             Ok(list) => log::debug!(
