@@ -184,13 +184,13 @@ jobs:
             cargo-target-${{ runner.os }}-${{ matrix.kind }}-
             cargo-target-${{ runner.os }}-
 
-      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6
+      - uses: taiki-e/install-action@9534c84618278caac52cb373bb164ed464dbd8af
         if: matrix.kind == 'lint'
         with:
           tool: cargo-shear
           version: 1.5.2
 
-      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6
+      - uses: taiki-e/install-action@9534c84618278caac52cb373bb164ed464dbd8af
         if: matrix.kind == 'tests'
         with:
           tool: nextest
