@@ -401,7 +401,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
     const fontsLoadedRef = useRef(false);
     const agentTypeRef = useRef(agentType);
     agentTypeRef.current = agentType;
-    const isPhysicalWheelRef = useRef(true);
+    // Start with smooth scrolling OFF - only enable during active user wheel scrolling
+    // This prevents erratic scrollbar jumping during rapid output
+    const isPhysicalWheelRef = useRef(false);
+    const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isTerminalOnlyAgent = agentType === 'terminal';
     const isAgentTopTerminal = useMemo(() => {
         if (isTerminalOnlyAgent) {
@@ -561,6 +564,31 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         setAgentStopped(sessionStorage.getItem(key) === 'true');
     }, [isAgentTopTerminal, terminalId]);
 
+    // Track pending scroll-to-bottom to debounce during rapid resizes
+    const pendingScrollToBottomRef = useRef<number | null>(null);
+
+    const scheduleScrollToBottom = useCallback((source: string) => {
+        if (pendingScrollToBottomRef.current !== null) {
+            // Already scheduled, skip
+            return;
+        }
+        pendingScrollToBottomRef.current = requestAnimationFrame(() => {
+            pendingScrollToBottomRef.current = null;
+            const term = terminal.current;
+            if (!term) return;
+            try {
+                term.scrollToLine(term.buffer.active.baseY);
+                logScrollChange(source);
+            } catch {
+                // Terminal may have been disposed - safe to ignore
+            }
+        });
+    }, [logScrollChange]);
+
+    // Ref for scheduleScrollToBottom to use in coordinator callbacks
+    const scheduleScrollToBottomRef = useRef(scheduleScrollToBottom);
+    scheduleScrollToBottomRef.current = scheduleScrollToBottom;
+
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, _force = false) => {
         if (!terminal.current) return false;
         const effectiveCols = calculateEffectiveColumns(cols);
@@ -571,14 +599,14 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         lastSize.current = { cols: effectiveCols, rows: effectiveRows };
 
         const term = terminal.current;
+        // Capture scroll position BEFORE resize to implement sticky scroll
+        const wasAtBottom = xtermWrapperRef.current?.isAtBottom() ?? true;
         try {
-            logScrollSnapshot(`resize:${reason}:before`, { cols: effectiveCols, rows: effectiveRows });
+            logScrollSnapshot(`resize:${reason}:before`, { cols: effectiveCols, rows: effectiveRows, wasAtBottom });
             term.resize(effectiveCols, effectiveRows);
-            if (xtermWrapperRef.current?.shouldFollowOutput()) {
-                requestAnimationFrame(() => {
-                    term.scrollToLine(term.buffer.active.baseY);
-                    logScrollChange('applySizeUpdate');
-                });
+            // Only scroll to bottom if we were already at bottom (sticky scroll)
+            if (wasAtBottom && xtermWrapperRef.current?.shouldFollowOutput()) {
+                scheduleScrollToBottom('applySizeUpdate');
             }
             logScrollSnapshot(`resize:${reason}:after`, { cols: effectiveCols, rows: effectiveRows });
         } catch (e) {
@@ -590,7 +618,7 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         lastEffectiveRef.current = { cols: effectiveCols, rows: effectiveRows };
         rememberDimensions();
         return true;
-    }, [terminalId, rememberDimensions, logScrollChange, logScrollSnapshot]);
+    }, [terminalId, rememberDimensions, logScrollChange, logScrollSnapshot, scheduleScrollToBottom]);
 
     useEffect(() => {
         const coordinator = new TerminalResizeCoordinator({
@@ -621,13 +649,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 const currentCols = terminal.current.cols;
                 const effectiveRows = Math.max(Math.floor(rows), MIN_TERMINAL_ROWS);
                 const term = terminal.current;
+                // Capture scroll position BEFORE resize (sticky scroll)
+                const wasAtBottom = xtermWrapperRef.current?.isAtBottom() ?? true;
                 try {
                     term.resize(currentCols, effectiveRows);
-                    if (xtermWrapperRef.current?.shouldFollowOutput()) {
-                        requestAnimationFrame(() => {
-                            term.scrollToLine(term.buffer.active.baseY);
-                            logScrollChange('applyRowsOnly');
-                        });
+                    // Only scroll to bottom if we were already at bottom
+                    if (wasAtBottom && xtermWrapperRef.current?.shouldFollowOutput()) {
+                        scheduleScrollToBottomRef.current('applyRowsOnly');
                     }
                 } catch (e) {
                     logger.debug(`[Terminal ${terminalId}] Failed to apply rows-only resize to ${currentCols}x${effectiveRows}`, e);
@@ -642,13 +670,13 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                 const currentRows = terminal.current.rows;
                 const effectiveCols = calculateEffectiveColumns(cols);
                 const term = terminal.current;
+                // Capture scroll position BEFORE resize (sticky scroll)
+                const wasAtBottom = xtermWrapperRef.current?.isAtBottom() ?? true;
                 try {
                     term.resize(effectiveCols, currentRows);
-                    if (xtermWrapperRef.current?.shouldFollowOutput()) {
-                        requestAnimationFrame(() => {
-                            term.scrollToLine(term.buffer.active.baseY);
-                            logScrollChange('applyColsOnly');
-                        });
+                    // Only scroll to bottom if we were already at bottom
+                    if (wasAtBottom && xtermWrapperRef.current?.shouldFollowOutput()) {
+                        scheduleScrollToBottomRef.current('applyColsOnly');
                     }
                 } catch (e) {
                     logger.debug(`[Terminal ${terminalId}] Failed to apply cols-only resize to ${effectiveCols}x${currentRows}`, e);
@@ -914,13 +942,38 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         }
 
         const handleWheel = (event: WheelEvent) => {
-            const next = classifyWheelEvent(event, isPhysicalWheelRef.current);
-            if (next === isPhysicalWheelRef.current) {
-                return;
+            const isPhysical = classifyWheelEvent(event, isPhysicalWheelRef.current);
+            
+            // Clear any existing timeout
+            if (wheelTimeoutRef.current) {
+                clearTimeout(wheelTimeoutRef.current);
+                wheelTimeoutRef.current = null;
             }
-            isPhysicalWheelRef.current = next;
-            if (xtermWrapperRef.current) {
-                xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled && next);
+            
+            // Enable smooth scrolling during active wheel events (if it's a physical wheel)
+            if (isPhysical && !isPhysicalWheelRef.current) {
+                isPhysicalWheelRef.current = true;
+                if (xtermWrapperRef.current) {
+                    xtermWrapperRef.current.setSmoothScrolling(smoothScrollingEnabled);
+                }
+            } else if (!isPhysical && isPhysicalWheelRef.current) {
+                // Trackpad detected - disable smooth scrolling immediately
+                isPhysicalWheelRef.current = false;
+                if (xtermWrapperRef.current) {
+                    xtermWrapperRef.current.setSmoothScrolling(false);
+                }
+            }
+            
+            // If smooth scrolling is active, schedule timeout to disable it
+            // This ensures smooth scrolling is OFF during pure output (no user scrolling)
+            if (isPhysicalWheelRef.current) {
+                wheelTimeoutRef.current = setTimeout(() => {
+                    isPhysicalWheelRef.current = false;
+                    if (xtermWrapperRef.current) {
+                        xtermWrapperRef.current.setSmoothScrolling(false);
+                    }
+                    wheelTimeoutRef.current = null;
+                }, 200); // 200ms after last wheel event, disable smooth scrolling
             }
         };
         
@@ -929,6 +982,10 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
         node.addEventListener('wheel', handleWheel, { passive: true, capture: true });
         return () => {
             node.removeEventListener('wheel', handleWheel, { capture: true });
+            if (wheelTimeoutRef.current) {
+                clearTimeout(wheelTimeoutRef.current);
+                wheelTimeoutRef.current = null;
+            }
         };
     }, [smoothScrollingEnabled]);
 
@@ -1830,6 +1887,12 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
 
             cancelGpuRefreshWorkRef.current?.();
 
+            // Cancel any pending scroll-to-bottom RAF
+            if (pendingScrollToBottomRef.current !== null) {
+                cancelAnimationFrame(pendingScrollToBottomRef.current);
+                pendingScrollToBottomRef.current = null;
+            }
+
             if (onDataDisposableRef.current) {
                 try {
                     onDataDisposableRef.current.dispose();
@@ -2086,7 +2149,9 @@ const TerminalComponent = forwardRef<TerminalHandle, TerminalProps>(({ terminalI
                  return;
              }
              const distance = buffer.baseY - buffer.viewportY;
-             const shouldShow = distance > 0;
+             // Use a small threshold (2 lines) to prevent button flickering during 
+             // smooth scroll animations or minor scroll adjustments
+             const shouldShow = distance > 2;
              setShowScrollBottom(prev => {
                  if (prev !== shouldShow) return shouldShow;
                  return prev;

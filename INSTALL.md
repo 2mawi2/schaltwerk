@@ -133,6 +133,80 @@ rm -rf ~/Library/Application\ Support/schaltwerk
 rm -rf ~/Library/Logs/schaltwerk
 ```
 
+## Linux Installation
+
+### Manjaro Linux
+
+Manjaro users can build and install Schaltwerk from source with the following steps:
+
+#### 1. Install Dependencies
+
+```bash
+# Install required system packages
+sudo pacman -S webkit2gtk gtk3 libappindicator-gtk3 librsvg patchelf
+
+# Install Bun (JavaScript runtime)
+curl -fsSL https://bun.sh/install | bash
+source ~/.bashrc
+
+# Install Rust via rustup
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+#### 2. Build the Application
+
+```bash
+# Clone the repository
+git clone https://github.com/2mawi2/schaltwerk.git
+cd schaltwerk
+
+# Install JavaScript dependencies
+bun install
+
+# Build the Tauri application
+bun run tauri build
+```
+
+#### 3. Install Locally (XDG)
+
+```bash
+# Create local bin directory if it doesn't exist
+mkdir -p ~/.local/bin
+
+# Copy the binary
+cp src-tauri/target/release/schaltwerk ~/.local/bin/
+
+# Create desktop entry
+mkdir -p ~/.local/share/applications
+cat > ~/.local/share/applications/schaltwerk.desktop << EOF
+[Desktop Entry]
+Name=Schaltwerk
+Comment=AI-powered terminal workspace
+Exec=$HOME/.local/bin/schaltwerk
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Development;Utility;
+EOF
+
+# Update desktop database
+update-desktop-database ~/.local/share/applications/
+```
+
+#### 4. Add to PATH (if needed)
+
+If `~/.local/bin` is not in your PATH, add it:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+You can now launch Schaltwerk from your application menu or by running `schaltwerk` in a terminal.
+
+---
+
 ## Building from Source
 
 If you need to build Schaltwerk from source:
@@ -141,7 +215,7 @@ If you need to build Schaltwerk from source:
 - Bun 1.2 or later (JS tooling)
 - Node.js 20 or later (for compatibility and native tooling)
 - Rust 1.75 or later
-- Xcode Command Line Tools
+- Xcode Command Line Tools (macOS only)
 
 ### Build Steps
 ```bash
