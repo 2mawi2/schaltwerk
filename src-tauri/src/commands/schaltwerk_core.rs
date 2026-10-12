@@ -717,7 +717,11 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
 
     let manager = session_manager_read().await?;
 
-    let result = manager.list_enriched_sessions_sorted(sort_mode, filter_mode);
+    let result = tokio::task::spawn_blocking(move || {
+        manager.list_enriched_sessions_sorted(sort_mode, filter_mode)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?;
 
     match &result {
         Ok(sessions) => log::info!(

@@ -193,20 +193,25 @@ impl RefreshHub {
             let core = get_core_read().await.map_err(|e| anyhow!(e))?;
             core.session_manager()
         };
-        let snap_start = Instant::now();
-        let sessions = manager.list_enriched_sessions()?;
-        let snap_elapsed = snap_start.elapsed().as_millis();
-        if snap_elapsed > 400 {
-            log::warn!(
-                "[SessionsRefreshHub] list_enriched_sessions took {snap_elapsed}ms (sessions={})",
-                sessions.len()
-            );
-        } else {
-            log::trace!(
-                "[SessionsRefreshHub] list_enriched_sessions took {snap_elapsed}ms (sessions={})",
-                sessions.len()
-            );
-        }
+        let sessions = tokio::task::spawn_blocking(move || {
+            let snap_start = Instant::now();
+            let sessions = manager.list_enriched_sessions()?;
+            let snap_elapsed = snap_start.elapsed().as_millis();
+            if snap_elapsed > 400 {
+                log::warn!(
+                    "[SessionsRefreshHub] list_enriched_sessions took {snap_elapsed}ms (sessions={})",
+                    sessions.len()
+                );
+            } else {
+                log::trace!(
+                    "[SessionsRefreshHub] list_enriched_sessions took {snap_elapsed}ms (sessions={})",
+                    sessions.len()
+                );
+            }
+            Ok::<_, anyhow::Error>(sessions)
+        })
+        .await
+        .map_err(|e| anyhow!("Task join error: {e}"))??;
         let repo_key = current_repo_cache_key().await.map_err(|e| anyhow!(e))?;
         Ok((repo_key, sessions))
     }
