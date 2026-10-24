@@ -1,0 +1,8 @@
+# Custom robots.txt overrides Mintlify's default (which ships ai-train=yes).
+# Content Signals: opt out of AI model training, stay open to search and AI answers.
+# https://contentsignals.org
+User-agent: *
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Disallow: /cdn-cgi/
+Allow: /_next/image
+Sitemap: https://schaltwerk.mintlify.app/sitemap.xml
